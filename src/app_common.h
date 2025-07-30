@@ -3,7 +3,7 @@
 #ifndef APP_COMMON_H
 #define APP_COMMON_H
 
-#define FIRMWARE_VERSION "0.2.0"
+#define FIRMWARE_VERSION "0.2.1"
 
 // Definizione degli stati dell'applicazione (ENUM)
 enum AppState {
