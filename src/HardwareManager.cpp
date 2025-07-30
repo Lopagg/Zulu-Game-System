@@ -156,11 +156,11 @@ void HardwareManager::updateRainbowEffect() {
     if (millis() - _rainbowLastUpdate < 25) return;
     _rainbowLastUpdate = millis();
     for (int i = 0; i < LED_STRIP_COUNT; i++) {
-        int pixelHue = _rainbowFirstPixelHue + (i * 65536 / LED_STRIP_COUNT);
+        int pixelHue = _rainbowFirstPixelHue + static_cast<int>(i * (65536.0f / LED_STRIP_COUNT));
         _strip.setPixelColor(i, _strip.gamma32(_strip.ColorHSV(pixelHue)));
     }
     _strip.show();
-    _rainbowFirstPixelHue += 256; 
+    _rainbowFirstPixelHue = (_rainbowFirstPixelHue + 256) % 65536;
 }
 void HardwareManager::updateBreathingEffect(uint8_t r, uint8_t g, uint8_t b) {
     if(millis() - _breathingLastUpdate < 25) { return; }
@@ -172,7 +172,9 @@ void HardwareManager::updateBreathingEffect(uint8_t r, uint8_t g, uint8_t b) {
         _breathingBrightness -= 0.02;
         if(_breathingBrightness <= 0.2) { _breathingBrightness = 0.2; _breathingUp = true; }
     }
-    uint8_t R = r * _breathingBrightness; uint8_t G = g * _breathingBrightness; uint8_t B = b * _breathingBrightness;
+    uint8_t R = r * _breathingBrightness;
+    uint8_t G = g * _breathingBrightness;
+    uint8_t B = b * _breathingBrightness;
     setStripColor(R, G, B);
 }
 void HardwareManager::setStripColor(uint8_t r, uint8_t g, uint8_t b) {
