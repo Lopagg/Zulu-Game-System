@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pannello di Controllo</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #1e1e1e; color: #d4d4d4; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        .main-container { width: 100%; max-width: 1200px; display: flex; flex-direction: column; gap: 20px; }
+        h1 { color: #4e94e2; border-bottom: 2px solid #4e94e2; padding-bottom: 10px; width: 100%; text-align: center; }
+        .hidden { display: none; }
+        .panel { background-color: #252526; border: 1px solid #3c3c3c; border-radius: 8px; padding: 20px; }
+        
+        /* Stili Vista Dominio */
+        #domination-view h2 { color: #c586c0; text-align: center; font-size: 2em; margin-top: 0; }
+        #domination-timer { font-size: 8em; font-weight: bold; color: #9cdcfe; text-align: center; margin: 20px 0; }
+        .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .details-grid h3 { color: #61afef; border-bottom: 1px solid #61afef; padding-bottom: 5px; }
+        .details-grid p { font-size: 1.2em; }
+        .details-grid span.setting-value { font-weight: bold; color: #b5cea8; }
+        .progress-bar-container { background-color: #3c3c3c; border-radius: 5px; padding: 3px; margin-top: 10px; }
+        .progress-bar { height: 20px; border-radius: 3px; width: 0%; transition: width 0.1s linear; }
+        #team1-progress { background-color: #d16d6d; }
+        #team2-progress { background-color: #6a9955; }
+        .team-red { color: #d16d6d; font-weight: bold; }
+        .team-green { color: #6a9955; font-weight: bold; }
+
+        /* Stile Vista Semplice */
+        #simple-view { text-align: center; font-size: 1.5em; }
+        #simple-mode-name { font-weight: bold; color: #c586c0; }
+        
+        /* Log eventi */
+        .log { height: 200px; overflow-y: scroll; border: 1px solid #3c3c3c; padding: 10px; background-color: #1e1e1e; border-radius: 4px; font-family: 'Courier New', Courier, monospace; font-size: 0.9em; }
+        #log-list { list-style: none; padding: 0; margin: 0; }
+        #log-list li { padding: 2px 5px; border-bottom: 1px solid #3a3f4b; }
+    </style>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+</head>
+<body>
+
+    <div class="main-container">
+        <h1>Pannello di Controllo Partita</h1>
+
+        <div id="domination-view" class="panel hidden">
+            <h2>DOMINIO</h2>
+            <div id="domination-timer">--:--</div>
+            <div class="details-grid">
+                <div class="game-status">
+                    <h3>Stato Partita</h3>
+                    <p id="domination-game-state">In attesa di inizio...</p>
+                    <div id="team1-progress-container" class="progress-bar-container hidden">
+                        <div id="team1-progress" class="progress-bar"></div>
+                    </div>
+                    <div id="team2-progress-container" class="progress-bar-container hidden">
+                        <div id="team2-progress" class="progress-bar"></div>
+                    </div>
+                    <p>Punteggio <span class="team-red">Rossa</span>: <span id="score-team1">00:00</span></p>
+                    <p>Punteggio <span class="team-green">Verde</span>: <span id="score-team2">00:00</span></p>
+                </div>
+                <div class="game-settings">
+                    <h3>Impostazioni in Uso</h3>
+                    <p>Durata: <span id="setting-duration" class="setting-value">--</span> min</p>
+                    <p>Tempo Conquista: <span id="setting-capture" class="setting-value">--</span> s</p>
+                    <p>Countdown Iniziale: <span id="setting-countdown" class="setting-value">--</span> s</p>
+                </div>
+            </div>
+             <h3 style="margin-top: 20px; margin-bottom: 5px;">Vincitore: <span id="status-winner">--</span></h3>
+        </div>
+
+        <div id="simple-view" class="panel">
+            <p>Modalità Attuale: <span id="simple-mode-name">Menu Principale</span></p>
+        </div>
+
+        <div class="log-container panel">
+            <h3>Log Eventi Raw</h3>
+            <div class="log">
+                <ul id="log-list"></ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const domView = document.getElementById('domination-view');
+        const simpleView = document.getElementById('simple-view');
+        const domTimer = document.getElementById('domination-timer');
+        const domGameState = document.getElementById('domination-game-state');
+        const settingDuration = document.getElementById('setting-duration');
+        const settingCapture = document.getElementById('setting-capture');
+        const settingCountdown = document.getElementById('setting-countdown');
+        const simpleModeName = document.getElementById('simple-mode-name');
+        const winnerStatus = document.getElementById('status-winner');
+        const team1ProgressContainer = document.getElementById('team1-progress-container');
+        const team1ProgressBar = document.getElementById('team1-progress');
+        const team2ProgressContainer = document.getElementById('team2-progress-container');
+        const team2ProgressBar = document.getElementById('team2-progress');
+        const scoreTeam1 = document.getElementById('score-team1');
+        const scoreTeam2 = document.getElementById('score-team2');
+
+        let captureInterval = null;
+        let lastGameState = 'In attesa di inizio...';
+        let captureTime = 5;
+
+        const socket = io();
+
+        socket.on('connect', () => { console.log('Connesso al server!'); });
+
+        socket.on('game_update', (data) => {
+            const logList = document.getElementById('log-list');
+            const newLogEntry = document.createElement('li');
+            newLogEntry.textContent = JSON.stringify(data);
+            logList.prepend(newLogEntry);
+
+            if (data.event === 'device_online') {
+                simpleModeName.textContent = 'Dispositivo Online - Menu Principale';
+                domView.classList.add('hidden');
+                simpleView.classList.remove('hidden');
+                return;
+            }
+
+            if (data.event === 'mode_enter') {
+                if (data.mode === 'domination') {
+                    domView.classList.remove('hidden');
+                    simpleView.classList.add('hidden');
+                    domGameState.innerHTML = 'In attesa di inizio...';
+                    lastGameState = 'In attesa di inizio...';
+                    domTimer.textContent = '--:--';
+                    winnerStatus.innerHTML = '--';
+                    scoreTeam1.textContent = '00:00';
+                    scoreTeam2.textContent = '00:00';
+                } else {
+                    domView.classList.add('hidden');
+                    simpleView.classList.remove('hidden');
+                    if (data.mode === 'sd') simpleModeName.textContent = 'Cerca e Distruggi';
+                    else if (data.mode === 'music') simpleModeName.textContent = 'Stanza dei Suoni';
+                    else if (data.mode === 'testhw') simpleModeName.textContent = 'Test Hardware';
+                    else simpleModeName.textContent = data.mode;
+                }
+                return;
+            }
+
+            if (data.event === 'mode_exit') {
+                domView.classList.add('hidden');
+                simpleView.classList.remove('hidden');
+                simpleModeName.textContent = 'Menu Principale';
+                return;
+            }
+            
+            if (data.event === 'settings_update') {
+                settingDuration.textContent = data.duration;
+                settingCapture.textContent = data.capture;
+                captureTime = parseInt(data.capture, 10);
+                settingCountdown.textContent = data.countdown;
+            }
+            if (data.event === 'countdown_start') {
+                lastGameState = `Partita inizia in ${data.duration}s...`;
+                domGameState.innerHTML = lastGameState;
+            }
+            if (data.event === 'countdown_update') {
+                lastGameState = `Partita inizia in ${data.time}s...`;
+                domGameState.innerHTML = lastGameState;
+            }
+            if (data.event === 'game_start') {
+                lastGameState = 'ZONA NEUTRA';
+                domGameState.innerHTML = lastGameState;
+            }
+            if (data.event === 'time_update') {
+                const totalSeconds = parseInt(data.time, 10);
+                const minutes = Math.floor(totalSeconds / 60);
+                const seconds = totalSeconds % 60;
+                domTimer.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            }
+            if (data.event === 'capture_start') {
+                lastGameState = domGameState.innerHTML;
+                domGameState.innerHTML = `Squadra <span class="${data.team === '1' ? 'team-red' : 'team-green'}">${data.team === '1' ? 'Rossa' : 'Verde'}</span> sta conquistando...`;
+                startProgressBar(parseInt(data.team, 10));
+            }
+             if (data.event === 'capture_cancel') {
+                stopProgressBar();
+                domGameState.innerHTML = 'Conquista annullata!';
+                setTimeout(() => { domGameState.innerHTML = lastGameState; }, 2000);
+            }
+            if (data.event === 'zone_captured') {
+                stopProgressBar();
+                lastGameState = `ZONA SQUADRA <span class="${data.team === '1' ? 'team-red' : 'team-green'}">${data.team === '1' ? 'ROSSA' : 'VERDE'}</span>!`;
+                domGameState.innerHTML = lastGameState;
+            }
+            if (data.event === 'score_update') {
+                scoreTeam1.textContent = formatMilliseconds(data.team1_score);
+                scoreTeam2.textContent = formatMilliseconds(data.team2_score);
+            }
+            if (data.event === 'game_end') {
+                domTimer.textContent = "00:00";
+                domGameState.innerHTML = "Partita Terminata!"; // *** CORREZIONE ***
+                if (data.winner === '1') winnerStatus.innerHTML = 'SQUADRA <span class="team-red">ROSSA</span>';
+                else if (data.winner === '2') winnerStatus.innerHTML = 'SQUADRA <span class="team-green">VERDE</span>';
+                else winnerStatus.innerHTML = "PAREGGIO";
+            }
+        });
+
+        function startProgressBar(team) {
+            stopProgressBar();
+            const bar = (team === 1) ? team1ProgressBar : team2ProgressBar;
+            const container = (team === 1) ? team1ProgressContainer : team2ProgressContainer;
+            
+            container.classList.remove('hidden');
+            bar.style.width = '0%';
+            
+            const startTime = Date.now();
+            captureInterval = setInterval(() => {
+                const elapsedTime = Date.now() - startTime;
+                const progress = (elapsedTime / (captureTime * 1000)) * 100;
+                bar.style.width = Math.min(progress, 100) + '%';
+                if (progress >= 100) {
+                    stopProgressBar();
+                }
+            }, 50);
+        }
+
+        function stopProgressBar() {
+            clearInterval(captureInterval);
+            team1ProgressContainer.classList.add('hidden');
+            team2ProgressContainer.classList.add('hidden');
+            team1ProgressBar.style.width = '0%';
+            team2ProgressBar.style.width = '0%';
+        }
+        
+        function formatMilliseconds(ms) {
+            const totalSeconds = Math.floor(ms / 1000);
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+    </script>
+</body>
+</html>
