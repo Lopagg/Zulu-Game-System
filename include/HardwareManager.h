@@ -44,9 +44,13 @@ public:
     void printLcd(int col, int row, const String& text);
     /** @brief Pulisce completamente lo schermo LCD. */
     void clearLcd();
+    /** @brief Ritorna il numero di righe dell'LCD */
     int getLcdRows();
+    /** @brief Ritorna il numero di colonne dell'LCD */
     int getLcdCols();
+    /** @brief Crea i caratteri personalizzati per la barra di avanzamento sull'LCD. */
     void createProgressBarChars();
+    /** @brief Stampa uno dei caratteri personalizzati sull'LCD. */
     void writeCustomChar(uint8_t charIndex);
 
     // Funzioni schermi OLED
@@ -60,11 +64,17 @@ public:
     void printOled2(const String& text, int size = 1, int x = 0, int y = 0);
 
     // Funzioni Tastiera e Pulsanti
+    /** @brief Legge un carattere dal tastierino numerico. */
     char getKey();
+    /** @brief Aggiorna lo stato di tutti i pulsanti. Da chiamare nel loop(). */
     void updateButtons();
+    /** @brief Controlla se il pulsante 1 è stato appena premuto (evento singolo). */
     bool wasButton1Pressed();
+    /** @brief Controlla se il pulsante 2 è stato appena premuto (evento singolo). */
     bool wasButton2Pressed();
-    bool isButton1Pressed(); 
+    /** @brief Controlla se il pulsante 1 è attualmente tenuto premuto (stato continuo). */
+    bool isButton1Pressed();
+    /** @brief Controlla se il pulsante 2 è attualmente tenuto premuto (stato continuo). */
     bool isButton2Pressed();
 
     // Funzioni Striscia LED
@@ -80,7 +90,7 @@ public:
     void updateRainbowEffect();
     /** @brief Aggiorna l'animazione "respirante". Usata durante il gioco. */
     void updateBreathingEffect(uint8_t r, uint8_t g, uint8_t b);
-    /** @brief Cambia la luminosità della striscia a LED. */
+    /** @brief Cambia la luminosità globale della striscia a LED. */
     void setBrightness(uint8_t brightness);
     /** @brief Ritorna il numero di LED nella striscia. */
     int getStripLedCount();
@@ -90,33 +100,39 @@ public:
     void updateWinnerWaveEffect(uint8_t r, uint8_t g, uint8_t b, float base_brightness, float peak_brightness, int wave_width);
 
     // Funzione RTC
+    /** @brief Ritorna l'ora corrente dall'RTC. */
     DateTime getRTCTime();
 
     // Funzioni Buzzer
+    /** @brief Riproduce un suono semplice per una data durata. Usato per i feedback dei menu. */
     void playTone(unsigned int frequency, unsigned long duration);
+    /** @brief Ferma qualsiasi suono. */
     void noTone();
+    /** @brief Avvia o aggiorna un suono continuo. Usato per suoni di avanzamento. */
     void updateTone(unsigned int frequency);
-    void playMidiTune(const int notes[][3], int length); // Nuova funzione
-    void updateMidiTune(); // Nuova funzione da chiamare nel loop
+    /** @brief Avvia la riproduzione non bloccante di una melodia. */
+    void playMidiTune(const int notes[][3], int length);
+    /** @brief Aggiorna lo stato della melodia in esecuzione. Da chiamare nel loop(). */
+    void updateMidiTune();
+    /** @brief Ferma la melodia in esecuzione. */
     void stopMidiTune();
+    /** @brief Ritorna 'true' se una melodia è in esecuzione. */
     bool isMidiTunePlaying();
 
 private:
 
-    // Creazione oggetti
+    // Oggetti che rappresentano i componenti hardware fisici.
     LiquidCrystal_I2C _lcd;
     Keypad _keypad;
     Button _button1;
     Button _button2;
     Adafruit_NeoPixel _strip;
     RTC_DS1307 _rtc;
-    
-    // Oggetti per i due schermi OLED
     Adafruit_SSD1306 _oled1;
     Adafruit_SSD1306 _oled2;
     TwoWire _i2c_2;
 
-    // Funzioni private
+    // Variabili private per gestire lo stato interno delle animazioni e dei suoni.
     unsigned long _rainbowLastUpdate;
     uint16_t _rainbowFirstPixelHue;
     unsigned long _breathingLastUpdate;
