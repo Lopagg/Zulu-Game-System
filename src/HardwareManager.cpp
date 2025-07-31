@@ -1,5 +1,10 @@
 // src/HardwareManager.cpp
 
+/**
+ * @file HardwareManager.cpp
+ * @brief Implementazione della classe HardwareManager.
+ */
+
 #include "HardwareManager.h" // Collegamento al file .h
 #include <Wire.h> // Libreria per I2C. Qui si inizializzano i bus
 
@@ -7,7 +12,10 @@
     // Lato sinistro: VIN (5V), GND, D13, D12, D14, D27, D26, D25, D33, D32, D35, D34, VN, VP, EN
     // Lato destro: 3V3, GND, D15, D4, RX2 (D16), TX2 (D17), D5, D18, D19, D21, TX0, RX0, D22, D23
 
-// --- Configurazione Hardware ---
+/** --- Configurazione Hardware Globale ---
+In questa sezione vengono definiti tutti i parametri hardware del progetto
+(indirizzi, pin, dimensioni, ecc.) usando delle macro. Questo rende il
+ codice più leggibile e facile da modificare in futuro. */
 #define LCD_ADDRESS 0x27
 #define OLED_ADDRESS 0x3C // Per entrambi
 #define LCD_COLS    20
@@ -29,7 +37,7 @@
 #define LED_STRIP_PIN   13
 #define LED_STRIP_COUNT 60 // Numero di LED della striscia
 
-// Mappa e pin tastierino
+// Mappa e pin del tastierino numerico 4x4.
 const byte ROWS = 4;
 const byte COLS = 4;
 char hexaKeys[ROWS][COLS] = {
@@ -41,7 +49,13 @@ char hexaKeys[ROWS][COLS] = {
 byte rowPins[ROWS] = {27, 26, 25, 14};
 byte colPins[COLS] = {4, 5, 16, 17};
 
-// Costruttore
+/**
+ * @brief Costruttore della classe.
+ * @details Viene eseguito quando viene creato l'oggetto 'hardware' in main.cpp.
+ * Usa la lista di inizializzazione per creare tutti gli oggetti dei componenti
+ * passando loro i parametri di configurazione (pin, indirizzi, ecc.).
+ * Nel corpo, inizializza le variabili di stato per le animazioni.
+ */
 HardwareManager::HardwareManager() :
     _lcd(LCD_ADDRESS, LCD_COLS, LCD_ROWS),
     _keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS),
@@ -54,6 +68,7 @@ HardwareManager::HardwareManager() :
     _oled2(OLED_RES_X, OLED_RES_Y, &_i2c_2, -1)
 
 {
+    // Inizializza le variabili di stato per la gestione interna
     _currentMidiTune = nullptr;
     _midiTuneLength = 0;
     _currentMidiNoteIndex = 0;
@@ -73,17 +88,26 @@ HardwareManager::HardwareManager() :
     _waveCenter = 0;
 }
 
-// Funzione di inizializzazione hardware, chiamata nel setup()
+/**
+ * @brief Inizializza tutti i componenti hardware.
+ * @details Questa funzione viene chiamata una sola volta nel setup() del programma principale.
+ * Esegue la sequenza di avvio per ogni componente: avvia i bus di comunicazione,
+ * inizializza i display, configura i pin e controlla che tutto funzioni correttamente.
+ * Se l'RTC non viene trovato, blocca il programma per segnalare un errore critico.
+ */
 void HardwareManager::initialize() {
     Serial.println("--- Inizializzazione Hardware ---");
     Serial.print("Inizializzazione I2C Bus 1 (Pin 21, 22)... ");
+    // Avvia il bus I2C principale per LCD, RTC e OLED1
     Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
     Serial.println("OK.");
     
     Serial.print("Inizializzazione I2C Bus 2 (Pin 14, 12)... ");
+    // Avvia il secondo bus I2C per l'OLED2
     _i2c_2.begin(I2C_SDA2_PIN, I2C_SCL2_PIN);
     Serial.println("OK.");
 
+    // Inizializza tutti i display
     Serial.print("Inizializzazione LCD... ");
     _lcd.init(); _lcd.backlight(); _lcd.clear();
     Serial.println("OK.");
@@ -108,12 +132,14 @@ void HardwareManager::initialize() {
         _oled2.display();
     }
     
+    // Configura il canale PWM per il buzzer/altoparlante
     Serial.print("Configurazione LEDC per Buzzer... ");
     ledcSetup(_buzzerChannel, 5000, 8); 
     ledcAttachPin(_buzzerPin, _buzzerChannel); // Collega il pin una sola volta
     ledcWrite(_buzzerChannel, 0); // Assicura che sia spento all'avvio
     Serial.println("OK.");
     
+    // Inizializza i pulsanti
     Serial.print("Inizializzazione Pulsanti... ");
     _button1.init(); _button2.init();
     Serial.println("OK.");
@@ -124,22 +150,29 @@ void HardwareManager::initialize() {
     _strip.show();
     Serial.println("OK.");
 
-    Serial.print("Inizializzazione RTC... ");
+    // Inizializza l'RTC
+    Serial.print("Inizializzazione RTC (DS1307)... ");
     if (!_rtc.begin()) {
         Serial.println("ERRORE: modulo RTC non trovato!");
         printLcd(0, 0, "Errore RTC!");
         while (1) delay(10);
     }
     Serial.println("OK.");
+    DateTime now = _rtc.now();
+    Serial.printf("Ora RTC: %04d/%02d/%02d %02d:%02d:%02d\n", now.year(), now.month(), now.day(), now.hour(), now.minute(), now.second());
 
     if (!_rtc.isrunning()) {
         Serial.println("ATTENZIONE: RTC non in funzione! Imposto data/ora...");
         _rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
     }
-    Serial.println("--- Hardware inizializzato ---");
+
+    Serial.println("--- HARDWARE INIZIALIZZATO ---");
 }
 
 // --- GESTIONE INPUT ---
+// Le seguenti funzioni servono a leggere lo stato dei pulsanti e del tastierino.
+// Sono "wrapper" che nascondono i dettagli delle librerie sottostanti.
+
 void HardwareManager::updateButtons() { 
     _button1.update();
     _button2.update();
