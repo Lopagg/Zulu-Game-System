@@ -15,18 +15,18 @@ public:
     // Metodi getter
     int getGameDuration();
     int getCaptureTime();
-    int getCountdownDuration(); // *** NUOVA FUNZIONE ***
+    int getCountdownDuration();
 
     // Metodi setter
     void setGameDuration(int duration);
     void setCaptureTime(int time);
-    void setCountdownDuration(int duration); // *** NUOVA FUNZIONE ***
+    void setCountdownDuration(int duration);
 
 private:
     // Variabili membro per le impostazioni
     int _gameDuration;
     int _captureTime;
-    int _countdownDuration; // *** NUOVA VARIABILE ***
+    int _countdownDuration;
 
     Preferences preferences;
 };
