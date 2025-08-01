@@ -20,7 +20,6 @@ public:
     String getDisarmingPin();
     int getArmingTime();
     int getDefuseTime();
-    // *** NUOVI GETTER PER LE OPZIONI PIN ***
     bool getUseArmingPin();
     bool getUseDisarmingPin();
 
@@ -30,7 +29,6 @@ public:
     void setDisarmingPin(const String& pin);
     void setArmingTime(int time);
     void setDefuseTime(int time);
-    // *** NUOVI SETTER PER LE OPZIONI PIN ***
     void setUseArmingPin(bool value);
     void setUseDisarmingPin(bool value);
 
@@ -41,7 +39,6 @@ private:
     String _disarmingPin;
     int _armingTime;
     int _defuseTime;
-    // *** NUOVE VARIABILI PER LE OPZIONI PIN ***
     bool _useArmingPin;
     bool _useDisarmingPin;
 

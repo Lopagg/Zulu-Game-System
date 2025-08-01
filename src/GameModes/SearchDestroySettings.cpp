@@ -50,6 +50,5 @@ void SearchDestroySettings::setArmingPin(const String& pin) { _armingPin = pin; 
 void SearchDestroySettings::setDisarmingPin(const String& pin) { _disarmingPin = pin; }
 void SearchDestroySettings::setArmingTime(int time) { _armingTime = time; }
 void SearchDestroySettings::setDefuseTime(int time) { _defuseTime = time; }
-// *** NUOVI SETTER ***
 void SearchDestroySettings::setUseArmingPin(bool value) { _useArmingPin = value; }
 void SearchDestroySettings::setUseDisarmingPin(bool value) { _useDisarmingPin = value; }

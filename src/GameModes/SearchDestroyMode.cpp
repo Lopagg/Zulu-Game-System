@@ -1,8 +1,17 @@
 // src/GameModes/SearchDestroyMode.cpp
 
+/**
+ * @file SearchDestroyMode.cpp
+ * @brief Implementazione della classe SearchDestroyMode.
+ */
+
 #include "SearchDestroyMode.h"
 
-// Costruttore
+/**
+ * @brief Costruttore.
+ * @details Inizializza tutte le variabili membro con i loro valori di default.
+ * Viene chiamato una sola volta in main.cpp alla creazione dell'oggetto sdMode.
+ */
 SearchDestroyMode::SearchDestroyMode(HardwareManager* hardware, NetworkManager* network, SearchDestroySettings* settings, AppState* appState, MainMenuDisplayFunction displayFunc)
     : _hardware(hardware),
       _network(network),
@@ -21,17 +30,29 @@ SearchDestroyMode::SearchDestroyMode(HardwareManager* hardware, NetworkManager* 
       _gameIsActive(false) {
 }
 
+/**
+ * @brief Funzione di ingresso della modalità.
+ * @details Chiamata dal menu principale, imposta lo stato iniziale della modalità
+ * e visualizza la prima schermata (il sottomenu). Invia anche i messaggi di
+ * rete per notificare l'ingresso nella modalità e lo stato delle impostazioni.
+ */
 void SearchDestroyMode::enter() {
     Serial.println("Entrato in modalita' Cerca & Distruggi");
     _currentState = ModeState::MODE_SUB_MENU;
     _subMenuIndex = 0;
     _gameIsActive = false;
     displaySubMenu();
-    _hardware->setStripColor(255, 100, 0);
+    _hardware->setStripColor(255, 100, 0);  // Colore arancione tipico della modalità
     _network->sendStatus("event:mode_enter;mode:sd;");
     sendSettingsStatus();
 }
 
+/**
+ * @brief Ciclo principale della modalità.
+ * @details Chiamata ad ogni iterazione del loop() di main.cpp quando questa modalità è attiva.
+ * Legge lo stato dei pulsanti e, in base allo stato interno (_currentState),
+ * delega il lavoro alla funzione di gestione appropriata (es. handleSubMenuInput, handleInGame, etc.).
+ */
 void SearchDestroyMode::loop() {
     char key = _hardware->getKey();
     bool btn1_is_pressed = _hardware->isButton1Pressed(); 
@@ -42,6 +63,7 @@ void SearchDestroyMode::loop() {
     if (_currentState >= ModeState::IN_GAME_CONFIRM) {
         handleInGame(key, btn1_is_pressed, btn1_was_pressed, btn2_is_pressed, btn2_was_pressed);
     } else {
+        // Gestisce la logica dei vari sottomenu
         switch (_currentState) {
             case ModeState::MODE_SUB_MENU:
                 handleSubMenuInput(key, btn1_was_pressed, btn2_was_pressed);
@@ -68,6 +90,11 @@ void SearchDestroyMode::loop() {
     }
 }
 
+/**
+ * @brief Funzione di uscita dalla modalità.
+ * @details Chiamata quando l'utente sceglie di tornare al menu principale.
+ * Invia il messaggio di rete di uscita, salva le impostazioni e spegne i display.
+ */
 void SearchDestroyMode::exit() {
     Serial.println("Uscito da modalita' Cerca & Distruggi");
     _network->sendStatus("event:mode_exit;mode:sd;");
@@ -79,6 +106,10 @@ void SearchDestroyMode::exit() {
 
 // --- Funzioni di Gestione Input ---
 
+/**
+ * @brief Gestisce la logica del sottomenu principale ("Inizia Partita", "Impostazioni").
+ * @details Fase del gioco: Menu.
+ */
 void SearchDestroyMode::handleSubMenuInput(char key, bool btn1, bool btn2) {
     String menuItems[] = { "Inizia Partita", "Impostazioni" };
     int numItems = 2;
@@ -107,6 +138,10 @@ void SearchDestroyMode::handleSubMenuInput(char key, bool btn1, bool btn2) {
     }
 }
 
+/**
+ * @brief Gestisce la logica del menu delle impostazioni.
+ * @details Fase del gioco: Menu.
+ */
 void SearchDestroyMode::handleSettingsInput(char key, bool btn1, bool btn2) {
     String menuItems[] = { "Timer Bomba", "PIN Armamento", "PIN Disarmo", "Tempo Armamento", "Tempo Disarmo", "Usa PIN armamento", "Usa PIN disarmo" };
     int numItems = sizeof(menuItems) / sizeof(menuItems[0]);
@@ -138,6 +173,10 @@ void SearchDestroyMode::handleSettingsInput(char key, bool btn1, bool btn2) {
     }
 }
 
+/**
+ * @brief Gestisce la logica delle schermate di modifica dei valori (numeri o stringhe).
+ * @details Fase del gioco: Menu Impostazioni.
+ */
 void SearchDestroyMode::handleEditInput(char key, bool btn1, bool btn2) {
     if (btn1) {
         _hardware->playTone(300, 70); _currentState = ModeState::MENU_SETTINGS;
@@ -182,6 +221,10 @@ void SearchDestroyMode::handleEditInput(char key, bool btn1, bool btn2) {
     if (displayNeedsUpdate) updateDisplayForCurrentState();
 }
 
+/**
+ * @brief Gestisce la logica delle schermate di modifica dei valori booleani (Sì/No).
+ * @details Fase del gioco: Menu Impostazioni.
+ */
 void SearchDestroyMode::handleBooleanEditInput(char key, bool btn1, bool btn2) {
     if (btn1) {
         _hardware->playTone(300, 70); _currentState = ModeState::MENU_SETTINGS;
@@ -199,7 +242,14 @@ void SearchDestroyMode::handleBooleanEditInput(char key, bool btn1, bool btn2) {
     }
 }
 
+/**
+ * @brief Gestisce tutta la logica quando la partita è in corso.
+ * @details Fase del gioco: Dalla conferma di inizio fino alla fine della partita.
+ * Contiene la logica del timer e una macchina a stati per gestire le azioni
+ * del giocatore (innesco, disinnesco, inserimento PIN, ecc.).
+ */
 void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_was_pressed, bool btn2_is_pressed, bool btn2_was_pressed) {
+    // Prima parte: gestione del timer principale della bomba (se attivo)
     if (_gameIsActive) {
         long totalSeconds = _settings->getBombTime() * 60;
         TimeSpan elapsed = _hardware->getRTCTime() - _roundStartTime;
@@ -265,6 +315,7 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
         }
     }
 
+    // Seconda parte: macchina a stati per le azioni del giocatore
     switch (_currentState) {
         case ModeState::IN_GAME_CONFIRM:
             if (btn1_was_pressed) { _currentState = ModeState::MODE_SUB_MENU; displaySubMenu(); }
@@ -639,6 +690,10 @@ void SearchDestroyMode::displayDefusingScreen(unsigned long progress) {
     for (int i = fullChars + (partialPixels > 0 ? 1 : 0); i < barWidthChars; i++) _hardware->printLcd(i + 2, 2, " ");
 }
 
+/**
+ * @brief Costruisce e invia un messaggio UDP con tutte le impostazioni correnti.
+ * @details Chiamata all'ingresso della modalità e all'uscita dal menu impostazioni.
+ */
 void SearchDestroyMode::sendSettingsStatus() {
     char message[200];
     sprintf(message, "event:settings_update;bomb_time:%d;arm_pin:%s;disarm_pin:%s;arm_time:%d;defuse_time:%d;use_arm_pin:%d;use_disarm_pin:%d;",
