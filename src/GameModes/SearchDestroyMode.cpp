@@ -60,6 +60,7 @@ void SearchDestroyMode::loop() {
     bool btn2_is_pressed = _hardware->isButton2Pressed();
     bool btn2_was_pressed = _hardware->wasButton2Pressed();
 
+    // La logica è divisa in due macrogruppi: gestione dei menu e gestione del gioco vero e proprio.
     if (_currentState >= ModeState::IN_GAME_CONFIRM) {
         handleInGame(key, btn1_is_pressed, btn1_was_pressed, btn2_is_pressed, btn2_was_pressed);
     } else {
@@ -251,6 +252,7 @@ void SearchDestroyMode::handleBooleanEditInput(char key, bool btn1, bool btn2) {
 void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_was_pressed, bool btn2_is_pressed, bool btn2_was_pressed) {
     // Prima parte: gestione del timer principale della bomba (se attivo)
     if (_gameIsActive) {
+        //Calcola il tempo rimanente, aggiorna il display e gestisce gli eventi sonori/visivi del timer
         long totalSeconds = _settings->getBombTime() * 60;
         TimeSpan elapsed = _hardware->getRTCTime() - _roundStartTime;
         long remainingSeconds = totalSeconds - elapsed.totalseconds();
@@ -317,7 +319,7 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
 
     // Seconda parte: macchina a stati per le azioni del giocatore
     switch (_currentState) {
-        case ModeState::IN_GAME_CONFIRM:
+        case ModeState::IN_GAME_CONFIRM:    // case IN_GAME_CONFIRM: gestisce la schermata "Iniziare la partita?"
             if (btn1_was_pressed) { _currentState = ModeState::MODE_SUB_MENU; displaySubMenu(); }
             if (btn2_was_pressed) { 
                 _network->sendStatus("event:game_start;");
@@ -326,7 +328,7 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
                 displayAwaitArmScreen(); 
             }
             break;
-        case ModeState::IN_GAME_AWAIT_ARM:
+        case ModeState::IN_GAME_AWAIT_ARM:  // case IN_GAME_AWAIT_ARM: la partita è iniziata, il dispositivo attende che la squadra T inneschi la bomba.
             _hardware->updateBreathingEffect(120, 120, 120);
             if (btn1_is_pressed) {
                 _network->sendStatus("event:arm_start;");
@@ -337,7 +339,7 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
                 _hardware->printLcd(2, 1, "INNESCO IN CORSO");
             }
             break;
-        case ModeState::IN_GAME_IS_ARMING: {
+        case ModeState::IN_GAME_IS_ARMING: {    // case IN_GAME_IS_ARMING: un giocatore T sta tenendo premuto il pulsante di innesco.
             unsigned long armTime = _settings->getArmingTime() * 1000;
             unsigned long elapsed = millis() - _armingStartTime;
             if (!btn1_is_pressed) {
@@ -350,11 +352,11 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
             if (elapsed >= armTime) {
                 _hardware->noTone();
                 if (_settings->getUseArmingPin()) {
-                    _currentState = ModeState::IN_GAME_ENTER_ARM_PIN; 
+                    _currentState = ModeState::IN_GAME_ENTER_ARM_PIN;   // case IN_GAME_ENTER_ARM_PIN: gestisce l'inserimento del PIN di innesco.
                     _currentInputBuffer = "";
                     displayEnterPinScreen("INSERIRE PIN INNESCO");
                 } else {
-                    _currentState = ModeState::IN_GAME_ARMED; 
+                    _currentState = ModeState::IN_GAME_ARMED;   // case IN_GAME_ARMED: stato transitorio dopo l'innesco, prima che parta il timer.
                     _hardware->clearLcd(); 
                     _hardware->printLcd(2, 1, "BOMBA INNESCATA!");
                     _hardware->setStripColor(255, 0, 0); 
@@ -427,7 +429,7 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
                 displayCountdownLayout();
             }
             break;
-        case ModeState::IN_GAME_COUNTDOWN:
+        case ModeState::IN_GAME_COUNTDOWN:  // case IN_GAME_COUNTDOWN: la bomba è innescata, il timer scorre e si attende un disinnesco.
             if (btn2_is_pressed && btn2_was_pressed) {
                 _network->sendStatus("event:defuse_start;");
                 _currentState = ModeState::IN_GAME_IS_DEFUSING; 
@@ -438,7 +440,7 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
                 _hardware->printLcd(5, 1, "DISINNESCO");
             }
             break;
-        case ModeState::IN_GAME_IS_DEFUSING: {
+        case ModeState::IN_GAME_IS_DEFUSING: {  // case IN_GAME_IS_DEFUSING: un giocatore CT sta tenendo premuto il pulsante di disinnesco.
             unsigned long defuseTime = _settings->getDefuseTime() * 1000;
             unsigned long elapsed = millis() - _defusingStartTime;
             if (!btn2_is_pressed) {
@@ -451,12 +453,12 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
             if (elapsed >= defuseTime) {
                 _hardware->noTone();
                 if (_settings->getUseDisarmingPin()) {
-                    _currentState = ModeState::IN_GAME_ENTER_DEFUSE_PIN; 
+                    _currentState = ModeState::IN_GAME_ENTER_DEFUSE_PIN;    // case IN_GAME_ENTER_DEFUSE_PIN: gestisce l'inserimento del PIN di disinnesco.
                     _currentInputBuffer = "";
                     displayEnterPinScreen("INSERIRE PIN");
                 } else {
                     _network->sendStatus("event:game_end;winner:counter-terrorists;");
-                    _currentState = ModeState::IN_GAME_DEFUSED; 
+                    _currentState = ModeState::IN_GAME_DEFUSED; // case IN_GAME_DEFUSED: la partita è finita, i CT hanno vinto.
                     _gameIsActive = false; 
                     _hardware->clearLcd();
                     _hardware->printLcd(1, 1, "BOMBA DISINNESCATA"); 
@@ -534,7 +536,7 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
                 _hardware->setStripColor(255, 100, 0);
             }
             break;
-        case ModeState::IN_GAME_ENDED:
+        case ModeState::IN_GAME_ENDED:  // case IN_GAME_ENDED: la partita è finita, i T hanno vinto.
             if (btn1_was_pressed || btn2_was_pressed || key != NO_KEY) {
                 _currentState = ModeState::MODE_SUB_MENU;
                 displaySubMenu();
@@ -545,7 +547,9 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
 }
 
 
-// --- Funzioni di Visualizzazione ---
+// --- Funzioni di Visualizzazione (display...) ---
+// Ognuna di queste funzioni è responsabile del disegno di una specifica schermata sull'LCD e sugli OLED.
+// Vengono chiamate dalle funzioni di gestione dell'input per aggiornare l'interfaccia utente.
 
 void SearchDestroyMode::displaySubMenu() {
     _hardware->clearLcd(); _hardware->printLcd(0, 0, "CERCA & DISTRUGGI");
@@ -654,6 +658,12 @@ void SearchDestroyMode::updateCountdownDisplay(long remainingSeconds) {
     sprintf(timeBuffer, "%02d : %02d", minutes, seconds);
     _hardware->printLcd(6, 2, timeBuffer);
 }
+
+/**
+ * @brief Funzione helper chiamata quando si deve aggiornare una schermata di modifica.
+ * @details Controlla lo stato attuale e chiama la funzione di `display` corretta
+ * con i parametri giusti (titolo, valore attuale, unità di misura).
+ */
 void SearchDestroyMode::updateDisplayForCurrentState() {
     switch (_currentState) {
         case ModeState::EDIT_BOMB_TIME: displayEditScreen("Mod. Timer Bomba", String(_settings->getBombTime()), "min"); break;
