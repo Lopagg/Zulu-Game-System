@@ -1,9 +1,19 @@
 // src/main.cpp
 
+/**
+ * @file main.cpp
+ * @brief File di ingresso principale del firmware.
+ * @details Questo file contiene le funzioni setup() e loop() che sono il cuore
+ * di ogni programma Arduino. Gestisce l'inizializzazione di tutti i sistemi,
+ * la creazione degli oggetti per le modalità di gioco e la macchina a stati
+ * principale che controlla quale modalità è attualmente in esecuzione.
+ */
+
 #include <Arduino.h>
 #include <SPI.h> 
 #include "nvs_flash.h"
 
+// Inclusione di tutti i file di intestazione necessari
 #include "app_common.h"
 #include "HardwareManager.h"
 #include "NetworkManager.h"
@@ -15,7 +25,12 @@
 #include "GameModes/DominationMode.h"
 #include "GameModes/DominationSettings.h"
 
-// --- Istanze Globali ---
+/** --- Istanze Globali --- 
+ * Vengono creati gli oggetti principali che verranno usati in tutto il programma.
+ * 'hardware' e 'networkManager' sono oggetti concreti.
+ * Le modalità di gioco e le loro impostazioni sono puntatori, verranno creati
+ * dinamicamente nella funzione setup().
+*/
 HardwareManager hardware;
 NetworkManager networkManager;
 SearchDestroySettings* sdSettings = nullptr;
@@ -24,26 +39,39 @@ DominationSettings* domSettings = nullptr;
 DominationMode* domMode = nullptr;
 MusicRoomMode* musicRoomMode = nullptr;
 
-// --- Dichiarazioni Anticipate ---
+/** --- Dichiarazioni Anticipate ---
+ * Prototipo di funzione per displayMainMenu(). Permette di usare la funzione
+ * prima della sua effettiva implementazione nel file, risolvendo l'ordine di lettura del compilatore.
+ */
 void displayMainMenu();
+
+/** Variabile di stato globale che tiene traccia della modalità corrente.
+ * All'avvio, viene impostata sulla schermata di benvenuto.
+*/
 AppState currentAppState = APP_STATE_WELCOME;
 
 // --- Stato e Menu Globale ---
+// Variabili per la gestione del menu principale.
 int mainMenuIndex = 0;
-// *** AGGIUNTA OPZIONE AL MENU ***
 String mainMenuOptions[] = { "Cerca & Distruggi", "Dominio", "Stanza dei Suoni", "Test Hardware" };
 int numMainMenuOptions = sizeof(mainMenuOptions) / sizeof(mainMenuOptions[0]);
 
 // --- Dichiarazioni Funzioni di Stato ---
+// Prototipi per le funzioni che gestiscono gli stati non legati a una classe specifica.
 void handleWelcomeState();
 void handleMainMenuState();
 void handleTestHardwareState();
 
 // --- SETUP ---
-
+/**
+ * @brief Funzione di setup, eseguita una sola volta all'avvio del dispositivo.
+ * @details Inizializza la comunicazione seriale, la memoria NVS per le impostazioni,
+ * crea gli oggetti per le modalità di gioco e inizializza l'hardware e la rete.
+ */
 void setup() {
     Serial.begin(115200);
 
+    // Inizializzazione della NVS (Non-Volatile Storage), necessaria per la libreria Preferences.
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
       ESP_ERROR_CHECK(nvs_flash_erase());
@@ -52,6 +80,9 @@ void setup() {
     ESP_ERROR_CHECK(ret);
     Serial.println("NVS Inizializzato.");
 
+    // Creazione dinamica degli oggetti per le impostazioni e le modalità di gioco.
+    // Viene passato un puntatore (&) all'hardware, alla rete e allo stato globale,
+    // in modo che tutte le modalità possano interagire con gli stessi componenti.
     sdSettings = new SearchDestroySettings();
     sdMode = new SearchDestroyMode(&hardware, &networkManager, sdSettings, &currentAppState, displayMainMenu);
 
@@ -60,10 +91,12 @@ void setup() {
 
     musicRoomMode = new MusicRoomMode(&hardware, &currentAppState, displayMainMenu);
 
+    // Inizializzazione dei componenti fisici e della connessione di rete.
     hardware.initialize();
     networkManager.initialize();
     Serial.println("Avvio del sistema completato.");
 
+    // Invia un messaggio di avvio sulla rete.
     char startupMessage[100];
     sprintf(startupMessage, "event:device_online;status:ready;version:%s;", FIRMWARE_VERSION);
     networkManager.sendStatus(startupMessage);
@@ -72,15 +105,23 @@ void setup() {
 
 // --- LOOP ---
 
+/**
+ * @brief Funzione di loop, eseguita continuamente dopo il setup().
+ * @details È il cuore del programma. Ad ogni ciclo, aggiorna i componenti di input,
+ * le animazioni e la rete. Utilizza una macchina a stati (switch-case) basata su
+ * 'currentAppState' per delegare il controllo alla funzione o all'oggetto corretto.
+ */
 void loop() {
     hardware.updateButtons();
     hardware.updateMidiTune();
     networkManager.update();
 
+    // Esegue l'animazione arcobaleno solo quando si è nei menu.
     if (currentAppState == APP_STATE_WELCOME || currentAppState == APP_STATE_MAIN_MENU) {
         hardware.updateRainbowEffect();
     }
 
+    // Macchina a stati principale.
     switch (currentAppState) {
         case APP_STATE_WELCOME:
             handleWelcomeState();
@@ -89,13 +130,13 @@ void loop() {
             handleMainMenuState();
             break;
         case APP_STATE_SEARCH_DESTROY_MODE:
-            sdMode->loop();
+            sdMode->loop(); // Delega il controllo alla modalità C&D
             break;
         case APP_STATE_DOMINATION_MODE:
-            domMode->loop();
+            domMode->loop();    // Delega il controllo alla modalità Dominio
             break;
         case APP_STATE_MUSIC_ROOM:
-            musicRoomMode->loop();
+            musicRoomMode->loop();  // Delega il controllo alla Stanza dei Suoni
             break;
         case APP_STATE_TEST_HARDWARE:
             handleTestHardwareState();
@@ -105,6 +146,11 @@ void loop() {
 
 // --- Implementazione Funzioni di Gestione Stati ---
 
+/**
+ * @brief Gestisce la logica della schermata di benvenuto.
+ * @details Mostra un messaggio di benvenuto, la versione del firmware e l'ora per 3 secondi,
+ * dopodiché passa automaticamente allo stato del menu principale.
+ */
 void handleWelcomeState() {
     static bool firstEntry = true;
     static unsigned long welcomeStartTime = 0;
@@ -135,6 +181,11 @@ void handleWelcomeState() {
     }
 }
 
+/**
+ * @brief Disegna il menu principale sull'LCD.
+ * @details Pulisce lo schermo e disegna le opzioni del menu, mostrando un cursore (>)
+ * sulla voce attualmente selezionata e le frecce di scorrimento se necessario.
+ */
 void displayMainMenu() {
     Serial.println("DISPLAY: Menu Principale");
     hardware.clearLcd();
@@ -167,6 +218,12 @@ void displayMainMenu() {
     hardware.printOled2("CONFERMA", 2, 18, 25);
 }
 
+/**
+ * @brief Gestisce la logica del menu principale.
+ * @details Legge l'input dal tastierino per navigare nel menu e dal pulsante di conferma
+ * per selezionare una modalità. Quando una modalità viene selezionata, cambia lo stato
+ * globale 'currentAppState' e chiama il metodo enter() della modalità scelta.
+ */
 void handleMainMenuState() {
     char key = hardware.getKey();
     bool btn1_pressed = hardware.wasButton1Pressed();
@@ -224,6 +281,11 @@ void handleMainMenuState() {
     }
 }
 
+/**
+ * @brief Gestisce la logica della modalità di test hardware.
+ * @details Permette di testare il funzionamento di base di tastierino, pulsanti e LED.
+ * Serve principalmente per il debug iniziale.
+ */
 void handleTestHardwareState() {
     static bool firstEntry = true;
     if(firstEntry){
