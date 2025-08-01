@@ -1,13 +1,24 @@
 // src/GameModes/SearchDestroySettings.cpp
 
+/**
+ * @file SearchDestroySettings.cpp
+ * @brief Implementazione della classe SearchDestroySettings.
+ */
+
 #include "SearchDestroySettings.h"
 
-// Costruttore
+/**
+ * @brief Costruttore. Carica automaticamente i parametri all'avvio.
+ */
 SearchDestroySettings::SearchDestroySettings() {
     loadParameters();
 }
 
-// Salva i parametri correnti nella memoria
+/**
+ * @brief Salva tutti i parametri nella memoria flash.
+ * @details Usa uno "spazio dei nomi" ("sd-settings") per evitare conflitti con altre
+ * impostazioni salvate. 'false' indica che la memoria viene aperta in modalità di scrittura.
+ */
 void SearchDestroySettings::saveParameters() {
     preferences.begin("sd-settings", false);
     preferences.putInt("bombTime", _bombTime);
@@ -21,7 +32,12 @@ void SearchDestroySettings::saveParameters() {
     Serial.println("Parametri salvati.");
 }
 
-// Carica i parametri dalla memoria
+/**
+ * @brief Carica tutti i parametri dalla memoria flash.
+ * @details 'true' indica che la memoria viene aperta in modalità di sola lettura.
+ * Per ogni parametro, se non viene trovato un valore salvato, viene utilizzato
+ * un valore di default (es. getInt("bombTime", 10) imposta 10 minuti se non c'è nulla).
+ */
 void SearchDestroySettings::loadParameters() {
     preferences.begin("sd-settings", true);
     _bombTime = preferences.getInt("bombTime", 10);
@@ -35,7 +51,8 @@ void SearchDestroySettings::loadParameters() {
     Serial.println("Parametri caricati.");
 }
 
-// --- Metodi Getter ---
+// --- Implementazione dei Metodi Getter ---
+// Queste funzioni semplicemente restituiscono il valore della variabile privata corrispondente.
 int SearchDestroySettings::getBombTime() { return _bombTime; }
 String SearchDestroySettings::getArmingPin() { return _armingPin; }
 String SearchDestroySettings::getDisarmingPin() { return _disarmingPin; }
@@ -44,7 +61,8 @@ int SearchDestroySettings::getDefuseTime() { return _defuseTime; }
 bool SearchDestroySettings::getUseArmingPin() { return _useArmingPin; }
 bool SearchDestroySettings::getUseDisarmingPin() { return _useDisarmingPin; }
 
-// --- Metodi Setter ---
+// --- Implementazione dei Metodi Setter ---
+// Queste funzioni permettono di modificare il valore della variabile privata corrispondente.
 void SearchDestroySettings::setBombTime(int time) { _bombTime = time; }
 void SearchDestroySettings::setArmingPin(const String& pin) { _armingPin = pin; }
 void SearchDestroySettings::setDisarmingPin(const String& pin) { _disarmingPin = pin; }
