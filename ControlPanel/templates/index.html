@@ -4,32 +4,50 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pannello di Controllo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DSEG7+Classic:ital,wght@0,400;1,400&display=swap" rel="stylesheet">
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #1e1e1e; color: #d4d4d4; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
         .main-container { width: 100%; max-width: 1200px; display: flex; flex-direction: column; gap: 20px; }
         h1 { color: #4e94e2; border-bottom: 2px solid #4e94e2; padding-bottom: 10px; width: 100%; text-align: center; }
+        h2 { color: #c586c0; text-align: center; font-size: 2em; margin-top: 0; }
         .hidden { display: none; }
         .panel { background-color: #252526; border: 1px solid #3c3c3c; border-radius: 8px; padding: 20px; }
         
-        /* Stili Vista Dominio */
-        #domination-view h2 { color: #c586c0; text-align: center; font-size: 2em; margin-top: 0; }
-        #domination-timer { font-size: 8em; font-weight: bold; color: #9cdcfe; text-align: center; margin: 20px 0; }
         .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
         .details-grid h3 { color: #61afef; border-bottom: 1px solid #61afef; padding-bottom: 5px; }
         .details-grid p { font-size: 1.2em; }
         .details-grid span.setting-value { font-weight: bold; color: #b5cea8; }
+
+        .big-timer { font-size: 8em; font-weight: bold; color: #9cdcfe; text-align: center; margin: 20px 0; }
+
+        /* Stili Dominio */
         .progress-bar-container { background-color: #3c3c3c; border-radius: 5px; padding: 3px; margin-top: 10px; }
         .progress-bar { height: 20px; border-radius: 3px; width: 0%; transition: width 0.1s linear; }
-        #team1-progress { background-color: #d16d6d; }
-        #team2-progress { background-color: #6a9955; }
+        #team1-progress, #arm-progress { background-color: #d16d6d; }
+        #team2-progress, #defuse-progress { background-color: #6a9955; }
         .team-red { color: #d16d6d; font-weight: bold; }
         .team-green { color: #6a9955; font-weight: bold; }
 
-        /* Stile Vista Semplice */
+        /* Stili Cerca e Distruggi */
+        .timer-controls { text-align: center; margin-top: 10px; }
+        .timer-controls input { width: 60px; padding: 5px; background-color: #3c3c3c; border: 1px solid #61afef; color: #d4d4d4; border-radius: 4px;}
+        .timer-controls button { padding: 8px 15px; background-color: #6a9955; border: none; color: white; border-radius: 4px; cursor: pointer; font-size: 1em; }
+        .timer-controls button:disabled { background-color: #3c3c3c; color: #6a6a6a; cursor: not-allowed; }
+        #sd-bomb-timer { 
+            font-family: "DSEG7 Classic", monospace;
+            font-size: 4em; 
+            font-weight: bold; 
+            color: #d16d6d; 
+        }
+        
+        /* Vista Semplice */
         #simple-view { text-align: center; font-size: 1.5em; }
         #simple-mode-name { font-weight: bold; color: #c586c0; }
         
-        /* Log eventi */
+        /* Log */
+        .log-container { display: block; }
         .log { height: 200px; overflow-y: scroll; border: 1px solid #3c3c3c; padding: 10px; background-color: #1e1e1e; border-radius: 4px; font-family: 'Courier New', Courier, monospace; font-size: 0.9em; }
         #log-list { list-style: none; padding: 0; margin: 0; }
         #log-list li { padding: 2px 5px; border-bottom: 1px solid #3a3f4b; }
@@ -37,13 +55,12 @@
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 </head>
 <body>
-
     <div class="main-container">
         <h1>ZULU GAME SYSTEM</h1>
 
         <div id="domination-view" class="panel hidden">
             <h2>DOMINIO</h2>
-            <div id="domination-timer">--:--</div>
+            <div class="big-timer" id="domination-timer">--:--</div>
             <div class="details-grid">
                 <div class="game-status">
                     <h3>Stato Partita</h3>
@@ -66,28 +83,63 @@
             </div>
              <h3 style="margin-top: 20px; margin-bottom: 5px;">Vincitore: <span id="status-winner">--</span></h3>
         </div>
+        
+        <div id="sd-view" class="panel hidden">
+            <h2>CERCA E DISTRUGGI</h2>
+            <div class="big-timer" id="sd-game-timer">--:--</div>
+            <div class="timer-controls">
+                <span id="game-duration-wrapper">
+                    <label for="game-duration-input">Imposta minuti: </label>
+                    <input type="number" id="game-duration-input" value="15" min="1">
+                </span>
+                <button id="start-game-timer-btn" disabled>Avvia Timer Partita</button>
+            </div>
+            <div class="details-grid">
+                <div class="game-status">
+                    <h3>Stato Bomba</h3>
+                    <p id="sd-bomb-state">In attesa di inizio...</p>
+                    <p>Timer Bomba: <span id="sd-bomb-timer">--:--</span></p>
+                    <div id="arm-progress-container" class="progress-bar-container hidden">
+                        <div id="arm-progress" class="progress-bar"></div>
+                    </div>
+                    <div id="defuse-progress-container" class="progress-bar-container hidden">
+                        <div id="defuse-progress" class="progress-bar"></div>
+                    </div>
+                </div>
+                <div class="game-settings">
+                    <h3>Impostazioni in Uso</h3>
+                    <p>Tempo Bomba: <span id="setting-bomb-time" class="setting-value">--</span> min</p>
+                    <p>Tempo Innesco: <span id="setting-arm-time" class="setting-value">--</span> s</p>
+                    <p>Tempo Disinnesco: <span id="setting-defuse-time" class="setting-value">--</span> s</p>
+                    <p>Usa PIN Innesco: <span id="setting-use-arm-pin" class="setting-value">--</span></p>
+                    <p>PIN Innesco: <span id="setting-arm-pin" class="setting-value">--</span></p>
+                    <p>Usa PIN Disinnesco: <span id="setting-use-defuse-pin" class="setting-value">--</span></p>
+                    <p>PIN Disinnesco: <span id="setting-disarm-pin" class="setting-value">--</span></p>
+                </div>
+            </div>
+        </div>
 
         <div id="simple-view" class="panel">
             <p>Modalità Attuale: <span id="simple-mode-name">Menu Principale</span></p>
         </div>
 
         <div class="log-container panel">
-            <h3>Log Eventi Raw</h3>
-            <div class="log">
-                <ul id="log-list"></ul>
-            </div>
+             <h3>Log Eventi Raw</h3>
+             <div class="log"><ul id="log-list"></ul></div>
         </div>
     </div>
 
     <script>
-        const domView = document.getElementById('domination-view');
+        // Riferimenti agli elementi HTML
         const simpleView = document.getElementById('simple-view');
+        const simpleModeName = document.getElementById('simple-mode-name');
+        
+        const domView = document.getElementById('domination-view');
         const domTimer = document.getElementById('domination-timer');
         const domGameState = document.getElementById('domination-game-state');
         const settingDuration = document.getElementById('setting-duration');
         const settingCapture = document.getElementById('setting-capture');
         const settingCountdown = document.getElementById('setting-countdown');
-        const simpleModeName = document.getElementById('simple-mode-name');
         const winnerStatus = document.getElementById('status-winner');
         const team1ProgressContainer = document.getElementById('team1-progress-container');
         const team1ProgressBar = document.getElementById('team1-progress');
@@ -95,56 +147,71 @@
         const team2ProgressBar = document.getElementById('team2-progress');
         const scoreTeam1 = document.getElementById('score-team1');
         const scoreTeam2 = document.getElementById('score-team2');
+        
+        const sdView = document.getElementById('sd-view');
+        const sdGameTimer = document.getElementById('sd-game-timer');
+        const gameDurationInput = document.getElementById('game-duration-input');
+        const gameDurationWrapper = document.getElementById('game-duration-wrapper');
+        const startGameTimerBtn = document.getElementById('start-game-timer-btn');
+        const sdBombState = document.getElementById('sd-bomb-state');
+        const sdBombTimer = document.getElementById('sd-bomb-timer');
+        const settingBombTime = document.getElementById('setting-bomb-time');
+        const settingArmTime = document.getElementById('setting-arm-time');
+        const settingDefuseTime = document.getElementById('setting-defuse-time');
+        const settingUseArmPin = document.getElementById('setting-use-arm-pin');
+        const settingArmPin = document.getElementById('setting-arm-pin');
+        const settingUseDefusePin = document.getElementById('setting-use-defuse-pin');
+        const settingDisarmPin = document.getElementById('setting-disarm-pin');
+        const armProgressContainer = document.getElementById('arm-progress-container');
+        const armProgressBar = document.getElementById('arm-progress');
+        const defuseProgressContainer = document.getElementById('defuse-progress-container');
+        const defuseProgressBar = document.getElementById('defuse-progress');
 
-        let captureInterval = null;
+        // Variabili di stato
+        let activeMode = 'none';
+        let actionInterval = null;
         let lastGameState = 'In attesa di inizio...';
-        let captureTime = 5;
+        let captureTime = 5, armTime = 5, defuseTime = 10;
+        let gameTimerInterval = null;
+        let gameTimerSeconds = 0;
 
         const socket = io();
-
         socket.on('connect', () => { console.log('Connesso al server!'); });
 
         socket.on('game_update', (data) => {
             const logList = document.getElementById('log-list');
-            const newLogEntry = document.createElement('li');
-            newLogEntry.textContent = JSON.stringify(data);
-            logList.prepend(newLogEntry);
-
-            if (data.event === 'device_online') {
-                simpleModeName.textContent = 'Dispositivo Online - Menu Principale';
-                domView.classList.add('hidden');
-                simpleView.classList.remove('hidden');
-                return;
+            if(logList) {
+                const newLogEntry = document.createElement('li');
+                newLogEntry.textContent = JSON.stringify(data);
+                logList.prepend(newLogEntry);
             }
 
-            if (data.event === 'mode_enter') {
+            if (data.event === 'device_online' || data.event === 'mode_exit') {
+                resetToMainMenu();
+            } else if (data.event === 'mode_enter') {
+                stopAllTimers();
+                activeMode = data.mode;
                 if (data.mode === 'domination') {
-                    domView.classList.remove('hidden');
-                    simpleView.classList.add('hidden');
-                    domGameState.innerHTML = 'In attesa di inizio...';
-                    lastGameState = 'In attesa di inizio...';
-                    domTimer.textContent = '--:--';
-                    winnerStatus.innerHTML = '--';
-                    scoreTeam1.textContent = '00:00';
-                    scoreTeam2.textContent = '00:00';
+                    showView('domination');
+                    resetDominationView();
+                } else if (data.mode === 'sd') {
+                    showView('sd');
+                    resetSdView();
                 } else {
-                    domView.classList.add('hidden');
-                    simpleView.classList.remove('hidden');
-                    if (data.mode === 'sd') simpleModeName.textContent = 'Cerca e Distruggi';
-                    else if (data.mode === 'music') simpleModeName.textContent = 'Stanza dei Suoni';
+                    showView('simple');
+                    if (data.mode === 'music') simpleModeName.textContent = 'Stanza dei Suoni';
                     else if (data.mode === 'testhw') simpleModeName.textContent = 'Test Hardware';
-                    else simpleModeName.textContent = data.mode;
                 }
-                return;
-            }
-
-            if (data.event === 'mode_exit') {
-                domView.classList.add('hidden');
-                simpleView.classList.remove('hidden');
-                simpleModeName.textContent = 'Menu Principale';
-                return;
             }
             
+            if (activeMode === 'domination') {
+                handleDominationEvents(data);
+            } else if (activeMode === 'sd') {
+                handleSearchDestroyEvents(data);
+            }
+        });
+
+        function handleDominationEvents(data) {
             if (data.event === 'settings_update') {
                 settingDuration.textContent = data.duration;
                 settingCapture.textContent = data.capture;
@@ -164,15 +231,12 @@
                 domGameState.innerHTML = lastGameState;
             }
             if (data.event === 'time_update') {
-                const totalSeconds = parseInt(data.time, 10);
-                const minutes = Math.floor(totalSeconds / 60);
-                const seconds = totalSeconds % 60;
-                domTimer.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                updateTimerDisplay(domTimer, parseInt(data.time, 10));
             }
             if (data.event === 'capture_start') {
                 lastGameState = domGameState.innerHTML;
-                domGameState.innerHTML = `Squadra <span class="${data.team === '1' ? 'team-red' : 'team-green'}">${data.team === '1' ? 'Rossa' : 'Verde'}</span> sta conquistando...`;
-                startProgressBar(parseInt(data.team, 10));
+                domGameState.innerHTML = `Squadra <span class="team-${data.team === '1' ? 'red' : 'green'}">${data.team === '1' ? 'Rossa' : 'Verde'}</span> sta conquistando...`;
+                startProgressBar(data.team === '1' ? team1ProgressBar : team2ProgressBar, captureTime);
             }
              if (data.event === 'capture_cancel') {
                 stopProgressBar();
@@ -181,7 +245,7 @@
             }
             if (data.event === 'zone_captured') {
                 stopProgressBar();
-                lastGameState = `ZONA SQUADRA <span class="${data.team === '1' ? 'team-red' : 'team-green'}">${data.team === '1' ? 'ROSSA' : 'VERDE'}</span>!`;
+                lastGameState = `ZONA SQUADRA <span class="team-${data.team === '1' ? 'red' : 'green'}">${data.team === '1' ? 'ROSSA' : 'VERDE'}</span>!`;
                 domGameState.innerHTML = lastGameState;
             }
             if (data.event === 'score_update') {
@@ -190,38 +254,132 @@
             }
             if (data.event === 'game_end') {
                 domTimer.textContent = "00:00";
-                domGameState.innerHTML = "Partita Terminata!"; // *** CORREZIONE ***
+                domGameState.innerHTML = "Partita Terminata!";
                 if (data.winner === '1') winnerStatus.innerHTML = 'SQUADRA <span class="team-red">ROSSA</span>';
                 else if (data.winner === '2') winnerStatus.innerHTML = 'SQUADRA <span class="team-green">VERDE</span>';
                 else winnerStatus.innerHTML = "PAREGGIO";
             }
+        }
+
+        function handleSearchDestroyEvents(data) {
+            if (data.event === 'settings_update') {
+                settingBombTime.textContent = data.bomb_time;
+                settingArmTime.textContent = data.arm_time;
+                armTime = parseInt(data.arm_time, 10);
+                settingDefuseTime.textContent = data.defuse_time;
+                defuseTime = parseInt(data.defuse_time, 10);
+                settingUseArmPin.textContent = data.use_arm_pin === '1' ? 'Sì' : 'No';
+                settingArmPin.textContent = data.arm_pin;
+                settingUseDefusePin.textContent = data.use_disarm_pin === '1' ? 'Sì' : 'No';
+                settingDisarmPin.textContent = data.disarm_pin;
+            }
+            if (data.event === 'game_start') {
+                startGameTimerBtn.disabled = false;
+                sdBombState.textContent = 'In attesa di innesco...';
+            }
+            if (data.event === 'arm_start') { 
+                sdBombState.textContent = 'Innesco in corso...';
+                startProgressBar(armProgressBar, armTime);
+            }
+            if (data.event === 'arm_cancel') { 
+                sdBombState.textContent = 'Innesco annullato. In attesa...';
+                stopProgressBar();
+            }
+            if (data.event === 'arm_pin_wrong') { sdBombState.textContent = 'PIN innesco errato!'; }
+            if (data.event === 'bomb_armed') {
+                stopProgressBar();
+                sdBombState.textContent = 'BOMBA INNESCATA!';
+            }
+            if (data.event === 'time_update') {
+                updateTimerDisplay(sdBombTimer, parseInt(data.time, 10));
+            }
+            if (data.event === 'defuse_start') { 
+                sdBombState.textContent = 'Disinnesco in corso...';
+                startProgressBar(defuseProgressBar, defuseTime);
+            }
+            if (data.event === 'defuse_cancel') { 
+                sdBombState.textContent = 'BOMBA INNESCATA!';
+                stopProgressBar();
+            }
+            if (data.event === 'defuse_pin_wrong') { sdBombState.textContent = 'PIN disinnesco errato!'; }
+            if (data.event === 'game_end') {
+                stopGameTimer();
+                stopProgressBar();
+                startGameTimerBtn.disabled = true;
+                let winnerText = data.winner === 'terrorists' ? 'squadra <span class="team-red">T</span>' : 'squadra <span class="team-green">CT</span>';
+                sdBombState.innerHTML = `Partita finita! Vince la ${winnerText}`;
+            }
+            if (data.event === 'round_reset') {
+                resetSdView();
+            }
+        }
+
+        startGameTimerBtn.addEventListener('click', () => {
+            if (gameTimerInterval) {
+                stopGameTimer();
+            } else {
+                gameTimerSeconds = parseInt(gameDurationInput.value, 10) * 60;
+                if (isNaN(gameTimerSeconds) || gameTimerSeconds <= 0) return;
+                
+                gameDurationWrapper.classList.add('hidden');
+                startGameTimerBtn.textContent = 'Ferma Timer';
+                updateTimerDisplay(sdGameTimer, gameTimerSeconds);
+
+                gameTimerInterval = setInterval(() => {
+                    gameTimerSeconds--;
+                    updateTimerDisplay(sdGameTimer, gameTimerSeconds);
+                    if (gameTimerSeconds <= 0) {
+                        stopGameTimer();
+                        sdBombState.innerHTML = "TEMPO SCADUTO!";
+                    }
+                }, 1000);
+            }
         });
 
-        function startProgressBar(team) {
+        function stopGameTimer() {
+            clearInterval(gameTimerInterval);
+            gameTimerInterval = null;
+            startGameTimerBtn.textContent = 'Avvia Timer Partita';
+            gameDurationWrapper.classList.remove('hidden');
+        }
+        
+        function stopAllTimers() {
+            stopGameTimer();
             stopProgressBar();
-            const bar = (team === 1) ? team1ProgressBar : team2ProgressBar;
-            const container = (team === 1) ? team1ProgressContainer : team2ProgressContainer;
+        }
+
+        function updateTimerDisplay(element, totalSeconds) {
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            element.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+
+        function startProgressBar(barElement, durationSeconds) {
+            stopProgressBar();
+            const container = barElement.parentElement;
             
             container.classList.remove('hidden');
-            bar.style.width = '0%';
+            barElement.style.width = '0%';
             
             const startTime = Date.now();
-            captureInterval = setInterval(() => {
+            actionInterval = setInterval(() => {
                 const elapsedTime = Date.now() - startTime;
-                const progress = (elapsedTime / (captureTime * 1000)) * 100;
-                bar.style.width = Math.min(progress, 100) + '%';
-                if (progress >= 100) {
-                    stopProgressBar();
-                }
+                const progress = (elapsedTime / (durationSeconds * 1000)) * 100;
+                barElement.style.width = Math.min(progress, 100) + '%';
+                if (progress >= 100) stopProgressBar();
             }, 50);
         }
 
         function stopProgressBar() {
-            clearInterval(captureInterval);
+            clearInterval(actionInterval);
             team1ProgressContainer.classList.add('hidden');
             team2ProgressContainer.classList.add('hidden');
+            armProgressContainer.classList.add('hidden');
+            defuseProgressContainer.classList.add('hidden');
             team1ProgressBar.style.width = '0%';
             team2ProgressBar.style.width = '0%';
+            armProgressBar.style.width = '0%';
+            defuseProgressBar.style.width = '0%';
         }
         
         function formatMilliseconds(ms) {
@@ -229,6 +387,41 @@
             const minutes = Math.floor(totalSeconds / 60);
             const seconds = totalSeconds % 60;
             return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+
+        function showView(viewName) {
+            simpleView.classList.add('hidden');
+            domView.classList.add('hidden');
+            sdView.classList.add('hidden');
+            
+            if (viewName === 'simple') simpleView.classList.remove('hidden');
+            else if (viewName === 'domination') domView.classList.remove('hidden');
+            else if (viewName === 'sd') sdView.classList.remove('hidden');
+        }
+
+        function resetToMainMenu() {
+            showView('simple');
+            simpleModeName.textContent = 'Menu Principale';
+            stopAllTimers();
+        }
+
+        function resetDominationView() {
+            domGameState.innerHTML = 'In attesa di inizio...';
+            lastGameState = 'In attesa di inizio...';
+            domTimer.textContent = '--:--';
+            winnerStatus.innerHTML = '--';
+            scoreTeam1.textContent = '00:00';
+            scoreTeam2.textContent = '00:00';
+        }
+
+        function resetSdView() {
+            sdBombState.textContent = 'In attesa di inizio...';
+            sdBombTimer.textContent = '--:--';
+            sdGameTimer.textContent = '--:--';
+            startGameTimerBtn.disabled = true;
+            gameDurationInput.disabled = false;
+            gameDurationWrapper.classList.remove('hidden');
+            updateTimerDisplay(sdGameTimer, parseInt(gameDurationInput.value, 10) * 60);
         }
     </script>
 </body>
