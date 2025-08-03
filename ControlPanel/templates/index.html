@@ -42,9 +42,9 @@
             color: #d16d6d; 
         }
         
-        /* Vista Semplice */
-        #simple-view { text-align: center; font-size: 1.5em; }
-        #simple-mode-name { font-weight: bold; color: #c586c0; }
+        /* Vista Semplice e Terminale */
+        #simple-view, #terminal-view { text-align: center; font-size: 1.5em; }
+        #simple-mode-name, #terminal-view p { font-weight: bold; color: #c586c0; }
         
         /* Log */
         .log-container { display: block; }
@@ -65,12 +65,8 @@
                 <div class="game-status">
                     <h3>Stato Partita</h3>
                     <p id="domination-game-state">In attesa di inizio...</p>
-                    <div id="team1-progress-container" class="progress-bar-container hidden">
-                        <div id="team1-progress" class="progress-bar"></div>
-                    </div>
-                    <div id="team2-progress-container" class="progress-bar-container hidden">
-                        <div id="team2-progress" class="progress-bar"></div>
-                    </div>
+                    <div id="team1-progress-container" class="progress-bar-container hidden"><div id="team1-progress" class="progress-bar"></div></div>
+                    <div id="team2-progress-container" class="progress-bar-container hidden"><div id="team2-progress" class="progress-bar"></div></div>
                     <p>Punteggio <span class="team-red">Rossa</span>: <span id="score-team1">00:00</span></p>
                     <p>Punteggio <span class="team-green">Verde</span>: <span id="score-team2">00:00</span></p>
                 </div>
@@ -81,11 +77,11 @@
                     <p>Countdown Iniziale: <span id="setting-countdown" class="setting-value">--</span> s</p>
                 </div>
             </div>
-             <h3 style="margin-top: 20px; margin-bottom: 5px;">Vincitore: <span id="status-winner">--</span></h3>
+            <h3 style="margin-top: 20px; margin-bottom: 5px;">Vincitore: <span id="status-winner">--</span></h3>
         </div>
         
         <div id="sd-view" class="panel hidden">
-            <h2>CERCA & DISTRUGGI</h2>
+            <h2>CERCA E DISTRUGGI</h2>
             <div class="big-timer" id="sd-game-timer">--:--</div>
             <div class="timer-controls">
                 <span id="game-duration-wrapper">
@@ -99,12 +95,8 @@
                     <h3>Stato Bomba</h3>
                     <p id="sd-bomb-state">In attesa di inizio...</p>
                     <p>Timer Bomba: <span id="sd-bomb-timer">--:--</span></p>
-                    <div id="arm-progress-container" class="progress-bar-container hidden">
-                        <div id="arm-progress" class="progress-bar"></div>
-                    </div>
-                    <div id="defuse-progress-container" class="progress-bar-container hidden">
-                        <div id="defuse-progress" class="progress-bar"></div>
-                    </div>
+                    <div id="arm-progress-container" class="progress-bar-container hidden"><div id="arm-progress" class="progress-bar"></div></div>
+                    <div id="defuse-progress-container" class="progress-bar-container hidden"><div id="defuse-progress" class="progress-bar"></div></div>
                 </div>
                 <div class="game-settings">
                     <h3>Impostazioni in Uso</h3>
@@ -116,6 +108,15 @@
                     <p>Usa PIN Disinnesco: <span id="setting-use-defuse-pin" class="setting-value">--</span></p>
                     <p>PIN Disinnesco: <span id="setting-disarm-pin" class="setting-value">--</span></p>
                 </div>
+            </div>
+        </div>
+        
+        <div id="terminal-view" class="panel hidden">
+            <h2>MODALITÀ TERMINALE</h2>
+            <p>Il dispositivo è in attesa di comandi da questo pannello.</p>
+            <div class="timer-controls">
+                <button id="test-red-btn">Test LED Rossi</button>
+                <button id="test-green-btn">Test LED Verdi</button>
             </div>
         </div>
 
@@ -166,6 +167,10 @@
         const armProgressBar = document.getElementById('arm-progress');
         const defuseProgressContainer = document.getElementById('defuse-progress-container');
         const defuseProgressBar = document.getElementById('defuse-progress');
+        
+        const terminalView = document.getElementById('terminal-view');
+        const testRedBtn = document.getElementById('test-red-btn');
+        const testGreenBtn = document.getElementById('test-green-btn');
 
         // Variabili di stato
         let activeMode = 'none';
@@ -188,7 +193,10 @@
 
             if (data.event === 'device_online' || data.event === 'mode_exit') {
                 resetToMainMenu();
-            } else if (data.event === 'mode_enter') {
+                return;
+            }
+
+            if (data.event === 'mode_enter') {
                 stopAllTimers();
                 activeMode = data.mode;
                 if (data.mode === 'domination') {
@@ -197,6 +205,8 @@
                 } else if (data.mode === 'sd') {
                     showView('sd');
                     resetSdView();
+                } else if (data.mode === 'terminal') {
+                    showView('terminal');
                 } else {
                     showView('simple');
                     if (data.mode === 'music') simpleModeName.textContent = 'Stanza dei Suoni';
@@ -314,17 +324,24 @@
             }
         }
 
+        function handleDominationEvents(data) { /* ... Logica Dominio Invariata ... */ }
+        function handleSearchDestroyEvents(data) { /* ... Logica C&D Invariata ... */ }
+
+        testRedBtn.addEventListener('click', () => {
+            socket.emit('send_command', { command: 'CMD:TEST_LEDS_RED' });
+        });
+        testGreenBtn.addEventListener('click', () => {
+            socket.emit('send_command', { command: 'CMD:TEST_LEDS_GREEN' });
+        });
+
         startGameTimerBtn.addEventListener('click', () => {
-            if (gameTimerInterval) {
-                stopGameTimer();
-            } else {
+            if (gameTimerInterval) { stopGameTimer(); } 
+            else {
                 gameTimerSeconds = parseInt(gameDurationInput.value, 10) * 60;
                 if (isNaN(gameTimerSeconds) || gameTimerSeconds <= 0) return;
-                
                 gameDurationWrapper.classList.add('hidden');
                 startGameTimerBtn.textContent = 'Ferma Timer';
                 updateTimerDisplay(sdGameTimer, gameTimerSeconds);
-
                 gameTimerInterval = setInterval(() => {
                     gameTimerSeconds--;
                     updateTimerDisplay(sdGameTimer, gameTimerSeconds);
@@ -393,10 +410,12 @@
             simpleView.classList.add('hidden');
             domView.classList.add('hidden');
             sdView.classList.add('hidden');
+            terminalView.classList.add('hidden');
             
             if (viewName === 'simple') simpleView.classList.remove('hidden');
             else if (viewName === 'domination') domView.classList.remove('hidden');
             else if (viewName === 'sd') sdView.classList.remove('hidden');
+            else if (viewName === 'terminal') terminalView.classList.remove('hidden');
         }
 
         function resetToMainMenu() {

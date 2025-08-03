@@ -82,10 +82,24 @@ void NetworkManager::initialize(HardwareManager* hardware) {
 void NetworkManager::update() {
     int packetSize = _udp.parsePacket();
     if (packetSize) {
-        Serial.print("Ricevuto pacchetto UDP di dimensione ");
-        Serial.println(packetSize);
-        // (Logica futura per la gestione dei comandi ricevuti)
+        _lastSenderIP = _udp.remoteIP(); // Salva l'IP del mittente
+        char incomingPacket[255];
+        int len = _udp.read(incomingPacket, 255);
+        if (len > 0) {
+            incomingPacket[len] = 0;
+        }
+        _lastMessage = String(incomingPacket);
+        Serial.printf("Ricevuto pacchetto da %s: %s\n", _lastSenderIP.toString().c_str(), _lastMessage.c_str());
     }
+}
+
+String NetworkManager::getReceivedMessage() {
+    if (_lastMessage != "") {
+        String msg = _lastMessage;
+        _lastMessage = ""; // Resetta il messaggio dopo averlo letto
+        return msg;
+    }
+    return "";
 }
 
 /**

@@ -21,6 +21,8 @@ private:
     NetworkManager* _network;
     AppState* _appStatePtr;
     MainMenuDisplayFunction _mainMenuDisplayFunc;
+
+    void parseCommand(String command);
 };
 
 #endif // TERMINAL_MODE_H

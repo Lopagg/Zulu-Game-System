@@ -52,6 +52,8 @@ public:
      */
     void sendStatus(const char* status);
 
+    String getReceivedMessage();
+
 private:
     // Credenziali per la rete WiFi.
     const char* _ssid;
@@ -62,6 +64,9 @@ private:
     const int _udpPort;
     // Indirizzo IP di broadcast calcolato dopo la connessione.
     IPAddress _broadcastIP;
+
+    IPAddress _lastSenderIP;
+    String _lastMessage;
 };
 
 #endif // NETWORK_MANAGER_H

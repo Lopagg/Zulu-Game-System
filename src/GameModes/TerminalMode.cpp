@@ -18,14 +18,16 @@ void TerminalMode::enter() {
     _hardware->printLcd(0, 1, "MODALITA' TERMINALE");
     _hardware->printLcd(0, 2, "In attesa di comandi");
     _hardware->setStripColor(50, 50, 255); // Colore blu per indicare lo stato
-    _hardware->clearOled1();
+    _hardware->printOled1("INDIETRO", 2, 10, 25);
     _hardware->clearOled2();
 }
 
 void TerminalMode::loop() {
-    // In futuro, qui verrà gestita la ricezione e l'esecuzione dei comandi
+    String command = _network->getReceivedMessage();
+    if (command != "") {
+        parseCommand(command);
+    }
     
-    // Per ora, si può uscire con il pulsante 1 per tornare al menu
     if (_hardware->wasButton1Pressed()) {
         exit();
         *_appStatePtr = APP_STATE_MAIN_MENU;
@@ -37,4 +39,15 @@ void TerminalMode::exit() {
     Serial.println("Uscito da Modalita' Terminale");
     _network->sendStatus("event:mode_exit;mode:terminal;");
     _hardware->turnOffStrip();
+}
+
+void TerminalMode::parseCommand(String command) {
+    Serial.print("Comando ricevuto in TerminalMode: ");
+    Serial.println(command);
+
+    if (command == "CMD:TEST_LEDS_RED") {
+        _hardware->setStripColor(255, 0, 0);
+    } else if (command == "CMD:TEST_LEDS_GREEN") {
+        _hardware->setStripColor(0, 255, 0);
+    }
 }

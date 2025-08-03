@@ -21,13 +21,18 @@ def parse_message(data_str):
             message_dict[key] = value
     return message_dict
 
+# Salva l'indirizzo IP dell'ultimo dispositivo che ha inviato un messaggio
+last_device_ip = None
+
 def udp_listener():
+    global last_device_ip
     """Questa funzione gira in un thread separato e ascolta i pacchetti UDP."""
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
         sock.bind((HOST_IP, UDP_PORT))
         print(f"-> Listener UDP avviato sulla porta {UDP_PORT}")
         while True:
             data, addr = sock.recvfrom(1024)
+            last_device_ip = addr[0] # Salva l'IP
             message_str = data.decode('utf-8', errors='ignore')
             print(f"Ricevuto UDP da {addr}: {message_str}")
             
@@ -40,6 +45,17 @@ def udp_listener():
 def index():
     """Questa funzione serve la pagina web principale."""
     return render_template('index.html')
+
+@socketio.on('send_command')
+def handle_send_command(json):
+    """Riceve un comando dal browser e lo invia via UDP al dispositivo."""
+    command = json.get('command')
+    if command and last_device_ip:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.sendto(command.encode('utf-8'), (last_device_ip, UDP_PORT))
+            print(f"Comando inviato a {last_device_ip}: {command}")
+    else:
+        print("Errore: nessun comando o IP del dispositivo non noto.")
 
 # ATTENZIONE: Questo blocco DEVE essere all'inizio della riga, senza spazi prima.
 if __name__ == '__main__':
