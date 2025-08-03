@@ -55,7 +55,7 @@ AppState currentAppState = APP_STATE_WELCOME;
 // --- Stato e Menu Globale ---
 // Variabili per la gestione del menu principale.
 int mainMenuIndex = 0;
-String mainMenuOptions[] = { "Cerca & Distruggi", "Dominio", "Stanza dei Suoni", "Modalita' Terminale", "Test Hardware" };
+String mainMenuOptions[] = { "Cerca & Distruggi", "Dominio", "Stanza dei Suoni", "Mod. Terminale", "Test Hardware" };
 int numMainMenuOptions = sizeof(mainMenuOptions) / sizeof(mainMenuOptions[0]);
 
 // --- Dichiarazioni Funzioni di Stato ---

@@ -15,8 +15,8 @@ void TerminalMode::enter() {
     _network->sendStatus("event:mode_enter;mode:terminal;");
     
     _hardware->clearLcd();
-    _hardware->printLcd(0, 1, "   MODALITA' TERMINALE");
-    _hardware->printLcd(0, 2, " In attesa di comandi...");
+    _hardware->printLcd(0, 1, "MODALITA' TERMINALE");
+    _hardware->printLcd(0, 2, "In attesa di comandi");
     _hardware->setStripColor(50, 50, 255); // Colore blu per indicare lo stato
     _hardware->clearOled1();
     _hardware->clearOled2();
