@@ -14,6 +14,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WiFiUdp.h>
+#include "HardwareManager.h"
 
 /**
  * @class NetworkManager
@@ -35,7 +36,7 @@ public:
      * è bloccante finché la connessione WiFi non viene stabilita.
      * Va chiamata una sola volta nel setup().
      */
-    void initialize();
+    void initialize(HardwareManager* hardware);
     /**
      * @brief Aggiorna lo stato del listener di rete.
      * @details Da chiamare ad ogni ciclo del loop() principale. Controlla se sono

@@ -97,7 +97,7 @@ void setup() {
 
     // Inizializzazione dei componenti fisici e della connessione di rete.
     hardware.initialize();
-    networkManager.initialize();
+    networkManager.initialize(&hardware); 
     Serial.println("Avvio del sistema completato.");
 
     // Invia un messaggio di avvio sulla rete.
