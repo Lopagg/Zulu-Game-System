@@ -29,7 +29,8 @@ enum AppState {
   APP_STATE_TEST_HARDWARE,        // Stato di test: per verificare il funzionamento dei componenti.
   APP_STATE_SEARCH_DESTROY_MODE,  // Stato di gioco: la modalità "Cerca e Distruggi" è attiva.
   APP_STATE_DOMINATION_MODE,      // Stato di gioco: la modalità "Dominio" è attiva.
-  APP_STATE_MUSIC_ROOM            // Stato utility: la "Stanza dei Suoni" è attiva.
+  APP_STATE_MUSIC_ROOM,           // Stato utility: la "Stanza dei Suoni" è attiva.
+  APP_STATE_TERMINAL_MODE
 };
 
 /**

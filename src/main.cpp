@@ -24,6 +24,7 @@
 #include "GameModes/SearchDestroySettings.h"
 #include "GameModes/DominationMode.h"
 #include "GameModes/DominationSettings.h"
+#include "GameModes/TerminalMode.h"
 
 /** --- Istanze Globali --- 
  * Vengono creati gli oggetti principali che verranno usati in tutto il programma.
@@ -38,6 +39,7 @@ SearchDestroyMode* sdMode = nullptr;
 DominationSettings* domSettings = nullptr;
 DominationMode* domMode = nullptr;
 MusicRoomMode* musicRoomMode = nullptr;
+TerminalMode* terminalMode = nullptr;
 
 /** --- Dichiarazioni Anticipate ---
  * Prototipo di funzione per displayMainMenu(). Permette di usare la funzione
@@ -53,7 +55,7 @@ AppState currentAppState = APP_STATE_WELCOME;
 // --- Stato e Menu Globale ---
 // Variabili per la gestione del menu principale.
 int mainMenuIndex = 0;
-String mainMenuOptions[] = { "Cerca & Distruggi", "Dominio", "Stanza dei Suoni", "Test Hardware" };
+String mainMenuOptions[] = { "Cerca & Distruggi", "Dominio", "Stanza dei Suoni", "Modalita' Terminale", "Test Hardware" };
 int numMainMenuOptions = sizeof(mainMenuOptions) / sizeof(mainMenuOptions[0]);
 
 // --- Dichiarazioni Funzioni di Stato ---
@@ -90,6 +92,8 @@ void setup() {
     domMode = new DominationMode(&hardware, &networkManager, domSettings, &currentAppState, displayMainMenu);
 
     musicRoomMode = new MusicRoomMode(&hardware, &currentAppState, displayMainMenu);
+
+    terminalMode = new TerminalMode(&hardware, &networkManager, &currentAppState, displayMainMenu);
 
     // Inizializzazione dei componenti fisici e della connessione di rete.
     hardware.initialize();
@@ -137,6 +141,8 @@ void loop() {
             break;
         case APP_STATE_MUSIC_ROOM:
             musicRoomMode->loop();  // Delega il controllo alla Stanza dei Suoni
+        case APP_STATE_TERMINAL_MODE:
+            terminalMode->loop();   // Delega il controllo alla Modalità Terminale
             break;
         case APP_STATE_TEST_HARDWARE:
             handleTestHardwareState();
@@ -266,6 +272,11 @@ void handleMainMenuState() {
                 musicRoomMode->enter();
                 break;
             case 3:
+                Serial.println("TRANSIZIONE: Main Menu -> Modalita' Terminale");
+                currentAppState = APP_STATE_TERMINAL_MODE;
+                terminalMode->enter();
+                break;
+            case 4:
                 Serial.println("TRANSIZIONE: Main Menu -> Test Hardware");
                 networkManager.sendStatus("event:mode_enter;mode:testhw;");
                 currentAppState = APP_STATE_TEST_HARDWARE;
