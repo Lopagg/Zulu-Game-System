@@ -25,6 +25,18 @@ void DominationMode::enter() {
     sendSettingsStatus();
 }
 
+/**
+ * @brief Funzione di ingresso diretto in partita.
+ * @details Chiamata dalla Modalità Terminale, salta i menu e va
+ * direttamente alla schermata di conferma per iniziare il countdown.
+ */
+void DominationMode::enterInGame() {
+    Serial.println("Entrato in modalita' Dominio (remoto)");
+    _currentState = ModeState::IN_GAME_CONFIRM;
+    displayConfirmScreen();
+    _hardware->setStripColor(0, 255, 255);
+}
+
 void DominationMode::loop() {
     char key = _hardware->getKey();
     bool btn1_is_pressed = _hardware->isButton1Pressed();

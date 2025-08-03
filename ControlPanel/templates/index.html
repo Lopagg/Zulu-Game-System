@@ -77,7 +77,7 @@
                     <p>Countdown Iniziale: <span id="setting-countdown" class="setting-value">--</span> s</p>
                 </div>
             </div>
-            <h3 style="margin-top: 20px; margin-bottom: 5px;">Vincitore: <span id="status-winner">--</span></h3>
+             <h3 style="margin-top: 20px; margin-bottom: 5px;">Vincitore: <span id="status-winner">--</span></h3>
         </div>
         
         <div id="sd-view" class="panel hidden">
@@ -114,9 +114,24 @@
         <div id="terminal-view" class="panel hidden">
             <h2>MODALITÀ TERMINALE</h2>
             <p>Il dispositivo è in attesa di comandi da questo pannello.</p>
-            <div class="timer-controls">
-                <button id="test-red-btn">Test LED Rossi</button>
-                <button id="test-green-btn">Test LED Verdi</button>
+            <div class="details-grid">
+                <div class="game-settings">
+                    <h3>Imposta Partita Dominio</h3>
+                    <p><label>Durata (min): </label><input type="number" id="term-dom-duration" value="15"></p>
+                    <p><label>Tempo Conquista (s): </label><input type="number" id="term-dom-capture" value="10"></p>
+                    <p><label>Countdown (s): </label><input type="number" id="term-dom-countdown" value="10"></p>
+                    <div class="timer-controls">
+                        <button id="send-dom-settings-btn">Invia Impostazioni</button>
+                        <button id="start-dom-game-btn" disabled>Avvia Partita Dominio</button>
+                    </div>
+                </div>
+                <div class="game-status">
+                    <h3>Comandi di Test</h3>
+                    <div class="timer-controls">
+                        <button id="test-red-btn">Test LED Rossi</button>
+                        <button id="test-green-btn">Test LED Verdi</button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -169,6 +184,8 @@
         const defuseProgressBar = document.getElementById('defuse-progress');
         
         const terminalView = document.getElementById('terminal-view');
+        const sendDomSettingsBtn = document.getElementById('send-dom-settings-btn');
+        const startDomGameBtn = document.getElementById('start-dom-game-btn');
         const testRedBtn = document.getElementById('test-red-btn');
         const testGreenBtn = document.getElementById('test-green-btn');
 
@@ -193,10 +210,7 @@
 
             if (data.event === 'device_online' || data.event === 'mode_exit') {
                 resetToMainMenu();
-                return;
-            }
-
-            if (data.event === 'mode_enter') {
+            } else if (data.event === 'mode_enter') {
                 stopAllTimers();
                 activeMode = data.mode;
                 if (data.mode === 'domination') {
@@ -207,6 +221,7 @@
                     resetSdView();
                 } else if (data.mode === 'terminal') {
                     showView('terminal');
+                    startDomGameBtn.disabled = true;
                 } else {
                     showView('simple');
                     if (data.mode === 'music') simpleModeName.textContent = 'Stanza dei Suoni';
@@ -218,6 +233,10 @@
                 handleDominationEvents(data);
             } else if (activeMode === 'sd') {
                 handleSearchDestroyEvents(data);
+            } else if (activeMode === 'terminal') {
+                if (data.event === 'settings_update' && data.duration) {
+                    startDomGameBtn.disabled = false;
+                }
             }
         });
 
@@ -323,25 +342,34 @@
                 resetSdView();
             }
         }
-
-        function handleDominationEvents(data) { /* ... Logica Dominio Invariata ... */ }
-        function handleSearchDestroyEvents(data) { /* ... Logica C&D Invariata ... */ }
-
-        testRedBtn.addEventListener('click', () => {
-            socket.emit('send_command', { command: 'CMD:TEST_LEDS_RED' });
+        
+        testRedBtn.addEventListener('click', () => { socket.emit('send_command', { command: 'CMD:TEST_LEDS_RED' }); });
+        testGreenBtn.addEventListener('click', () => { socket.emit('send_command', { command: 'CMD:TEST_LEDS_GREEN' }); });
+        
+        sendDomSettingsBtn.addEventListener('click', () => {
+            const duration = document.getElementById('term-dom-duration').value;
+            const capture = document.getElementById('term-dom-capture').value;
+            const countdown = document.getElementById('term-dom-countdown').value;
+            const command = `CMD:SET_DOM_SETTINGS;DURATION:${duration};CAPTURE:${capture};COUNTDOWN:${countdown};`;
+            socket.emit('send_command', { command: command });
+            startDomGameBtn.disabled = true;
         });
-        testGreenBtn.addEventListener('click', () => {
-            socket.emit('send_command', { command: 'CMD:TEST_LEDS_GREEN' });
+
+        startDomGameBtn.addEventListener('click', () => {
+            socket.emit('send_command', { command: 'CMD:START_DOM_GAME;' });
         });
 
         startGameTimerBtn.addEventListener('click', () => {
-            if (gameTimerInterval) { stopGameTimer(); } 
-            else {
+            if (gameTimerInterval) {
+                stopGameTimer();
+            } else {
                 gameTimerSeconds = parseInt(gameDurationInput.value, 10) * 60;
                 if (isNaN(gameTimerSeconds) || gameTimerSeconds <= 0) return;
+                
                 gameDurationWrapper.classList.add('hidden');
                 startGameTimerBtn.textContent = 'Ferma Timer';
                 updateTimerDisplay(sdGameTimer, gameTimerSeconds);
+
                 gameTimerInterval = setInterval(() => {
                     gameTimerSeconds--;
                     updateTimerDisplay(sdGameTimer, gameTimerSeconds);

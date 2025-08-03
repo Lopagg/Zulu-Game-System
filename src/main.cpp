@@ -93,7 +93,7 @@ void setup() {
 
     musicRoomMode = new MusicRoomMode(&hardware, &currentAppState, displayMainMenu);
 
-    terminalMode = new TerminalMode(&hardware, &networkManager, &currentAppState, displayMainMenu);
+    terminalMode = new TerminalMode(&hardware, &networkManager, &currentAppState, displayMainMenu, domSettings, domMode);
 
     // Inizializzazione dei componenti fisici e della connessione di rete.
     hardware.initialize();
