@@ -26,15 +26,40 @@ void DominationMode::enter() {
 }
 
 /**
- * @brief Funzione di ingresso diretto in partita.
- * @details Chiamata dalla Modalità Terminale, salta i menu e va
- * direttamente alla schermata di conferma per iniziare il countdown.
+ * @brief Funzione di ingresso diretto in partita, saltando menu e countdown.
+ * @details Chiamata dalla Modalità Terminale, avvia direttamente la partita.
  */
 void DominationMode::enterInGame() {
     Serial.println("Entrato in modalita' Dominio (remoto)");
-    _currentState = ModeState::IN_GAME_CONFIRM;
-    displayConfirmScreen();
-    _hardware->setStripColor(0, 255, 255);
+    
+    // Salta direttamente allo stato di gioco attivo
+    _currentState = ModeState::IN_GAME_NEUTRAL;
+    _lastZoneState = ModeState::IN_GAME_NEUTRAL;
+    _gameStartTime = _hardware->getRTCTime();
+    _lastGameSecond = -1;
+    _team1PossessionTime = 0;
+    _team2PossessionTime = 0;
+
+    // Esegui effetti visivi e sonori di inizio partita
+    _hardware->playTone(1500, 500);
+    _hardware->setBrightness(255);
+    _hardware->turnOffStrip();
+    delay(100);
+    _hardware->setStripColor(255, 255, 255);
+    delay(500);
+    _hardware->turnOffStrip();
+    _hardware->setBrightness(80);
+
+    // Disegna la schermata di gioco iniziale
+    _hardware->clearLcd();
+    _hardware->printLcd(4, 1, "ZONA NEUTRA");
+    _hardware->printOled1("CONQUISTA", 2, 8, 25);
+    _hardware->printOled2("CONQUISTA", 2, 8, 25);
+
+    // Invia il messaggio di inizio partita
+    char message[50];
+    sprintf(message, "event:game_start;mode:domination;duration:%d", _settings->getGameDuration());
+    _network->sendStatus(message);
 }
 
 void DominationMode::loop() {

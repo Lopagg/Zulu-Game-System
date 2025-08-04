@@ -22,19 +22,19 @@
 
         .big-timer { font-size: 8em; font-weight: bold; color: #9cdcfe; text-align: center; margin: 20px 0; }
 
-        /* Stili Dominio */
+        /* Stili Comuni */
         .progress-bar-container { background-color: #3c3c3c; border-radius: 5px; padding: 3px; margin-top: 10px; }
         .progress-bar { height: 20px; border-radius: 3px; width: 0%; transition: width 0.1s linear; }
         #team1-progress, #arm-progress { background-color: #d16d6d; }
         #team2-progress, #defuse-progress { background-color: #6a9955; }
         .team-red { color: #d16d6d; font-weight: bold; }
         .team-green { color: #6a9955; font-weight: bold; }
-
-        /* Stili Cerca e Distruggi */
         .timer-controls { text-align: center; margin-top: 10px; }
         .timer-controls input { width: 60px; padding: 5px; background-color: #3c3c3c; border: 1px solid #61afef; color: #d4d4d4; border-radius: 4px;}
-        .timer-controls button { padding: 8px 15px; background-color: #6a9955; border: none; color: white; border-radius: 4px; cursor: pointer; font-size: 1em; }
+        .timer-controls button { padding: 8px 15px; background-color: #4e94e2; border: none; color: white; border-radius: 4px; cursor: pointer; font-size: 1em; margin: 5px; }
         .timer-controls button:disabled { background-color: #3c3c3c; color: #6a6a6a; cursor: not-allowed; }
+        .start-game-btn { background-color: #d16d6d !important; font-weight: bold; padding: 12px 20px !important; font-size: 1.2em !important; }
+
         #sd-bomb-timer { 
             font-family: "DSEG7 Classic", monospace;
             font-size: 4em; 
@@ -113,25 +113,28 @@
         
         <div id="terminal-view" class="panel hidden">
             <h2>MODALITÀ TERMINALE</h2>
-            <p>Il dispositivo è in attesa di comandi da questo pannello.</p>
-            <div class="details-grid">
-                <div class="game-settings">
-                    <h3>Imposta Partita Dominio</h3>
-                    <p><label>Durata (min): </label><input type="number" id="term-dom-duration" value="15"></p>
-                    <p><label>Tempo Conquista (s): </label><input type="number" id="term-dom-capture" value="10"></p>
-                    <p><label>Countdown (s): </label><input type="number" id="term-dom-countdown" value="10"></p>
-                    <div class="timer-controls">
-                        <button id="send-dom-settings-btn">Invia Impostazioni</button>
-                        <button id="start-dom-game-btn" disabled>Avvia Partita Dominio</button>
-                    </div>
+            <div id="terminal-mode-select">
+                <p>Seleziona una modalità da configurare e avviare da remoto:</p>
+                <div class="timer-controls">
+                    <button id="prep-dom-btn">Prepara Dominio</button>
+                    <button id="prep-sd-btn" disabled>Prepara Cerca & Distruggi (WIP)</button>
                 </div>
-                <div class="game-status">
-                    <h3>Comandi di Test</h3>
-                    <div class="timer-controls">
-                        <button id="test-red-btn">Test LED Rossi</button>
-                        <button id="test-green-btn">Test LED Verdi</button>
+            </div>
+            
+            <div id="terminal-dom-config" class="hidden">
+                <h3>Imposta Partita Dominio</h3>
+                <div class="details-grid">
+                    <div>
+                        <p><label>Durata (min): </label><input type="number" id="term-dom-duration" value="15"></p>
+                        <p><label>Tempo Conquista (s): </label><input type="number" id="term-dom-capture" value="10"></p>
                     </div>
+                    <div></div>
                 </div>
+                <div class="timer-controls">
+                    <button id="send-dom-settings-btn">Invia Impostazioni</button>
+                    <button id="start-dom-game-btn" class="start-game-btn" disabled>AVVIA PARTITA</button>
+                </div>
+                <button id="back-to-terminal-select">Indietro</button>
             </div>
         </div>
 
@@ -184,13 +187,16 @@
         const defuseProgressBar = document.getElementById('defuse-progress');
         
         const terminalView = document.getElementById('terminal-view');
+        const terminalModeSelect = document.getElementById('terminal-mode-select');
+        const prepDomBtn = document.getElementById('prep-dom-btn');
+        const terminalDomConfig = document.getElementById('terminal-dom-config');
         const sendDomSettingsBtn = document.getElementById('send-dom-settings-btn');
         const startDomGameBtn = document.getElementById('start-dom-game-btn');
-        const testRedBtn = document.getElementById('test-red-btn');
-        const testGreenBtn = document.getElementById('test-green-btn');
+        const backToTerminalSelectBtn = document.getElementById('back-to-terminal-select');
 
         // Variabili di stato
         let activeMode = 'none';
+        let wasStartedFromTerminal = false;
         let actionInterval = null;
         let lastGameState = 'In attesa di inizio...';
         let captureTime = 5, armTime = 5, defuseTime = 10;
@@ -209,10 +215,21 @@
             }
 
             if (data.event === 'device_online' || data.event === 'mode_exit') {
-                resetToMainMenu();
+                if (wasStartedFromTerminal) {
+                    activeMode = 'terminal';
+                    showView('terminal');
+                    terminalModeSelect.classList.remove('hidden');
+                    terminalDomConfig.classList.add('hidden');
+                    wasStartedFromTerminal = false;
+                } else {
+                    resetToMainMenu();
+                }
             } else if (data.event === 'mode_enter') {
                 stopAllTimers();
-                activeMode = data.mode;
+                if (!wasStartedFromTerminal) {
+                    activeMode = data.mode;
+                }
+                
                 if (data.mode === 'domination') {
                     showView('domination');
                     resetDominationView();
@@ -221,6 +238,8 @@
                     resetSdView();
                 } else if (data.mode === 'terminal') {
                     showView('terminal');
+                    terminalModeSelect.classList.remove('hidden');
+                    terminalDomConfig.classList.add('hidden');
                     startDomGameBtn.disabled = true;
                 } else {
                     showView('simple');
@@ -343,19 +362,27 @@
             }
         }
         
-        testRedBtn.addEventListener('click', () => { socket.emit('send_command', { command: 'CMD:TEST_LEDS_RED' }); });
-        testGreenBtn.addEventListener('click', () => { socket.emit('send_command', { command: 'CMD:TEST_LEDS_GREEN' }); });
-        
+        // --- GESTIONE VISTE TERMINALE ---
+        prepDomBtn.addEventListener('click', () => {
+            terminalModeSelect.classList.add('hidden');
+            terminalDomConfig.classList.remove('hidden');
+        });
+
+        backToTerminalSelectBtn.addEventListener('click', () => {
+            terminalModeSelect.classList.remove('hidden');
+            terminalDomConfig.classList.add('hidden');
+        });
+
         sendDomSettingsBtn.addEventListener('click', () => {
             const duration = document.getElementById('term-dom-duration').value;
             const capture = document.getElementById('term-dom-capture').value;
-            const countdown = document.getElementById('term-dom-countdown').value;
-            const command = `CMD:SET_DOM_SETTINGS;DURATION:${duration};CAPTURE:${capture};COUNTDOWN:${countdown};`;
+            const command = `CMD:SET_DOM_SETTINGS;DURATION:${duration};CAPTURE:${capture};`;
             socket.emit('send_command', { command: command });
             startDomGameBtn.disabled = true;
         });
 
         startDomGameBtn.addEventListener('click', () => {
+            wasStartedFromTerminal = true;
             socket.emit('send_command', { command: 'CMD:START_DOM_GAME;' });
         });
 
