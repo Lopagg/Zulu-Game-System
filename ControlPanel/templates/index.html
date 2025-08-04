@@ -228,7 +228,6 @@
 
         // Variabili di stato
         let activeMode = 'none';
-        let wasStartedFromTerminal = false;
         let actionInterval = null;
         let lastGameState = 'In attesa di inizio...';
         let captureTime = 5, armTime = 5, defuseTime = 10;
@@ -247,20 +246,10 @@
             }
 
             if (data.event === 'device_online' || data.event === 'mode_exit') {
-                if (wasStartedFromTerminal) {
-                    activeMode = 'terminal';
-                    showView('terminal');
-                    resetTerminalView();
-                    wasStartedFromTerminal = false;
-                } else {
-                    resetToMainMenu();
-                }
+                resetToMainMenu();
             } else if (data.event === 'mode_enter') {
                 stopAllTimers();
-                if (!wasStartedFromTerminal) {
-                    activeMode = data.mode;
-                }
-                
+                activeMode = data.mode;
                 if (data.mode === 'domination') {
                     showView('domination');
                     resetDominationView();
