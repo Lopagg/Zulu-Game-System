@@ -42,11 +42,9 @@
             color: #d16d6d; 
         }
         
-        /* Vista Semplice e Terminale */
         #simple-view, #terminal-view { text-align: center; font-size: 1.5em; }
         #simple-mode-name, #terminal-view p { font-weight: bold; color: #c586c0; }
         
-        /* Log */
         .log-container { display: block; }
         .log { height: 200px; overflow-y: scroll; border: 1px solid #3c3c3c; padding: 10px; background-color: #1e1e1e; border-radius: 4px; font-family: 'Courier New', Courier, monospace; font-size: 0.9em; }
         #log-list { list-style: none; padding: 0; margin: 0; }
@@ -196,7 +194,6 @@
 
         // Variabili di stato
         let activeMode = 'none';
-        let wasStartedFromTerminal = false;
         let actionInterval = null;
         let lastGameState = 'In attesa di inizio...';
         let captureTime = 5, armTime = 5, defuseTime = 10;
@@ -214,22 +211,13 @@
                 logList.prepend(newLogEntry);
             }
 
-            if (data.event === 'device_online' || data.event === 'mode_exit') {
-                if (wasStartedFromTerminal) {
-                    activeMode = 'terminal';
-                    showView('terminal');
-                    terminalModeSelect.classList.remove('hidden');
-                    terminalDomConfig.classList.add('hidden');
-                    wasStartedFromTerminal = false;
-                } else {
-                    resetToMainMenu();
-                }
+            if (data.event === 'device_online') {
+                resetToMainMenu();
+            } else if (data.event === 'mode_exit') {
+                resetToMainMenu();
             } else if (data.event === 'mode_enter') {
                 stopAllTimers();
-                if (!wasStartedFromTerminal) {
-                    activeMode = data.mode;
-                }
-                
+                activeMode = data.mode;
                 if (data.mode === 'domination') {
                     showView('domination');
                     resetDominationView();
@@ -238,13 +226,17 @@
                     resetSdView();
                 } else if (data.mode === 'terminal') {
                     showView('terminal');
-                    terminalModeSelect.classList.remove('hidden');
-                    terminalDomConfig.classList.add('hidden');
-                    startDomGameBtn.disabled = true;
+                    resetTerminalView();
                 } else {
                     showView('simple');
                     if (data.mode === 'music') simpleModeName.textContent = 'Stanza dei Suoni';
                     else if (data.mode === 'testhw') simpleModeName.textContent = 'Test Hardware';
+                }
+            } else if (data.event === 'remote_start') {
+                activeMode = data.mode;
+                if(data.mode === 'domination') {
+                    showView('domination');
+                    resetDominationView();
                 }
             }
             
@@ -253,9 +245,7 @@
             } else if (activeMode === 'sd') {
                 handleSearchDestroyEvents(data);
             } else if (activeMode === 'terminal') {
-                if (data.event === 'settings_update' && data.duration) {
-                    startDomGameBtn.disabled = false;
-                }
+                handleTerminalEvents(data);
             }
         });
 
@@ -361,7 +351,13 @@
                 resetSdView();
             }
         }
-        
+
+        function handleTerminalEvents(data) {
+            if (data.event === 'settings_update') {
+                startDomGameBtn.disabled = false;
+            }
+        }
+
         // --- GESTIONE VISTE TERMINALE ---
         prepDomBtn.addEventListener('click', () => {
             terminalModeSelect.classList.add('hidden');
@@ -382,7 +378,6 @@
         });
 
         startDomGameBtn.addEventListener('click', () => {
-            wasStartedFromTerminal = true;
             socket.emit('send_command', { command: 'CMD:START_DOM_GAME;' });
         });
 
@@ -496,6 +491,12 @@
             gameDurationInput.disabled = false;
             gameDurationWrapper.classList.remove('hidden');
             updateTimerDisplay(sdGameTimer, parseInt(gameDurationInput.value, 10) * 60);
+        }
+
+        function resetTerminalView() {
+            terminalModeSelect.classList.remove('hidden');
+            terminalDomConfig.classList.add('hidden');
+            startDomGameBtn.disabled = true;
         }
     </script>
 </body>

@@ -79,7 +79,6 @@ void TerminalMode::parseCommand(String command) {
             } else if (part.startsWith("CAPTURE:")) {
                 _domSettings->setCaptureTime(part.substring(8).toInt());
             }
-            // Il countdown non viene più gestito da qui
         }
         _domSettings->saveParameters();
         Serial.println("Impostazioni Dominio aggiornate da remoto.");
@@ -87,7 +86,10 @@ void TerminalMode::parseCommand(String command) {
 
     } else if (cmd_event == "START_DOM_GAME") {
         Serial.println("Avvio partita Dominio da remoto...");
+        
+        _network->sendStatus("event:remote_start;mode:domination;");
+        
         *_appStatePtr = APP_STATE_DOMINATION_MODE;
-        _domMode->enterInGame(); // Chiama la funzione di avvio diretto
+        _domMode->enterInGame();
     }
 }
