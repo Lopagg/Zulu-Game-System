@@ -114,6 +114,7 @@ void DominationMode::loop() {
 void DominationMode::exit() {
     Serial.println("Uscito da modalita' Dominio");
     _network->sendStatus("event:mode_exit;mode:domination;");
+    _network->sendStatus("event:status_update;current_screen:main_menu;");
     _settings->saveParameters();
     _hardware->turnOffStrip();
     _hardware->clearOled1();

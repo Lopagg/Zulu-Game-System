@@ -85,6 +85,11 @@
             <h2>CERCA E DISTRUGGI</h2>
             <div class="big-timer" id="sd-game-timer">--:--</div>
             <div class="timer-controls">
+                <span id="game-duration-wrapper">
+                    <label for="game-duration-input">Imposta minuti: </label>
+                    <input type="number" id="game-duration-input" value="15" min="1">
+                    <button id="start-game-timer-btn" disabled>Avvia Timer Partita</button>
+                </span>
                 <button id="force-end-sd-btn" class="end-game-btn hidden">TERMINA PARTITA</button>
             </div>
             <div class="details-grid">
@@ -151,8 +156,8 @@
                     </div>
                 </div>
                 <div class="timer-controls">
-                    <button id="send-sd-settings-btn">Invia Impostazioni</button>
-                    <button id="start-sd-game-btn" class="start-game-btn" disabled>AVVIA PARTITA</button>
+                    <button id="term-send-sd-settings-btn">Invia Impostazioni</button>
+                    <button id="term-start-sd-game-btn" class="start-game-btn" disabled>AVVIA PARTITA</button>
                 </div>
                 <button id="back-to-terminal-select-sd">Indietro</button>
             </div>
@@ -204,6 +209,9 @@
         const armProgressBar = document.getElementById('arm-progress');
         const defuseProgressContainer = document.getElementById('defuse-progress-container');
         const defuseProgressBar = document.getElementById('defuse-progress');
+        const gameDurationWrapper = document.getElementById('game-duration-wrapper');
+        const gameDurationInput = document.getElementById('game-duration-input');
+        const startGameTimerBtn = document.getElementById('start-game-timer-btn');
         
         const terminalView = document.getElementById('terminal-view');
         const terminalModeSelect = document.getElementById('terminal-mode-select');
@@ -214,8 +222,8 @@
         const backToTerminalSelectBtn = document.getElementById('back-to-terminal-select');
         const prepSdBtn = document.getElementById('prep-sd-btn');
         const terminalSdConfig = document.getElementById('terminal-sd-config');
-        const sendSdSettingsBtn = document.getElementById('send-sd-settings-btn');
-        const startSdGameBtn = document.getElementById('start-sd-game-btn');
+        const termSendSdSettingsBtn = document.getElementById('term-send-sd-settings-btn');
+        const termStartSdGameBtn = document.getElementById('term-start-sd-game-btn');
         const backToTerminalSelectSdBtn = document.getElementById('back-to-terminal-select-sd');
 
         // Variabili di stato
@@ -258,7 +266,7 @@
                     resetDominationView();
                 } else if (data.mode === 'sd') {
                     showView('sd');
-                    resetSdView();
+                    resetSdView(false);
                 } else if (data.mode === 'terminal') {
                     showView('terminal');
                     resetTerminalView();
@@ -274,7 +282,7 @@
                     resetDominationView();
                 } else if (data.mode === 'sd') {
                     showView('sd');
-                    resetSdView(true); // Nasconde i controlli del timer partita
+                    resetSdView(true);
                     const gameTime = document.getElementById('term-sd-gametime').value;
                     startGameTimer(gameTime);
                 }
@@ -353,6 +361,7 @@
             }
             if (data.event === 'game_start') {
                 sdBombState.textContent = 'In attesa di innesco...';
+                startGameTimerBtn.disabled = false;
             }
             if (data.event === 'arm_start') { 
                 sdBombState.textContent = 'Innesco in corso...';
@@ -386,14 +395,14 @@
                 sdBombState.innerHTML = `Partita finita! Vince la ${winnerText}`;
             }
             if (data.event === 'round_reset') {
-                resetSdView();
+                resetSdView(false);
             }
         }
 
         function handleTerminalEvents(data) {
             if (data.event === 'settings_update') {
                 if (data.duration) { startDomGameBtn.disabled = false; }
-                if (data.bomb_time) { startSdGameBtn.disabled = false; }
+                if (data.bomb_time) { termStartSdGameBtn.disabled = false; }
             }
         }
 
@@ -426,8 +435,7 @@
             terminalModeSelect.classList.remove('hidden');
             terminalSdConfig.classList.add('hidden');
         });
-        sendSdSettingsBtn.addEventListener('click', () => {
-            const gameTime = document.getElementById('term-sd-gametime').value;
+        termSendSdSettingsBtn.addEventListener('click', () => {
             const bombTime = document.getElementById('term-sd-bombtime').value;
             const armTime = document.getElementById('term-sd-armtime').value;
             const defuseTime = document.getElementById('term-sd-defusetime').value;
@@ -437,9 +445,9 @@
             const defusePin = document.getElementById('term-sd-defuse-pin').value;
             const command = `CMD:SET_SD_SETTINGS;BOMB_TIME:${bombTime};ARM_TIME:${armTime};DEFUSE_TIME:${defuseTime};USE_ARM_PIN:${useArmPin};ARM_PIN:${armPin};USE_DEFUSE_PIN:${useDefusePin};DEFUSE_PIN:${defusePin};`;
             socket.emit('send_command', { command: command });
-            startSdGameBtn.disabled = true;
+            termStartSdGameBtn.disabled = true;
         });
-        startSdGameBtn.addEventListener('click', () => {
+        termStartSdGameBtn.addEventListener('click', () => {
             wasStartedFromTerminal = true;
             socket.emit('send_command', { command: 'CMD:START_SD_GAME;' });
         });
@@ -456,11 +464,16 @@
             }
         });
 
+        startGameTimerBtn.addEventListener('click', () => {
+            startGameTimer(gameDurationInput.value);
+        });
+
         function startGameTimer(minutes) {
             stopGameTimer();
             gameTimerSeconds = parseInt(minutes, 10) * 60;
             if (isNaN(gameTimerSeconds) || gameTimerSeconds <= 0) return;
             
+            gameDurationWrapper.classList.add('hidden');
             forceEndSdBtn.classList.remove('hidden');
             updateTimerDisplay(sdGameTimer, gameTimerSeconds);
 
@@ -479,6 +492,8 @@
             clearInterval(gameTimerInterval);
             gameTimerInterval = null;
             forceEndSdBtn.classList.add('hidden');
+            startGameTimerBtn.disabled = true;
+            gameDurationWrapper.classList.remove('hidden');
         }
         
         function stopAllTimers() {
@@ -559,6 +574,30 @@
             sdBombTimer.textContent = '--:--';
             sdGameTimer.textContent = '--:--';
             stopGameTimer();
+            if (isRemoteStart) {
+                gameDurationWrapper.classList.add('hidden');
+                // Sincronizza le impostazioni dalla vista terminale
+                const termSettings = {
+                    bomb_time: document.getElementById('term-sd-bombtime').value,
+                    arm_time: document.getElementById('term-sd-armtime').value,
+                    defuse_time: document.getElementById('term-sd-defusetime').value,
+                    use_arm_pin: document.getElementById('term-sd-use-arm-pin').value,
+                    arm_pin: document.getElementById('term-sd-arm-pin').value,
+                    use_disarm_pin: document.getElementById('term-sd-use-defuse-pin').value,
+                    disarm_pin: document.getElementById('term-sd-defuse-pin').value,
+                };
+                settingBombTime.textContent = termSettings.bomb_time;
+                settingArmTime.textContent = termSettings.arm_time;
+                settingDefuseTime.textContent = termSettings.defuse_time;
+                settingUseArmPin.textContent = termSettings.use_arm_pin === '1' ? 'Sì' : 'No';
+                settingArmPin.textContent = termSettings.arm_pin;
+                settingUseDefusePin.textContent = termSettings.use_disarm_pin === '1' ? 'Sì' : 'No';
+                settingDisarmPin.textContent = termSettings.disarm_pin;
+            } else {
+                gameDurationWrapper.classList.remove('hidden');
+                startGameTimerBtn.disabled = true;
+                updateTimerDisplay(sdGameTimer, parseInt(gameDurationInput.value, 10) * 60);
+            }
         }
 
         function resetTerminalView() {
@@ -566,7 +605,7 @@
             terminalDomConfig.classList.add('hidden');
             terminalSdConfig.classList.add('hidden');
             startDomGameBtn.disabled = true;
-            startSdGameBtn.disabled = true;
+            termStartSdGameBtn.disabled = true;
         }
     </script>
 </body>
