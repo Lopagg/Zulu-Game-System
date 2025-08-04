@@ -548,18 +548,16 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
             _hardware->printOled2("ESCI", 2, 35, 25);
             _hardware->updateBreathingEffect(0, 255, 0);
             if (btn1_was_pressed || btn2_was_pressed || key != NO_KEY) {
-                _network->sendStatus("event:round_reset;");
-                _currentState = ModeState::MODE_SUB_MENU;
-                displaySubMenu();
-                _hardware->setStripColor(255, 100, 0);
+            exit();
+            *_appStatePtr = APP_STATE_MAIN_MENU;
+            _mainMenuDisplayFunc();
             }
             break;
         case ModeState::IN_GAME_ENDED:  // case IN_GAME_ENDED: la partita è finita, i T hanno vinto.
             if (btn1_was_pressed || btn2_was_pressed || key != NO_KEY) {
-                _currentState = ModeState::MODE_SUB_MENU;
-                _network->sendStatus("event:round_reset;");
-                displaySubMenu();
-                _hardware->setStripColor(255, 100, 0);
+                exit();
+                *_appStatePtr = APP_STATE_MAIN_MENU;
+                _mainMenuDisplayFunc();
             }
             break;
     }
