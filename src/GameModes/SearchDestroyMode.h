@@ -37,6 +37,11 @@ public:
     void loop() override;
     void exit() override;
 
+    // Funzione di utilità per inviare le impostazioni via rete
+    void sendSettingsStatus();
+    void enterInGame();
+    void forceEndGame();
+
 private:
     // Puntatori agli oggetti principali
     HardwareManager* _hardware;
@@ -124,8 +129,6 @@ private:
     // Funzione di utilità per aggiornare le schermate di modifica
     void updateDisplayForCurrentState();
 
-    // Funzione di utilità per inviare le impostazioni via rete
-    void sendSettingsStatus();
 };
 
 #endif // SEARCH_DESTROY_MODE_H

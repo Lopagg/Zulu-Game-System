@@ -9,10 +9,14 @@
 #include "app_common.h"
 #include "GameModes/DominationSettings.h"
 #include "GameModes/DominationMode.h"
+#include "GameModes/SearchDestroySettings.h"
+#include "GameModes/SearchDestroyMode.h"
 
 class TerminalMode : public GameMode {
 public:
-    TerminalMode(HardwareManager* hardware, NetworkManager* network, AppState* appState, MainMenuDisplayFunction displayFunc, DominationSettings* domSettings, DominationMode* domMode);
+    TerminalMode(HardwareManager* hardware, NetworkManager* network, AppState* appState, MainMenuDisplayFunction displayFunc, 
+                 DominationSettings* domSettings, DominationMode* domMode,
+                 SearchDestroySettings* sdSettings, SearchDestroyMode* sdMode);
 
     void enter() override;
     void loop() override;
@@ -25,6 +29,8 @@ private:
     MainMenuDisplayFunction _mainMenuDisplayFunc;
     DominationSettings* _domSettings;
     DominationMode* _domMode;
+    SearchDestroySettings* _sdSettings;
+    SearchDestroyMode* _sdMode;
 
     void parseCommand(String command);
 };

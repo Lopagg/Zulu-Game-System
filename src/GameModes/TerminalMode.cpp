@@ -18,13 +18,17 @@ std::vector<String> splitString(String str, char delimiter) {
 }
 
 // Costruttore
-TerminalMode::TerminalMode(HardwareManager* hardware, NetworkManager* network, AppState* appState, MainMenuDisplayFunction displayFunc, DominationSettings* domSettings, DominationMode* domMode)
+TerminalMode::TerminalMode(HardwareManager* hardware, NetworkManager* network, AppState* appState, MainMenuDisplayFunction displayFunc, 
+                         DominationSettings* domSettings, DominationMode* domMode,
+                         SearchDestroySettings* sdSettings, SearchDestroyMode* sdMode)
     : _hardware(hardware),
       _network(network),
       _appStatePtr(appState),
       _mainMenuDisplayFunc(displayFunc),
       _domSettings(domSettings),
-      _domMode(domMode) {
+      _domMode(domMode),
+      _sdSettings(sdSettings),
+      _sdMode(sdMode) {
 }
 
 void TerminalMode::enter() {
@@ -91,5 +95,19 @@ void TerminalMode::parseCommand(String command) {
         
         *_appStatePtr = APP_STATE_DOMINATION_MODE;
         _domMode->enterInGame();
+    }   else if (cmd_event == "SET_SD_SETTINGS") {
+            for (const auto& part : parts) {
+                if (part.startsWith("BOMB_TIME:")) _sdSettings->setBombTime(part.substring(10).toInt());
+                else if (part.startsWith("ARM_TIME:")) _sdSettings->setArmingTime(part.substring(9).toInt());
+                else if (part.startsWith("DEFUSE_TIME:")) _sdSettings->setDefuseTime(part.substring(12).toInt());
+        }
+        _sdSettings->saveParameters();
+        Serial.println("Impostazioni C&D aggiornate da remoto.");
+        _sdMode->sendSettingsStatus();
+    } else if (cmd_event == "START_SD_GAME") {
+        Serial.println("Avvio partita C&D da remoto...");
+        _network->sendStatus("event:remote_start;mode:sd;");
+        *_appStatePtr = APP_STATE_SEARCH_DESTROY_MODE;
+        _sdMode->enterInGame();
     }
 }

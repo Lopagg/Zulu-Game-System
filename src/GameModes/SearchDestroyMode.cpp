@@ -48,6 +48,17 @@ void SearchDestroyMode::enter() {
 }
 
 /**
+ * @brief Funzione di ingresso diretto in partita, saltando i menu.
+ */
+void SearchDestroyMode::enterInGame() {
+    Serial.println("Entrato in Cerca & Distruggi (remoto)");
+    _network->sendStatus("event:game_start;");
+    _hardware->playTone(1500, 150);
+    _currentState = ModeState::IN_GAME_AWAIT_ARM; 
+    displayAwaitArmScreen();
+}
+
+/**
  * @brief Ciclo principale della modalità.
  * @details Chiamata ad ogni iterazione del loop() di main.cpp quando questa modalità è attiva.
  * Legge lo stato dei pulsanti e, in base allo stato interno (_currentState),
@@ -59,6 +70,11 @@ void SearchDestroyMode::loop() {
     bool btn1_was_pressed = _hardware->wasButton1Pressed();
     bool btn2_is_pressed = _hardware->isButton2Pressed();
     bool btn2_was_pressed = _hardware->wasButton2Pressed();
+
+    String command = _network->getReceivedMessage();
+    if (command == "CMD:FORCE_END_GAME") {
+        forceEndGame();
+    }
 
     // La logica è divisa in due macrogruppi: gestione dei menu e gestione del gioco vero e proprio.
     if (_currentState >= ModeState::IN_GAME_CONFIRM) {
@@ -717,4 +733,30 @@ void SearchDestroyMode::sendSettingsStatus() {
             _settings->getUseArmingPin(),
             _settings->getUseDisarmingPin());
     _network->sendStatus(message);
+}
+
+/**
+ * @brief Termina forzatamente la partita in corso, assegnando la vittoria ai CT.
+ * @details Chiamata quando viene ricevuto il comando di rete corrispondente.
+ */
+void SearchDestroyMode::forceEndGame() {
+    // Non fare nulla se la partita non è in uno stato attivo in cui può essere terminata
+    if (_currentState < ModeState::IN_GAME_AWAIT_ARM || _currentState >= ModeState::IN_GAME_DEFUSED) {
+        return;
+    }
+
+    _network->sendStatus("event:game_end;winner:counter-terrorists;");
+    _currentState = ModeState::IN_GAME_DEFUSED; 
+    _gameIsActive = false; 
+    _hardware->noTone();
+
+    _hardware->clearLcd();
+    _hardware->printLcd(1, 1, "BOMBA DISINNESCATA"); 
+    _hardware->printLcd(0, 2, "Vince la squadra CT!");
+    
+    _hardware->playTone(1500, 80); 
+    delay(100);
+    _hardware->playTone(1800, 80); 
+    delay(100);
+    _hardware->playTone(2200, 100);
 }
