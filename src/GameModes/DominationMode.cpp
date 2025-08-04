@@ -69,6 +69,11 @@ void DominationMode::loop() {
     bool btn2_is_pressed = _hardware->isButton2Pressed();
     bool btn2_was_pressed = _hardware->wasButton2Pressed();
 
+    String command = _network->getReceivedMessage();
+    if (command == "CMD:FORCE_END_GAME") {
+        forceEndGame();
+    }
+
     switch (_currentState) {
         case ModeState::MODE_SUB_MENU:
             handleSubMenuInput(key, btn1_was_pressed, btn2_was_pressed);
@@ -617,6 +622,51 @@ void DominationMode::handleGameOverState(bool btn1_was_pressed, bool btn2_was_pr
         *_appStatePtr = APP_STATE_MAIN_MENU;
         _mainMenuDisplayFunc();
     }
+}
+
+/**
+ * @brief Termina forzatamente la partita in corso.
+ * @details Chiamata quando viene ricevuto il comando di rete corrispondente.
+ * Calcola il vincitore in base al tempo di possesso attuale e passa allo stato GAME_OVER.
+ */
+void DominationMode::forceEndGame() {
+    // Non fare nulla se la partita non è in uno stato attivo
+    if (_currentState < ModeState::IN_GAME_NEUTRAL || _currentState == ModeState::GAME_OVER) {
+        return;
+    }
+    
+    _currentState = ModeState::GAME_OVER;
+    _hardware->playTone(400, 1000);
+
+    // Aggiorna un'ultima volta i tempi di possesso prima di calcolare il vincitore
+    unsigned long now = millis();
+    if (_lastZoneState == ModeState::TEAM1_CAPTURED) {
+        _team1PossessionTime += now - _lastPossessionUpdateTime;
+    } else if (_lastZoneState == ModeState::TEAM2_CAPTURED) {
+        _team2PossessionTime += now - _lastPossessionUpdateTime;
+    }
+
+    if (_team1PossessionTime > _team2PossessionTime) _winner = 1;
+    else if (_team2PossessionTime > _team1PossessionTime) _winner = 2;
+    else _winner = 0; // Pareggio
+
+    char message[50];
+    sprintf(message, "event:game_end;winner:%d", _winner);
+    _network->sendStatus(message);
+
+    _hardware->clearLcd();
+    if (_winner == 1) _hardware->printLcd(2, 1, "VINCE SQUADRA 1!");
+    else if (_winner == 2) _hardware->printLcd(2, 1, "VINCE SQUADRA 2!");
+    else _hardware->printLcd(6, 1, "PAREGGIO!");
+    
+    char scoreBuffer[20];
+    sprintf(scoreBuffer, "S1: %02lu:%02lu", (_team1PossessionTime / 1000) / 60, (_team1PossessionTime / 1000) % 60);
+    _hardware->printLcd(6, 2, scoreBuffer);
+    sprintf(scoreBuffer, "S2: %02lu:%02lu", (_team2PossessionTime / 1000) / 60, (_team2PossessionTime / 1000) % 60);
+    _hardware->printLcd(6, 3, scoreBuffer);
+
+    _hardware->printOled1("ESCI", 2, 35, 25);
+    _hardware->printOled2("ESCI", 2, 35, 25);
 }
 
 void DominationMode::sendSettingsStatus() {

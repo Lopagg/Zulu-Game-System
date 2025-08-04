@@ -18,6 +18,7 @@ public:
     void exit() override;
     void sendSettingsStatus();
     void enterInGame();
+    void forceEndGame();
 
 private:
     HardwareManager* _hardware;

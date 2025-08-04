@@ -33,7 +33,7 @@
         .timer-controls input { width: 60px; padding: 5px; background-color: #3c3c3c; border: 1px solid #61afef; color: #d4d4d4; border-radius: 4px;}
         .timer-controls button { padding: 8px 15px; background-color: #4e94e2; border: none; color: white; border-radius: 4px; cursor: pointer; font-size: 1em; margin: 5px; }
         .timer-controls button:disabled { background-color: #3c3c3c; color: #6a6a6a; cursor: not-allowed; }
-        .start-game-btn { background-color: #d16d6d !important; font-weight: bold; padding: 12px 20px !important; font-size: 1.2em !important; }
+        .start-game-btn, .end-game-btn { background-color: #d16d6d !important; font-weight: bold; padding: 12px 20px !important; font-size: 1.2em !important; }
 
         #sd-bomb-timer { 
             font-family: "DSEG7 Classic", monospace;
@@ -75,7 +75,10 @@
                     <p>Countdown Iniziale: <span id="setting-countdown" class="setting-value">--</span> s</p>
                 </div>
             </div>
-             <h3 style="margin-top: 20px; margin-bottom: 5px;">Vincitore: <span id="status-winner">--</span></h3>
+            <h3 style="margin-top: 20px; margin-bottom: 5px;">Vincitore: <span id="status-winner">--</span></h3>
+            <div class="timer-controls">
+                <button id="force-end-dom-btn" class="end-game-btn">TERMINA PARTITA</button>
+            </div>
         </div>
         
         <div id="sd-view" class="panel hidden">
@@ -164,6 +167,7 @@
         const team2ProgressBar = document.getElementById('team2-progress');
         const scoreTeam1 = document.getElementById('score-team1');
         const scoreTeam2 = document.getElementById('score-team2');
+        const forceEndDomBtn = document.getElementById('force-end-dom-btn');
         
         const sdView = document.getElementById('sd-view');
         const sdGameTimer = document.getElementById('sd-game-timer');
@@ -211,9 +215,7 @@
                 logList.prepend(newLogEntry);
             }
 
-            if (data.event === 'device_online') {
-                resetToMainMenu();
-            } else if (data.event === 'mode_exit') {
+            if (data.event === 'device_online' || data.event === 'mode_exit') {
                 resetToMainMenu();
             } else if (data.event === 'mode_enter') {
                 stopAllTimers();
@@ -379,6 +381,12 @@
 
         startDomGameBtn.addEventListener('click', () => {
             socket.emit('send_command', { command: 'CMD:START_DOM_GAME;' });
+        });
+        
+        forceEndDomBtn.addEventListener('click', () => {
+            if(confirm("Sei sicuro di voler terminare la partita in anticipo?")) {
+                socket.emit('send_command', { command: 'CMD:FORCE_END_GAME' });
+            }
         });
 
         startGameTimerBtn.addEventListener('click', () => {
