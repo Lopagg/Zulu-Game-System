@@ -27,33 +27,46 @@ NetworkManager::NetworkManager() :
  * connettersi alla rete WiFi specificata e, una volta connesso, calcola
  * l'indirizzo di broadcast e si mette in ascolto per i pacchetti UDP in arrivo.
  */
-void NetworkManager::initialize() {
+void NetworkManager::initialize(HardwareManager* hardware) {
     Serial.println("--- Inizializzazione Rete ---");
-    WiFi.mode(WIFI_STA); // Imposta l'ESP32 come "Stazione" (un client che si connette a un router).
+    
+    // Mostra il messaggio iniziale sull'LCD
+    hardware->clearLcd();
+    hardware->printLcd(0, 1, "Ricerca Rete WiFi...");
+    hardware->printLcd(0, 2, _ssid);
+
+    WiFi.mode(WIFI_STA);
     WiFi.begin(_ssid, _password);
 
     Serial.print("Connessione a WiFi [");
     Serial.print(_ssid);
     Serial.print("]...");
 
-    // Cicla finché la connessione non è stabilita.
+    int dotCount = 0;
     while (WiFi.status() != WL_CONNECTED) {
         delay(500);
         Serial.print(".");
+        
+        // Animazione puntini sull'LCD
+        String dots = "";
+        for(int i = 0; i < dotCount; i++) { dots += "."; }
+        hardware->printLcd(0, 3, dots + "   "); // Aggiunge spazi per cancellare i puntini precedenti
+        dotCount = (dotCount + 1) % 4;
     }
 
     Serial.println(" CONNESSO!");
     Serial.print("Indirizzo IP: ");
     Serial.println(WiFi.localIP());
 
-    /** Calcola l'indirizzo di broadcast della rete.
-     * Esempio: se l'IP è 192.168.1.7, il broadcast è 192.168.1.255.
-     * Inviare un pacchetto a questo indirizzo lo recapita a tutti i dispositivi sulla rete.
-     */
-    _broadcastIP = WiFi.localIP();
-    _broadcastIP[3] = 255; // Es: se l'IP è 192.168.1.7, il broadcast è 192.168.1.255
+    // Mostra il messaggio di successo sull'LCD
+    hardware->clearLcd();
+    hardware->printLcd(6, 1, "Connesso!");
+    hardware->printLcd(4, 2, WiFi.localIP().toString());
+    delay(2000); // Mostra il messaggio per 2 secondi
 
-    // Avvia il servizio UDP, mettendosi in ascolto sulla porta specificata.
+    _broadcastIP = WiFi.localIP();
+    _broadcastIP[3] = 255;
+
     _udp.begin(_udpPort);
     Serial.print("In ascolto su porta UDP: ");
     Serial.println(_udpPort);
@@ -69,10 +82,24 @@ void NetworkManager::initialize() {
 void NetworkManager::update() {
     int packetSize = _udp.parsePacket();
     if (packetSize) {
-        Serial.print("Ricevuto pacchetto UDP di dimensione ");
-        Serial.println(packetSize);
-        // (Logica futura per la gestione dei comandi ricevuti)
+        _lastSenderIP = _udp.remoteIP(); // Salva l'IP del mittente
+        char incomingPacket[255];
+        int len = _udp.read(incomingPacket, 255);
+        if (len > 0) {
+            incomingPacket[len] = 0;
+        }
+        _lastMessage = String(incomingPacket);
+        Serial.printf("Ricevuto pacchetto da %s: %s\n", _lastSenderIP.toString().c_str(), _lastMessage.c_str());
     }
+}
+
+String NetworkManager::getReceivedMessage() {
+    if (_lastMessage != "") {
+        String msg = _lastMessage;
+        _lastMessage = ""; // Resetta il messaggio dopo averlo letto
+        return msg;
+    }
+    return "";
 }
 
 /**

@@ -16,6 +16,9 @@ public:
     void enter() override;
     void loop() override;
     void exit() override;
+    void sendSettingsStatus();
+    void enterInGame();
+    void forceEndGame();
 
 private:
     HardwareManager* _hardware;
@@ -76,7 +79,6 @@ private:
     void handleCapturingState(bool btn1_is_pressed, bool btn2_is_pressed);
     void handleCapturedState(int team, bool btn1_is_pressed, bool btn2_is_pressed);
     void handleGameOverState(bool btn1_was_pressed, bool btn2_was_pressed, char key);
-    void sendSettingsStatus();
 };
 
 #endif // DOMINATION_MODE_H

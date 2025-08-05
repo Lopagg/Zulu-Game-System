@@ -25,12 +25,54 @@ void DominationMode::enter() {
     sendSettingsStatus();
 }
 
+/**
+ * @brief Funzione di ingresso diretto in partita, saltando menu e countdown.
+ * @details Chiamata dalla Modalità Terminale, avvia direttamente la partita.
+ */
+void DominationMode::enterInGame() {
+    Serial.println("Entrato in modalita' Dominio (remoto)");
+    
+    // Salta direttamente allo stato di gioco attivo
+    _currentState = ModeState::IN_GAME_NEUTRAL;
+    _lastZoneState = ModeState::IN_GAME_NEUTRAL;
+    _gameStartTime = _hardware->getRTCTime();
+    _lastGameSecond = -1;
+    _team1PossessionTime = 0;
+    _team2PossessionTime = 0;
+
+    // Esegui effetti visivi e sonori di inizio partita
+    _hardware->playTone(1500, 500);
+    _hardware->setBrightness(255);
+    _hardware->turnOffStrip();
+    delay(100);
+    _hardware->setStripColor(255, 255, 255);
+    delay(500);
+    _hardware->turnOffStrip();
+    _hardware->setBrightness(80);
+
+    // Disegna la schermata di gioco iniziale
+    _hardware->clearLcd();
+    _hardware->printLcd(4, 1, "ZONA NEUTRA");
+    _hardware->printOled1("CONQUISTA", 2, 8, 25);
+    _hardware->printOled2("CONQUISTA", 2, 8, 25);
+
+    // Invia il messaggio di inizio partita
+    char message[50];
+    sprintf(message, "event:game_start;mode:domination;duration:%d", _settings->getGameDuration());
+    _network->sendStatus(message);
+}
+
 void DominationMode::loop() {
     char key = _hardware->getKey();
     bool btn1_is_pressed = _hardware->isButton1Pressed();
     bool btn1_was_pressed = _hardware->wasButton1Pressed();
     bool btn2_is_pressed = _hardware->isButton2Pressed();
     bool btn2_was_pressed = _hardware->wasButton2Pressed();
+
+    String command = _network->getReceivedMessage();
+    if (command == "CMD:FORCE_END_GAME") {
+        forceEndGame();
+    }
 
     switch (_currentState) {
         case ModeState::MODE_SUB_MENU:
@@ -337,6 +379,15 @@ void DominationMode::handleCountdown() {
 
 void DominationMode::updateGameTimerOnRow(int row) {
     long totalSeconds = _settings->getGameDuration() * 60;
+
+    // ***Controllo di validità per l'ora di inizio partita ***
+    // Questo previene crash o fine immediata della partita se l'RTC fornisce dati errati.
+    if (_gameStartTime.year() < 2024) {
+        Serial.println("ERRORE: Orario di inizio partita non valido! L'RTC potrebbe avere problemi di alimentazione.");
+        _hardware->printLcd(0, 3, "ERRORE OROLOGIO RTC");
+        return; // Esce dalla funzione per questo ciclo, riproverà al prossimo.
+    }
+
     TimeSpan elapsed = _hardware->getRTCTime() - _gameStartTime;
     long remainingSeconds = totalSeconds - elapsed.totalseconds();
 
@@ -580,6 +631,51 @@ void DominationMode::handleGameOverState(bool btn1_was_pressed, bool btn2_was_pr
         *_appStatePtr = APP_STATE_MAIN_MENU;
         _mainMenuDisplayFunc();
     }
+}
+
+/**
+ * @brief Termina forzatamente la partita in corso.
+ * @details Chiamata quando viene ricevuto il comando di rete corrispondente.
+ * Calcola il vincitore in base al tempo di possesso attuale e passa allo stato GAME_OVER.
+ */
+void DominationMode::forceEndGame() {
+    // Non fare nulla se la partita non è in uno stato attivo
+    if (_currentState < ModeState::IN_GAME_NEUTRAL || _currentState == ModeState::GAME_OVER) {
+        return;
+    }
+    
+    _currentState = ModeState::GAME_OVER;
+    _hardware->playTone(400, 1000);
+
+    // Aggiorna un'ultima volta i tempi di possesso prima di calcolare il vincitore
+    unsigned long now = millis();
+    if (_lastZoneState == ModeState::TEAM1_CAPTURED) {
+        _team1PossessionTime += now - _lastPossessionUpdateTime;
+    } else if (_lastZoneState == ModeState::TEAM2_CAPTURED) {
+        _team2PossessionTime += now - _lastPossessionUpdateTime;
+    }
+
+    if (_team1PossessionTime > _team2PossessionTime) _winner = 1;
+    else if (_team2PossessionTime > _team1PossessionTime) _winner = 2;
+    else _winner = 0; // Pareggio
+
+    char message[50];
+    sprintf(message, "event:game_end;winner:%d", _winner);
+    _network->sendStatus(message);
+
+    _hardware->clearLcd();
+    if (_winner == 1) _hardware->printLcd(2, 1, "VINCE SQUADRA 1!");
+    else if (_winner == 2) _hardware->printLcd(2, 1, "VINCE SQUADRA 2!");
+    else _hardware->printLcd(6, 1, "PAREGGIO!");
+    
+    char scoreBuffer[20];
+    sprintf(scoreBuffer, "S1: %02lu:%02lu", (_team1PossessionTime / 1000) / 60, (_team1PossessionTime / 1000) % 60);
+    _hardware->printLcd(6, 2, scoreBuffer);
+    sprintf(scoreBuffer, "S2: %02lu:%02lu", (_team2PossessionTime / 1000) / 60, (_team2PossessionTime / 1000) % 60);
+    _hardware->printLcd(6, 3, scoreBuffer);
+
+    _hardware->printOled1("ESCI", 2, 35, 25);
+    _hardware->printOled2("ESCI", 2, 35, 25);
 }
 
 void DominationMode::sendSettingsStatus() {
