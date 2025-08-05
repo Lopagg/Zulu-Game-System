@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pannello di Controllo</title>
+    <title>Zulu Game System</title>
+
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
+    
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DSEG7+Classic:ital,wght@0,400;1,400&display=swap" rel="stylesheet">
@@ -33,7 +36,7 @@
         .timer-controls input, .timer-controls select { width: 80px; padding: 5px; background-color: #3c3c3c; border: 1px solid #61afef; color: #d4d4d4; border-radius: 4px;}
         .timer-controls button { padding: 8px 15px; background-color: #4e94e2; border: none; color: white; border-radius: 4px; cursor: pointer; font-size: 1em; margin: 5px; }
         .timer-controls button:disabled { background-color: #3c3c3c; color: #6a6a6a; cursor: not-allowed; }
-        .start-game-btn, .end-game-btn { background-color: #d16d6d !important; font-weight: bold; padding: 12px 20px !important; font-size: 1.2em !important; }
+        .start-game-btn, .end-game-btn { background-color: #ce1e1e !important; font-weight: bold; padding: 12px 20px !important; font-size: 1.2em !important; }
 
         #sd-bomb-timer { 
             font-family: "DSEG7 Classic", monospace;
@@ -61,7 +64,7 @@
             <div class="big-timer" id="domination-timer">--:--</div>
             <div class="details-grid">
                 <div class="game-status">
-                    <h3>Stato Partita</h3>
+                    <h3>Stato partita</h3>
                     <p id="domination-game-state">In attesa di inizio...</p>
                     <div id="team1-progress-container" class="progress-bar-container hidden"><div id="team1-progress" class="progress-bar"></div></div>
                     <div id="team2-progress-container" class="progress-bar-container hidden"><div id="team2-progress" class="progress-bar"></div></div>
@@ -69,10 +72,10 @@
                     <p>Punteggio <span class="team-green">Verde</span>: <span id="score-team2">00:00</span></p>
                 </div>
                 <div class="game-settings">
-                    <h3>Impostazioni in Uso</h3>
+                    <h3>Impostazioni in uso</h3>
                     <p>Durata: <span id="setting-duration" class="setting-value">--</span> min</p>
-                    <p>Tempo Conquista: <span id="setting-capture" class="setting-value">--</span> s</p>
-                    <p>Countdown Iniziale: <span id="setting-countdown" class="setting-value">--</span> s</p>
+                    <p>Tempo conquista: <span id="setting-capture" class="setting-value">--</span> s</p>
+                    <p>Countdown iniziale: <span id="setting-countdown" class="setting-value">--</span> s</p>
                 </div>
             </div>
              <h3 style="margin-top: 20px; margin-bottom: 5px;">Vincitore: <span id="status-winner">--</span></h3>
@@ -82,33 +85,33 @@
         </div>
         
         <div id="sd-view" class="panel hidden">
-            <h2>CERCA E DISTRUGGI</h2>
+            <h2>CERCA & DISTRUGGI</h2>
             <div class="big-timer" id="sd-game-timer">--:--</div>
             <div class="timer-controls">
                 <span id="game-duration-wrapper">
                     <label for="game-duration-input">Imposta minuti: </label>
                     <input type="number" id="game-duration-input" value="15" min="1">
-                    <button id="start-game-timer-btn" disabled>Avvia Timer Partita</button>
+                    <button id="start-game-timer-btn" disabled>Avvia timer partita</button>
                 </span>
                 <button id="force-end-sd-btn" class="end-game-btn hidden">TERMINA PARTITA</button>
             </div>
             <div class="details-grid">
                 <div class="game-status">
-                    <h3>Stato Bomba</h3>
+                    <h3>Stato bomba</h3>
                     <p id="sd-bomb-state">In attesa di inizio...</p>
-                    <p>Timer Bomba: <span id="sd-bomb-timer">--:--</span></p>
+                    <p>Timer bomba: <span id="sd-bomb-timer">--:--</span></p>
                     <div id="arm-progress-container" class="progress-bar-container hidden"><div id="arm-progress" class="progress-bar"></div></div>
                     <div id="defuse-progress-container" class="progress-bar-container hidden"><div id="defuse-progress" class="progress-bar"></div></div>
                 </div>
                 <div class="game-settings">
-                    <h3>Impostazioni in Uso</h3>
-                    <p>Tempo Bomba: <span id="setting-bomb-time" class="setting-value">--</span> min</p>
-                    <p>Tempo Innesco: <span id="setting-arm-time" class="setting-value">--</span> s</p>
-                    <p>Tempo Disinnesco: <span id="setting-defuse-time" class="setting-value">--</span> s</p>
-                    <p>Usa PIN Innesco: <span id="setting-use-arm-pin" class="setting-value">--</span></p>
-                    <p>PIN Innesco: <span id="setting-arm-pin" class="setting-value">--</span></p>
-                    <p>Usa PIN Disinnesco: <span id="setting-use-defuse-pin" class="setting-value">--</span></p>
-                    <p>PIN Disinnesco: <span id="setting-disarm-pin" class="setting-value">--</span></p>
+                    <h3>Impostazioni in uso</h3>
+                    <p>Tempo bomba: <span id="setting-bomb-time" class="setting-value">--</span> min</p>
+                    <p>Tempo innesco: <span id="setting-arm-time" class="setting-value">--</span> s</p>
+                    <p>Tempo disinnesco: <span id="setting-defuse-time" class="setting-value">--</span> s</p>
+                    <p>Usa PIN innesco: <span id="setting-use-arm-pin" class="setting-value">--</span></p>
+                    <p>PIN innesco: <span id="setting-arm-pin" class="setting-value">--</span></p>
+                    <p>Usa PIN disinnesco: <span id="setting-use-defuse-pin" class="setting-value">--</span></p>
+                    <p>PIN disinnesco: <span id="setting-disarm-pin" class="setting-value">--</span></p>
                 </div>
             </div>
         </div>
@@ -124,39 +127,39 @@
             </div>
             
             <div id="terminal-dom-config" class="panel hidden">
-                <h3>Imposta Partita Dominio</h3>
+                <h3>Imposta partita Dominio</h3>
                 <div class="details-grid">
                     <div>
                         <p><label>Durata (min): </label><input type="number" id="term-dom-duration" value="15"></p>
-                        <p><label>Tempo Conquista (s): </label><input type="number" id="term-dom-capture" value="10"></p>
+                        <p><label>Tempo conquista (s): </label><input type="number" id="term-dom-capture" value="10"></p>
                     </div>
                     <div></div>
                 </div>
                 <div class="timer-controls">
-                    <button id="send-dom-settings-btn">Invia Impostazioni</button>
+                    <button id="send-dom-settings-btn">Invia impostazioni</button>
                     <button id="start-dom-game-btn" class="start-game-btn" disabled>AVVIA PARTITA</button>
                 </div>
                 <button id="back-to-terminal-select">Indietro</button>
             </div>
 
             <div id="terminal-sd-config" class="panel hidden">
-                <h3>Imposta Partita Cerca & Distruggi</h3>
+                <h3>Imposta partita Cerca & Distruggi</h3>
                 <div class="details-grid">
                     <div>
-                        <p><label>Timer Partita (min): </label><input type="number" id="term-sd-gametime" value="15"></p>
-                        <p><label>Timer Bomba (min): </label><input type="number" id="term-sd-bombtime" value="10"></p>
-                        <p><label>Tempo Innesco (s): </label><input type="number" id="term-sd-armtime" value="5"></p>
-                        <p><label>Tempo Disinnesco (s): </label><input type="number" id="term-sd-defusetime" value="10"></p>
+                        <p><label>Timer partita (min): </label><input type="number" id="term-sd-gametime" value="15"></p>
+                        <p><label>Timer bomba (min): </label><input type="number" id="term-sd-bombtime" value="10"></p>
+                        <p><label>Tempo innesco (s): </label><input type="number" id="term-sd-armtime" value="5"></p>
+                        <p><label>Tempo disinnesco (s): </label><input type="number" id="term-sd-defusetime" value="10"></p>
                     </div>
                     <div>
-                        <p><label>Usa PIN Innesco: </label><select id="term-sd-use-arm-pin"><option value="1">Sì</option><option value="0">No</option></select></p>
-                        <p><label>PIN Innesco: </label><input type="text" id="term-sd-arm-pin" value="1234"></p>
-                        <p><label>Usa PIN Disinnesco: </label><select id="term-sd-use-defuse-pin"><option value="1">Sì</option><option value="0">No</option></select></p>
-                        <p><label>PIN Disinnesco: </label><input type="text" id="term-sd-defuse-pin" value="4321"></p>
+                        <p><label>Usa PIN innesco: </label><select id="term-sd-use-arm-pin"><option value="1">Sì</option><option value="0">No</option></select></p>
+                        <p><label>PIN innesco: </label><input type="text" id="term-sd-arm-pin" value="1234"></p>
+                        <p><label>Usa PIN disinnesco: </label><select id="term-sd-use-defuse-pin"><option value="1">Sì</option><option value="0">No</option></select></p>
+                        <p><label>PIN disinnesco: </label><input type="text" id="term-sd-defuse-pin" value="4321"></p>
                     </div>
                 </div>
                 <div class="timer-controls">
-                    <button id="term-send-sd-settings-btn">Invia Impostazioni</button>
+                    <button id="term-send-sd-settings-btn">Invia impostazioni</button>
                     <button id="term-start-sd-game-btn" class="start-game-btn" disabled>AVVIA PARTITA</button>
                 </div>
                 <button id="back-to-terminal-select-sd">Indietro</button>
@@ -164,11 +167,11 @@
         </div>
 
         <div id="simple-view" class="panel">
-            <p>Modalità Attuale: <span id="simple-mode-name">Menu Principale</span></p>
+            <p>Modalità attuale: <span id="simple-mode-name">Menu principale</span></p>
         </div>
 
         <div class="log-container panel">
-             <h3>Log Eventi Raw</h3>
+             <h3>Log eventi raw</h3>
              <div class="log"><ul id="log-list"></ul></div>
         </div>
     </div>
@@ -545,7 +548,7 @@
 
         function resetToMainMenu() {
             showView('simple');
-            simpleModeName.textContent = 'Menu Principale';
+            simpleModeName.textContent = 'Menu principale';
             stopAllTimers();
         }
 

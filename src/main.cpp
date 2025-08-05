@@ -183,7 +183,7 @@ void handleWelcomeState() {
         firstEntry = true;
         currentAppState = APP_STATE_MAIN_MENU;
         displayMainMenu();
-        networkManager.sendStatus("event:status_update;current_screen:main_menu;");
+        networkManager.sendStatus("event:mode_enter;mode:main_menu;");
     }
 }
 

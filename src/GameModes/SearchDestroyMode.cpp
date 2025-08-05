@@ -115,7 +115,6 @@ void SearchDestroyMode::loop() {
 void SearchDestroyMode::exit() {
     Serial.println("Uscito da modalita' Cerca & Distruggi");
     _network->sendStatus("event:mode_exit;mode:sd;");
-    _network->sendStatus("event:status_update;current_screen:main_menu;");
     _settings->saveParameters();
     _hardware->turnOffStrip();
     _hardware->clearOled1();

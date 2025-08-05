@@ -114,7 +114,6 @@ void DominationMode::loop() {
 void DominationMode::exit() {
     Serial.println("Uscito da modalita' Dominio");
     _network->sendStatus("event:mode_exit;mode:domination;");
-    _network->sendStatus("event:status_update;current_screen:main_menu;");
     _settings->saveParameters();
     _hardware->turnOffStrip();
     _hardware->clearOled1();
@@ -380,6 +379,15 @@ void DominationMode::handleCountdown() {
 
 void DominationMode::updateGameTimerOnRow(int row) {
     long totalSeconds = _settings->getGameDuration() * 60;
+
+    // ***Controllo di validità per l'ora di inizio partita ***
+    // Questo previene crash o fine immediata della partita se l'RTC fornisce dati errati.
+    if (_gameStartTime.year() < 2024) {
+        Serial.println("ERRORE: Orario di inizio partita non valido! L'RTC potrebbe avere problemi di alimentazione.");
+        _hardware->printLcd(0, 3, "ERRORE OROLOGIO RTC");
+        return; // Esce dalla funzione per questo ciclo, riproverà al prossimo.
+    }
+
     TimeSpan elapsed = _hardware->getRTCTime() - _gameStartTime;
     long remainingSeconds = totalSeconds - elapsed.totalseconds();
 
