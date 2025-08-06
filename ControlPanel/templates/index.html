@@ -57,6 +57,13 @@
 </head>
 <body>
     <div class="main-container">
+        <div style="width: 100%; text-align: right; margin-bottom: -10px;">
+            <span>Benvenuto, {{ username }}!</span>
+            <form action="{{ url_for('logout') }}" method="get" style="display: inline; margin-left: 15px;">
+                <button type="submit">Logout</button>
+            </form>
+        </div>
+        
         <h1>ZULU GAME SYSTEM</h1>
 
         <div id="domination-view" class="panel hidden">

@@ -1,15 +1,49 @@
 import socket
 import threading
-from flask import Flask, render_template
+from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_socketio import SocketIO
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
 
 # --- Configurazione ---
 UDP_PORT = 1234
 HOST_IP = '0.0.0.0'
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'secret!'
+# Chiave segreta FONDAMENTALE per la gestione delle sessioni
+app.config['SECRET_KEY'] = 'la-tua-chiave-segreta-super-difficile' 
 socketio = SocketIO(app, async_mode='threading')
+
+# --- CONFIGURAZIONE FLASK-LOGIN ---
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login' # Reindirizza qui se l'utente non è loggato
+
+# --- DATABASE UTENTI SEMPLIFICATO ---
+# In un'app reale, questo verrebbe da un database
+# La password 'zulu' è "hashata" per sicurezza
+users = {
+    'admin': {
+        'password_hash': generate_password_hash('zulu'),
+        'id': '1'
+    }
+}
+
+class User(UserMixin):
+    def __init__(self, id, username, password_hash):
+        self.id = id
+        self.username = username
+        self.password_hash = password_hash
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
+@login_manager.user_loader
+def load_user(user_id):
+    for username, data in users.items():
+        if data['id'] == user_id:
+            return User(id=data['id'], username=username, password_hash=data['password_hash'])
+    return None
 
 # --- MODIFICA: Logica di stato migliorata ---
 # Dizionario per memorizzare l'ultimo stato noto del gioco
@@ -57,10 +91,37 @@ def udp_listener():
                 
                 socketio.emit('game_update', parsed_data)
 
+# --- ROUTE (PAGINE WEB) ---
+
 @app.route('/')
+@login_required # <-- Questa pagina ora richiede il login
 def index():
-    """Questa funzione serve la pagina web principale."""
-    return render_template('index.html')
+    """Serve la pagina web principale (il pannello)."""
+    return render_template('index.html', username=current_user.username)
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    """Gestisce la logica di accesso."""
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        
+        user_data = users.get(username)
+        if user_data:
+            user = User(id=user_data['id'], username=username, password_hash=user_data['password_hash'])
+            if user.check_password(password):
+                login_user(user)
+                return redirect(url_for('index'))
+
+        flash('Credenziali non valide. Riprova.')
+    return render_template('login.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    """Esegue il logout."""
+    logout_user()
+    return redirect(url_for('login'))
 
 @socketio.on('connect')
 def handle_connect():
@@ -88,11 +149,8 @@ if __name__ == '__main__':
     listener_thread = threading.Thread(target=udp_listener, daemon=True)
     listener_thread.start()
     
-    try:
-        hostname = socket.gethostname()
-        local_ip = socket.gethostbyname(hostname)
-        print(f"-> Pannello di controllo accessibile all'indirizzo http://{local_ip}:5000")
-    except socket.gaierror:
-        print("-> Non è stato possibile determinare l'IP locale. Accedi tramite l'IP del tuo computer sulla rete locale, porta 5000.")
+    hostname = socket.gethostname()
+    local_ip = socket.gethostbyname(hostname)
+    print(f"-> Pannello di controllo accessibile all'indirizzo http://{local_ip}:5000")
     
     socketio.run(app, host=HOST_IP, port=5000, allow_unsafe_werkzeug=True)

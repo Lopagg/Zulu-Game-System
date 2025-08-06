@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>Login - Pannello di Controllo</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #1e1e1e; color: #d4d4d4; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .login-container { background-color: #252526; padding: 40px; border-radius: 8px; border: 1px solid #3c3c3c; width: 300px; text-align: center; }
+        h1 { color: #4e94e2; margin-top: 0; }
+        input { width: 100%; padding: 10px; margin-bottom: 15px; background-color: #3c3c3c; border: 1px solid #61afef; color: #d4d4d4; border-radius: 4px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background-color: #4e94e2; border: none; color: white; border-radius: 4px; cursor: pointer; font-size: 1.1em; }
+        .flash-error { color: #d16d6d; background-color: rgba(209, 109, 109, 0.1); border: 1px solid #d16d6d; padding: 10px; border-radius: 4px; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <h1>Login</h1>
+        
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                <div class="flash-error">
+                    {{ messages[0] }}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <form method="post">
+            <input type="text" name="username" placeholder="Username" required>
+            <input type="password" name="password" placeholder="Password" required>
+            <button type="submit">Accedi</button>
+        </form>
+    </div>
+</body>
+</html>
