@@ -37,6 +37,9 @@ In questa sezione vengono definiti tutti i parametri hardware del progetto
 #define LED_STRIP_PIN   13
 #define LED_STRIP_COUNT 60 // Numero di LED della striscia
 
+#define PN532_IRQ   (12)
+#define PN532_RESET (15)
+
 // Mappa e pin del tastierino numerico 4x4.
 const byte ROWS = 4;
 const byte COLS = 4;
@@ -86,6 +89,8 @@ HardwareManager::HardwareManager() :
     _breathingUp = true;
     _waveLastUpdate = 0;
     _waveCenter = 0;
+
+    _nfc = nullptr; 
 }
 
 /**
@@ -107,12 +112,31 @@ void HardwareManager::initialize() {
     _i2c_2.begin(I2C_SDA2_PIN, I2C_SCL2_PIN);
     Serial.println("OK.");
 
-    // Inizializza tutti i display
     Serial.print("Inizializzazione LCD... ");
     _lcd.init(); _lcd.backlight(); _lcd.clear();
     Serial.println("OK.");
     
     createProgressBarChars();
+
+    // Inizializzazione Lettore RFID/NFC (sul bus I2C secondario)
+    Serial.print("Inizializzazione Lettore PN532... ");
+    _nfc = new Adafruit_PN532(PN532_IRQ, PN532_RESET);
+    
+    _nfc->begin();
+    delay(50); // Piccola pausa per stabilizzare il chip
+    
+    uint32_t versiondata = _nfc->getFirmwareVersion();
+    if (!versiondata) {
+        Serial.println("ERRORE: Modulo PN532 non trovato!");
+        printLcd(0, 1, "Errore Lettore");
+        printLcd(0, 2, "RFID!");
+        while(1) delay(10);
+    }
+    Serial.print("Trovato chip PN5"); Serial.println((versiondata >> 24) & 0xFF, HEX);
+    Serial.print("Firmware ver. "); Serial.print((versiondata >> 16) & 0xFF, DEC);
+    Serial.print('.'); Serial.println((versiondata >> 8) & 0xFF, DEC);
+    _nfc->SAMConfig();
+    Serial.println("OK.");
     
     Serial.print("Inizializzazione OLED 1 (Bus 1)... ");
     if(!_oled1.begin(SSD1306_SWITCHCAPVCC, OLED_ADDRESS)) {
@@ -396,4 +420,36 @@ void HardwareManager::printOled2(const String& text, int size, int x, int y) {
     _oled2.setCursor(x, y);
     _oled2.println(text);
     _oled2.display();
+}
+
+/**
+ * @brief Legge l'UID di una card RFID/NFC in modo persistente per un dato timeout.
+ * @param timeout Il tempo massimo in millisecondi per cui cercare una card.
+ * @return Una stringa con l'UID in formato esadecimale, o un messaggio di errore.
+ */
+String HardwareManager::readRFID(uint16_t timeout) {
+    uint8_t success;
+    uint8_t uid[] = { 0, 0, 0, 0, 0, 0, 0 };
+    uint8_t uidLength;
+
+    unsigned long startTime = millis();
+    // *** MODIFICA: Cicla finché non trova una card o scade il tempo ***
+    while (millis() - startTime < timeout) {
+        // Tenta di leggere una card con un breve timeout per non bloccare il ciclo
+        success = _nfc->readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &uidLength, 50);
+
+        if (success) {
+            String uidString = "";
+            for (uint8_t i = 0; i < uidLength; i++) {
+                if (uid[i] < 0x10) uidString += "0";
+                uidString += String(uid[i], HEX);
+                if (i < uidLength - 1) uidString += ":";
+            }
+            uidString.toUpperCase();
+            return uidString;
+        }
+    }
+    
+    // Se il ciclo finisce senza aver trovato nulla
+    return "Nessuna card trovata";
 }

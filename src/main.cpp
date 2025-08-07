@@ -315,12 +315,21 @@ void handleTestHardwareState() {
         hardware.playTone(700, 40);
         hardware.clearLcd();
         hardware.printLcd(0, 0, "Test Hardware");
-        hardware.printLcd(0, 1, "Tasto premuto:");
-        hardware.printLcd(8, 2, String(key));
         
-        if (key == '1') hardware.setStripColor(255, 0, 0);
-        if (key == '2') hardware.setStripColor(0, 255, 0);
-        if (key == '3') hardware.setStripColor(0, 0, 255);
+        if (key == 'A') {
+            hardware.printLcd(0, 1, "Avvicina una card...");
+            String uid = hardware.readRFID();
+            hardware.clearLcd();
+            hardware.printLcd(0, 0, "Test Lettore RFID");
+            hardware.printLcd(0, 2, "UID:");
+            hardware.printLcd(0, 3, uid);
+        } else {
+            hardware.printLcd(0, 1, "Tasto premuto:");
+            hardware.printLcd(8, 2, String(key));
+            if (key == '1') hardware.setStripColor(255, 0, 0);
+            if (key == '2') hardware.setStripColor(0, 255, 0);
+            if (key == '3') hardware.setStripColor(0, 0, 255);
+        }
     }
 
     if (btn2_pressed) {

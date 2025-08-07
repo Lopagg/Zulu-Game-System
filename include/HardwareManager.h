@@ -13,12 +13,14 @@
 
 // Inclusione delle librerie necessarie per i componenti hardware
 #include <Arduino.h>
+#include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 #include <Keypad.h>
 #include "Button.h" // Classe definita nel file per la logica debouncing pulsanti
 #include <Adafruit_NeoPixel.h> // Striscia LED
 #include "RTClib.h"
 #include <Adafruit_SSD1306.h> // Schermi OLED
+#include "Adafruit_PN532.h"
 
 /**
  * @class HardwareManager
@@ -119,6 +121,9 @@ public:
     /** @brief Ritorna 'true' se una melodia è in esecuzione. */
     bool isMidiTunePlaying();
 
+    // Funzione RFID
+    String readRFID(uint16_t timeout = 1000);
+
 private:
 
     // Oggetti che rappresentano i componenti hardware fisici.
@@ -131,6 +136,7 @@ private:
     Adafruit_SSD1306 _oled1;
     Adafruit_SSD1306 _oled2;
     TwoWire _i2c_2;
+    Adafruit_PN532* _nfc;  
 
     // Variabili private per gestire lo stato interno delle animazioni e dei suoni.
     unsigned long _rainbowLastUpdate;
