@@ -133,7 +133,7 @@ private:
     Button _button1;
     Button _button2;
     Adafruit_NeoPixel _strip;
-    RTC_DS1307 _rtc;
+    RTC_DS3231 _rtc;
     Adafruit_SSD1306 _oled1;
     Adafruit_SSD1306 _oled2;
     TwoWire _i2c_2;

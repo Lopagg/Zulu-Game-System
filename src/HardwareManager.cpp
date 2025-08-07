@@ -174,7 +174,7 @@ void HardwareManager::initialize() {
     Serial.println("OK.");
 
     // Inizializza l'RTC
-    Serial.print("Inizializzazione RTC (DS1307)... ");
+    Serial.print("Inizializzazione RTC (DS3231)... ");
     if (!_rtc.begin()) {
         Serial.println("ERRORE: modulo RTC non trovato!");
         printLcd(0, 0, "Errore RTC!");
@@ -184,8 +184,8 @@ void HardwareManager::initialize() {
     DateTime now = _rtc.now();
     Serial.printf("Ora RTC: %04d/%02d/%02d %02d:%02d:%02d\n", now.year(), now.month(), now.day(), now.hour(), now.minute(), now.second());
 
-    if (!_rtc.isrunning()) {
-        Serial.println("ATTENZIONE: RTC non in funzione! Imposto data/ora...");
+    if (_rtc.lostPower()) {
+        Serial.println("ATTENZIONE: RTC ha perso l'alimentazione! Imposto data/ora...");
         _rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
     }
 
@@ -432,7 +432,7 @@ String HardwareManager::readRFID(uint16_t timeout) {
     uint8_t uidLength;
 
     unsigned long startTime = millis();
-    // *** MODIFICA: Cicla finché non trova una card o scade il tempo ***
+    //Cicla finché non trova una card o scade il tempo
     while (millis() - startTime < timeout) {
         // Tenta di leggere una card con un breve timeout per non bloccare il ciclo
         success = _nfc->readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &uidLength, 50);
@@ -447,6 +447,7 @@ String HardwareManager::readRFID(uint16_t timeout) {
             uidString.toUpperCase();
             return uidString;
         }
+        delay(10); // Piccola pausa per non sovraccaricare il bus I2C
     }
     
     // Se il ciclo finisce senza aver trovato nulla
