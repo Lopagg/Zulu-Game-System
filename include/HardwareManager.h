@@ -20,7 +20,8 @@
 #include <Adafruit_NeoPixel.h> // Striscia LED
 #include "RTClib.h"
 #include <Adafruit_SSD1306.h> // Schermi OLED
-#include "Adafruit_PN532.h"
+#include <PN532_I2C.h>
+#include <PN532.h>
 
 /**
  * @class HardwareManager
@@ -136,7 +137,8 @@ private:
     Adafruit_SSD1306 _oled1;
     Adafruit_SSD1306 _oled2;
     TwoWire _i2c_2;
-    Adafruit_PN532* _nfc;  
+    PN532_I2C* _nfc_i2c;
+    PN532* _nfc;  
 
     // Variabili private per gestire lo stato interno delle animazioni e dei suoni.
     unsigned long _rainbowLastUpdate;

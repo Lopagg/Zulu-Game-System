@@ -37,9 +37,6 @@ In questa sezione vengono definiti tutti i parametri hardware del progetto
 #define LED_STRIP_PIN   13
 #define LED_STRIP_COUNT 60 // Numero di LED della striscia
 
-#define PN532_IRQ   (12)
-#define PN532_RESET (15)
-
 // Mappa e pin del tastierino numerico 4x4.
 const byte ROWS = 4;
 const byte COLS = 4;
@@ -90,6 +87,7 @@ HardwareManager::HardwareManager() :
     _waveLastUpdate = 0;
     _waveCenter = 0;
 
+    _nfc_i2c = nullptr;
     _nfc = nullptr; 
 }
 
@@ -118,12 +116,13 @@ void HardwareManager::initialize() {
     
     createProgressBarChars();
 
-    // Inizializzazione Lettore RFID/NFC (sul bus I2C secondario)
+    // Inizializzazione del lettore RFID/NFC
     Serial.print("Inizializzazione Lettore PN532... ");
-    _nfc = new Adafruit_PN532(PN532_IRQ, PN532_RESET);
+    _nfc_i2c = new PN532_I2C(Wire); // Usa il bus I2C principale
+    _nfc = new PN532(*_nfc_i2c);
     
     _nfc->begin();
-    delay(50); // Piccola pausa per stabilizzare il chip
+    delay(50);
     
     uint32_t versiondata = _nfc->getFirmwareVersion();
     if (!versiondata) {
