@@ -88,7 +88,7 @@ HardwareManager::HardwareManager() :
     _waveCenter = 0;
 
     _nfc_i2c = nullptr;
-    _nfc = nullptr; 
+    _nfc = nullptr;
 }
 
 /**
