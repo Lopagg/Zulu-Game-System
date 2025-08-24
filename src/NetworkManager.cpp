@@ -7,6 +7,8 @@
 
 #include "NetworkManager.h"
 
+const char* SERVER_HOSTNAME = "zuluserver.ddns.net";
+
 // --- Configurazione Rete ---
 // Qui vengono definite le credenziali della rete WiFi a cui il dispositivo si connetterà.
 // DEVONO essere modificate con i dati della rete del campo da gioco.
@@ -109,9 +111,12 @@ String NetworkManager::getReceivedMessage() {
  * e lo invia. Usato da tutte le modalità di gioco per comunicare lo stato.
  */
 void NetworkManager::sendStatus(const char* status) {
-    _udp.beginPacket(_broadcastIP, _udpPort);
-    _udp.print(status);
-    _udp.endPacket();
-    Serial.print("Inviato pacchetto di stato: ");
-    Serial.println(status);
+    IPAddress remote_addr;
+    if (WiFi.hostByName(SERVER_HOSTNAME, remote_addr)) {
+        _udp.beginPacket(remote_addr, _udpPort);
+        _udp.print(status);
+        _udp.endPacket();
+    } else {
+        Serial.println("ERRORE: Impossibile risolvere l'hostname del server!");
+    }
 }
