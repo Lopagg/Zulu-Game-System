@@ -12,7 +12,7 @@ HOST_IP = '0.0.0.0'
 app = Flask(__name__)
 # Chiave segreta FONDAMENTALE per la gestione delle sessioni
 app.config['SECRET_KEY'] = 'la-tua-chiave-segreta-super-difficile' 
-socketio = SocketIO(app, async_mode='threading')
+socketio = SocketIO(app, async_mode='eventlet')
 
 # --- CONFIGURAZIONE FLASK-LOGIN ---
 login_manager = LoginManager()
