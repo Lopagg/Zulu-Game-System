@@ -1,5 +1,7 @@
 import socket
 import threading
+import eventlet
+eventlet.monkey_patch()
 from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_socketio import SocketIO
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
@@ -146,8 +148,8 @@ def handle_send_command(json):
 
 if __name__ == '__main__':
     print("-> Avvio del server web e del listener UDP...")
-    listener_thread = threading.Thread(target=udp_listener, daemon=True)
-    listener_thread.start()
+    # Avvia il listener UDP in un "green thread" compatibile con eventlet
+    eventlet.spawn(udp_listener)
     
     hostname = socket.gethostname()
     local_ip = socket.gethostbyname(hostname)
