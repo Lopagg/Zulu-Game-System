@@ -33,6 +33,8 @@ In questa sezione vengono definiti tutti i parametri hardware del progetto
 
 #define BUTTON1_PIN 32
 #define BUTTON2_PIN 33
+#define KEY1_PIN 35
+#define KEY2_PIN 34
 #define BUZZER_PIN  23
 #define LED_STRIP_PIN   13
 #define LED_STRIP_COUNT 60 // Numero di LED della striscia
@@ -105,7 +107,7 @@ void HardwareManager::initialize() {
     Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
     Serial.println("OK.");
     
-    Serial.print("Inizializzazione I2C Bus 2 (Pin 14, 12)... ");
+    Serial.print("Inizializzazione I2C Bus 2 (Pin 18, 19)... ");
     // Avvia il secondo bus I2C per l'OLED2
     _i2c_2.begin(I2C_SDA2_PIN, I2C_SCL2_PIN);
     Serial.println("OK.");
