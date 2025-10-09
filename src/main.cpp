@@ -58,11 +58,21 @@ int mainMenuIndex = 0;
 String mainMenuOptions[] = { "Cerca & Distruggi", "Dominio", "Stanza dei Suoni", "Mod. Terminale", "Test Hardware" };
 int numMainMenuOptions = sizeof(mainMenuOptions) / sizeof(mainMenuOptions[0]);
 
+// --- Variabili per il sottomenu di Test Hardware ---
+enum TestHardwareSubState {
+    TEST_MAIN,
+    TEST_KEYS
+};
+TestHardwareSubState currentTestSubState = TEST_MAIN;
+
 // --- Dichiarazioni Funzioni di Stato ---
 // Prototipi per le funzioni che gestiscono gli stati non legati a una classe specifica.
+void displayMainMenu();
 void handleWelcomeState();
 void handleMainMenuState();
 void handleTestHardwareState();
+void displayTestHardwareMainMenu();
+void displayKeyTestMenu();
 
 // --- SETUP ---
 /**
@@ -141,6 +151,7 @@ void loop() {
             break;
         case APP_STATE_MUSIC_ROOM:
             musicRoomMode->loop();  // Delega il controllo alla Stanza dei Suoni
+            break;
         case APP_STATE_TERMINAL_MODE:
             terminalMode->loop();   // Delega il controllo alla Modalità Terminale
             break;
@@ -148,6 +159,12 @@ void loop() {
             handleTestHardwareState();
             break;
     }
+
+    if (hardware.isKey1Turned())
+    {
+        Serial.println("KEY 1 TURNED ON");
+    }
+    
 }
 
 // --- Implementazione Funzioni di Gestione Stati ---
@@ -280,74 +297,117 @@ void handleMainMenuState() {
                 Serial.println("TRANSIZIONE: Main Menu -> Test Hardware");
                 networkManager.sendStatus("event:mode_enter;mode:testhw;");
                 currentAppState = APP_STATE_TEST_HARDWARE;
-                hardware.clearLcd();
-                hardware.printLcd(0, 0, "Test Hardware");
-                hardware.printLcd(0, 1, "Pulsante 1");
-                hardware.printLcd(0, 2, "per uscire");
-                hardware.setStripColor(255, 255, 255);
-                hardware.printOled1("INDIETRO", 2, 10, 25);
-                hardware.printOled2("TEST", 2, 35, 25);
+                currentTestSubState = TEST_MAIN; // Imposta il sottomenu iniziale
+                displayTestHardwareMainMenu(); // Disegna il menu del test
                 break;
         }
     }
 }
 
 /**
- * @brief Gestisce la logica della modalità di test hardware.
- * @details Permette di testare il funzionamento di base di tastierino, pulsanti e LED.
- * Serve principalmente per il debug iniziale.
+ * @brief Disegna la schermata principale del Test Hardware.
+ */
+void displayTestHardwareMainMenu() {
+    hardware.clearLcd();
+    hardware.printLcd(0, 0, "Test Hardware");
+    hardware.printLcd(0, 1, "A: RFID B: Chiavi");
+    hardware.printLcd(0, 2, "1,2,3 Colori LED");
+    hardware.setStripColor(255, 255, 255);
+    hardware.printOled1("INDIETRO", 2, 10, 25);
+    hardware.printOled2("TEST", 2, 35, 25);
+}
+
+/**
+ * @brief Disegna la schermata per il test delle chiavi.
+ */
+void displayKeyTestMenu() {
+    hardware.clearLcd();
+    hardware.printLcd(0, 0, "Test Interruttori");
+    hardware.printLcd(0, 2, "Chiave 1:");
+    hardware.printLcd(0, 3, "Chiave 2:");
+    hardware.printOled1("INDIETRO", 2, 10, 25);
+    hardware.clearOled2();
+}
+
+/**
+ * @brief Gestisce la logica della modalità di test hardware e dei suoi sottomenù.
  */
 void handleTestHardwareState() {
-    static bool firstEntry = true;
-    if(firstEntry){
-        Serial.println("STATO: Entrato in Test Hardware");
-        firstEntry = false;
-    }
-
     char key = hardware.getKey();
     bool btn1_pressed = hardware.wasButton1Pressed();
     bool btn2_pressed = hardware.wasButton2Pressed();
 
-    if (key != NO_KEY) {
-        Serial.print("INPUT: Tasto Tastierino '");
-        Serial.print(key);
-        Serial.println("' premuto");
-        hardware.playTone(700, 40);
-        hardware.clearLcd();
-        hardware.printLcd(0, 0, "Test Hardware");
-        
-        if (key == 'A') {
-            hardware.printLcd(0, 1, "Avvicina una card...");
-            String uid = hardware.readRFID();
-            hardware.clearLcd();
-            hardware.printLcd(0, 0, "Test Lettore RFID");
-            hardware.printLcd(0, 2, "UID:");
-            hardware.printLcd(0, 3, uid);
-        } else {
-            hardware.printLcd(0, 1, "Tasto premuto:");
-            hardware.printLcd(8, 2, String(key));
-            if (key == '1') hardware.setStripColor(255, 0, 0);
-            if (key == '2') hardware.setStripColor(0, 255, 0);
-            if (key == '3') hardware.setStripColor(0, 0, 255);
+    if (currentTestSubState == TEST_MAIN) {
+        // --- LOGICA DEL MENU PRINCIPALE DI TEST ---
+
+        if (key != NO_KEY) {
+            Serial.printf("INPUT: '%c' premuto\n", key);
+            hardware.playTone(700, 40);
+
+            if (key == 'A') {
+                hardware.printLcd(0, 1, "                    "); // Pulisce la riga
+                hardware.printLcd(0, 1, "Avvicina una card...");
+                String uid = hardware.readRFID(5000); // Timeout di 5s
+                displayTestHardwareMainMenu(); // Ridisegna il menu dopo il test
+                hardware.printLcd(0, 2, "UID:");
+                hardware.printLcd(0, 3, uid);
+            } else if (key == 'B') {
+                // Passa al sottomenu di test delle chiavi
+                currentTestSubState = TEST_KEYS;
+                displayKeyTestMenu();
+            } else {
+                hardware.printLcd(0, 1, "Tasto premuto: " + String(key) + "   ");
+                if (key == '1') hardware.setStripColor(255, 0, 0);
+                if (key == '2') hardware.setStripColor(0, 255, 0);
+                if (key == '3') hardware.setStripColor(0, 0, 255);
+            }
         }
-    }
 
-    if (btn2_pressed) {
-        Serial.println("INPUT: Pulsante 2 (Conferma) premuto");
-        hardware.playTone(1200, 100);
-        hardware.clearLcd();
-        hardware.printLcd(0, 0, "Test Hardware");
-        hardware.printLcd(0, 1, "Pulsante 2 OK!");
-    }
+        if (btn2_pressed) {
+            Serial.println("INPUT: Pulsante 2 (Conferma) premuto");
+            hardware.playTone(1200, 100);
+            hardware.printLcd(0, 1, "Pulsante 2 OK!");
+        }
 
-    if (btn1_pressed) {
-        Serial.println("INPUT: Pulsante 1 (Indietro) premuto");
-        hardware.playTone(300, 70);
-        hardware.turnOffStrip();
-        networkManager.sendStatus("event:mode_exit;mode:testhw;");
-        Serial.println("TRANSIZIONE: Test Hardware -> Main Menu");
-        currentAppState = APP_STATE_MAIN_MENU;
-        firstEntry = true;
-        displayMainMenu();
+        if (btn1_pressed) {
+            // Esce dalla modalità Test Hardware
+            Serial.println("INPUT: Pulsante 1 (Indietro) premuto");
+            hardware.playTone(300, 70);
+            hardware.turnOffStrip();
+            networkManager.sendStatus("event:mode_exit;mode:testhw;");
+            Serial.println("TRANSIZIONE: Test Hardware -> Main Menu");
+            currentAppState = APP_STATE_MAIN_MENU;
+            displayMainMenu();
+        }
+
+    } else if (currentTestSubState == TEST_KEYS) {
+        // --- LOGICA DEL SOTTOMENU TEST CHIAVI ---
+        
+        bool key1_state = hardware.isKey1Turned();
+        bool key2_state = hardware.isKey2Turned();
+
+        // Aggiorna LCD
+        hardware.printLcd(10, 2, key1_state ? "ON " : "OFF");
+        hardware.printLcd(10, 3, key2_state ? "ON " : "OFF");
+
+        // Aggiorna LED Striscia
+        int half_leds = hardware.getStripLedCount() / 2;
+        // Chiave 1 - Prima metà (Verde)
+        for (int i = 0; i < half_leds; i++) {
+            hardware.setPixelColor(i, key1_state ? 0 : 0, key1_state ? 255 : 0, 0);
+        }
+        // Chiave 2 - Seconda metà (Blu)
+        for (int i = half_leds; i < hardware.getStripLedCount(); i++) {
+            hardware.setPixelColor(i, 0, 0, key2_state ? 255 : 0);
+        }
+        hardware.showStrip();
+
+        if (btn1_pressed) {
+            // Torna al menu principale di test
+            Serial.println("INPUT: Pulsante 1 (Indietro) premuto");
+            hardware.playTone(300, 70);
+            currentTestSubState = TEST_MAIN;
+            displayTestHardwareMainMenu();
+        }
     }
 }

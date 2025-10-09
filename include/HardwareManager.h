@@ -79,6 +79,10 @@ public:
     bool isButton1Pressed();
     /** @brief Controlla se il pulsante 2 è attualmente tenuto premuto (stato continuo). */
     bool isButton2Pressed();
+    /** @brief Controlla se la chiave 1 è inserita e girata (stato continuo). */
+    bool isKey1Turned();
+    /** @brief Controlla se la chiave 2 è inserita e girata (stato continuo). */
+    bool isKey2Turned();
 
     // Funzioni Striscia LED
     /** @brief Imposta tutti i LED della striscia su un colore uniforme. */
@@ -132,6 +136,8 @@ private:
     Keypad _keypad;
     Button _button1;
     Button _button2;
+    Button _key1;
+    Button _key2;
     Adafruit_NeoPixel _strip;
     RTC_DS3231 _rtc;
     Adafruit_SSD1306 _oled1;

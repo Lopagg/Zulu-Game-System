@@ -63,6 +63,8 @@ HardwareManager::HardwareManager() :
     _keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS),
     _button1(BUTTON1_PIN),
     _button2(BUTTON2_PIN),
+    _key1(KEY1_PIN),
+    _key2(KEY2_PIN),
     _strip(LED_STRIP_COUNT, LED_STRIP_PIN, NEO_GRB + NEO_KHZ800),
     _rtc(),
     _oled1(OLED_RES_X, OLED_RES_Y, &Wire, -1),
@@ -201,6 +203,8 @@ void HardwareManager::initialize() {
 void HardwareManager::updateButtons() { 
     _button1.update();
     _button2.update();
+    _key1.update();
+    _key2.update();
 }
 
 bool HardwareManager::wasButton1Pressed() { return _button1.wasPressed(); }
@@ -208,6 +212,9 @@ bool HardwareManager::wasButton2Pressed() { return _button2.wasPressed(); }
 char HardwareManager::getKey() { return _keypad.getKey(); }
 bool HardwareManager::isButton1Pressed() { return _button1.isPressed(); }
 bool HardwareManager::isButton2Pressed() { return _button2.isPressed(); }
+// --- GESTIONE INTERRUTTORI A CHIAVE ---
+bool HardwareManager::isKey1Turned() { return _key1.isPressed(); }
+bool HardwareManager::isKey2Turned() { return _key2.isPressed(); }
 
 // --- GESTIONE OUTPUT LED ---
 void HardwareManager::updateRainbowEffect() {
