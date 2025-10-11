@@ -1,5 +1,17 @@
+import sys
 import socket
-import requests # Useremo questa libreria per fare richieste HTTP
+# Aggiungiamo print e flush dopo ogni import per essere sicuri di vederli nel log
+print("[BRIDGE_LOG] Modulo 'sys' e 'socket' importati con successo.")
+sys.stdout.flush()
+
+try:
+    import requests
+    print("[BRIDGE_LOG] Modulo 'requests' importato con successo.")
+    sys.stdout.flush()
+except ImportError as e:
+    print(f"[!!!] ERRORE FATALE: Impossibile importare la libreria 'requests': {e}")
+    sys.stdout.flush()
+    sys.exit(1) # Esce con un codice di errore per far fallire il servizio
 
 def parse_message(data_str):
     """Semplice parser per i messaggi chiave:valore;"""
@@ -16,34 +28,50 @@ def udp_listener():
     HOST_IP = '0.0.0.0'
     FORWARD_URL = 'http://localhost:5000/internal/forward_data'
 
-    print(f"[*] Avvio UDP Bridge. Ascolto sulla porta {UDP_PORT}...")
+    print(f"[*] UDP Bridge in avvio. In ascolto su {HOST_IP}:{UDP_PORT}...")
+    sys.stdout.flush()
     
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-        try:
-            sock.bind((HOST_IP, UDP_PORT))
-            print(f"[+] Bind eseguito. Inoltro dei dati a {FORWARD_URL}")
-            
-            while True:
-                data, addr = sock.recvfrom(1024)
-                message_str = data.decode('utf-8', errors='ignore')
-                print(f"Ricevuto pacchetto da {addr}, inoltro in corso...")
-                
-                parsed_data = parse_message(message_str)
-                
-                if parsed_data:
-                    try:
-                        # Prepara il pacchetto di dati da inviare come JSON
-                        payload = {
-                            "parsed_data": parsed_data,
-                            "device_ip": addr[0]
-                        }
-                        # Inoltra i dati al server web principale tramite una richiesta POST
-                        requests.post(FORWARD_URL, json=payload, timeout=0.5)
-                    except requests.exceptions.RequestException as e:
-                        print(f"  - Errore durante l'inoltro dei dati: {e}")
+    sock = None
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        print("[+] Socket creato.")
+        sys.stdout.flush()
 
-        except Exception as e:
-            print(f"[!!!] ERRORE CRITICO NEL BRIDGE UDP: {e}")
+        sock.bind((HOST_IP, UDP_PORT))
+        print(f"[+] Bind sulla porta {UDP_PORT} eseguito con successo. Inoltro dati a {FORWARD_URL}")
+        sys.stdout.flush()
+        
+        while True:
+            data, addr = sock.recvfrom(1024)
+            message_str = data.decode('utf-8', errors='ignore')
+            print(f"[BRIDGE_RX] Ricevuto da {addr}, inoltro in corso...")
+            sys.stdout.flush()
+            
+            parsed_data = parse_message(message_str)
+            
+            if parsed_data:
+                try:
+                    payload = {
+                        "parsed_data": parsed_data,
+                        "device_ip": addr[0]
+                    }
+                    response = requests.post(FORWARD_URL, json=payload, timeout=0.5)
+                    print(f"  - Inoltrato. Risposta del server web: {response.status_code}")
+                    sys.stdout.flush()
+                except requests.exceptions.RequestException as e:
+                    print(f"  - [!!!] ERRORE durante l'inoltro: {e}")
+                    sys.stdout.flush()
+
+    except Exception as e:
+        print(f"[!!!] ERRORE CRITICO NEL BRIDGE UDP: {e}")
+        sys.stdout.flush()
+    finally:
+        if sock:
+            sock.close()
+            print("[*] Socket chiuso.")
+            sys.stdout.flush()
 
 if __name__ == '__main__':
+    print("[BRIDGE_LOG] Avvio dello script udp_bridge.py...")
+    sys.stdout.flush()
     udp_listener()
