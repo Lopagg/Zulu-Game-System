@@ -1,5 +1,6 @@
 import socket
 import threading
+from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_socketio import SocketIO
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
@@ -36,10 +37,41 @@ def load_user(user_id):
             return User(id=data['id'], username=username, password_hash=data['password_hash'])
     return None
 
-# --- Logica di stato migliorata ---
+# --- MODIFICA: Logica di stato migliorata con status connessione ---
 last_known_state = {}
 state_lock = threading.Lock()
-last_device_ip = None # Verrà impostato dal bridge
+last_device_ip = None
+
+# Variabili per il controllo della connessione
+device_status = "OFFLINE"
+last_heartbeat_time = None
+status_lock = threading.Lock()
+
+# --- NUOVA FUNZIONE: Controlla lo stato del dispositivo in background ---
+def check_device_status():
+    """
+    Questo task viene eseguito in background per controllare se il dispositivo
+    è ancora connesso. Se non riceve un heartbeat per più di 15 secondi,
+    lo considera offline.
+    """
+    global device_status, last_heartbeat_time
+    print("-> Avvio del monitor di connessione del dispositivo...")
+    while True:
+        with status_lock:
+            # Controlla solo se abbiamo ricevuto almeno un heartbeat
+            if last_heartbeat_time:
+                # Calcola il tempo passato dall'ultimo segnale
+                delta = datetime.utcnow() - last_heartbeat_time
+                if delta.total_seconds() > 15 and device_status == "ONLINE":
+                    print("[!] Timeout del dispositivo. Stato impostato su OFFLINE.")
+                    device_status = "OFFLINE"
+                    # Invia l'aggiornamento a tutti i browser
+                    socketio.emit('connection_status', {'status': 'OFFLINE'})
+            
+            # Se lo stato è OFFLINE ma non abbiamo mai ricevuto un heartbeat, non fare nulla
+            # finché non arriva il primo pacchetto.
+
+        socketio.sleep(5) # Controlla ogni 5 secondi
 
 # --- ROUTE (PAGINE WEB) ---
 
@@ -80,6 +112,14 @@ def forward_data():
 
     if not parsed_data or not device_ip:
         return jsonify({"status": "error", "message": "Dati mancanti"}), 400
+    
+    with status_lock:
+        last_heartbeat_time = datetime.utcnow() # Aggiorna il timestamp dell'ultimo segnale
+        # Se era offline, ora è online
+        if device_status == "OFFLINE":
+            print(f"[+] Dispositivo ONLINE (IP: {device_ip}).")
+            device_status = "ONLINE"
+            socketio.emit('connection_status', {'status': 'ONLINE'})
 
     last_device_ip = device_ip # Aggiorna l'IP del dispositivo
     
@@ -92,7 +132,9 @@ def forward_data():
         else:
             last_known_state.update(parsed_data)
     
-    socketio.emit('game_update', parsed_data)
+    if parsed_data.get('event') != 'heartbeat':
+      socketio.emit('game_update', parsed_data)
+
     return jsonify({"status": "ok"}), 200
 
 # --- GESTORI SOCKET.IO ---
@@ -103,6 +145,8 @@ def handle_connect():
     with state_lock:
         if last_known_state:
             socketio.emit('game_update', last_known_state)
+    with status_lock:
+        socketio.emit('connection_status', {'status': device_status})
 
 @socketio.on('send_command')
 def handle_send_command(json):
@@ -113,6 +157,8 @@ def handle_send_command(json):
             print(f"Comando inviato a {last_device_ip}: {command}")
     else:
         print("Errore: nessun comando o IP del dispositivo non noto.")
+
+socketio.start_background_task(target=check_device_status)
 
 if __name__ == '__main__':
     # Quando eseguito manualmente, avvia solo il server web

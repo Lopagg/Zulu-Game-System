@@ -119,6 +119,9 @@ void setup() {
 
 // --- LOOP ---
 
+unsigned long lastHeartbeatTime = 0;
+const unsigned long heartbeatInterval = 10000; // 10 secondi
+
 /**
  * @brief Funzione di loop, eseguita continuamente dopo il setup().
  * @details È il cuore del programma. Ad ogni ciclo, aggiorna i componenti di input,
@@ -129,6 +132,11 @@ void loop() {
     hardware.updateButtons();
     hardware.updateMidiTune();
     networkManager.update();
+
+    if (millis() - lastHeartbeatTime > heartbeatInterval) {
+        lastHeartbeatTime = millis();
+        networkManager.sendStatus("event:heartbeat;");
+    }
 
     // Esegue l'animazione arcobaleno solo quando si è nei menu.
     if (currentAppState == APP_STATE_WELCOME || currentAppState == APP_STATE_MAIN_MENU) {
