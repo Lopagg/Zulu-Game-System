@@ -63,7 +63,6 @@ let gameTimerSeconds = 0;
 const socket = io();
 socket.on('connect', () => { console.log('Connesso al server!'); });
 
-// Gestore per lo stato della connessione
 const statusIndicator = document.getElementById('connection-status-indicator');
 const statusText = document.getElementById('connection-status-text');
 
@@ -73,13 +72,13 @@ socket.on('connection_status', (data) => {
         statusIndicator.classList.remove('status-offline');
         statusIndicator.classList.add('status-online');
         statusText.textContent = 'DISPOSITIVO ONLINE';
-        waitingView.classList.add('hidden'); 
+        waitingView.classList.add('hidden');
     } else {
         statusIndicator.classList.remove('status-online');
         statusIndicator.classList.add('status-offline');
         statusText.textContent = 'DISPOSITIVO OFFLINE';
-        waitingView.classList.remove('hidden'); 
-        showView('none'); 
+        waitingView.classList.remove('hidden');
+        showView('none');
     }
 });
 
@@ -116,6 +115,7 @@ socket.on('game_update', (data) => {
         if(data.mode === 'domination') {
             showView('domination');
             resetDominationView();
+            forceEndDomBtn.classList.remove('hidden'); // Mostra il pulsante
         } else if (data.mode === 'sd') {
             showView('sd');
             resetSdView(true);
@@ -140,16 +140,13 @@ function handleDominationEvents(data) {
         captureTime = parseInt(data.capture, 10);
         settingCountdown.textContent = data.countdown;
     }
-    if (data.event === 'countdown_start') {
-        lastGameState = `Partita inizia in ${data.duration}s...`;
+    if (data.event === 'countdown_start' || data.event === 'game_start') {
+        forceEndDomBtn.classList.remove('hidden');
+        lastGameState = (data.event === 'game_start') ? 'ZONA NEUTRA' : `Partita inizia in ${data.duration || data.time}s...`;
         domGameState.innerHTML = lastGameState;
     }
     if (data.event === 'countdown_update') {
         lastGameState = `Partita inizia in ${data.time}s...`;
-        domGameState.innerHTML = lastGameState;
-    }
-    if (data.event === 'game_start') {
-        lastGameState = 'ZONA NEUTRA';
         domGameState.innerHTML = lastGameState;
     }
     if (data.event === 'time_update') {
@@ -177,6 +174,7 @@ function handleDominationEvents(data) {
     if (data.event === 'game_end') {
         domTimer.textContent = "00:00";
         domGameState.innerHTML = "Partita Terminata!";
+        forceEndDomBtn.classList.add('hidden'); // Nasconde il pulsante a fine partita
         if (data.winner === '1') winnerStatus.innerHTML = 'SQUADRA <span class="team-red">ROSSA</span>';
         else if (data.winner === '2') winnerStatus.innerHTML = 'SQUADRA <span class="team-green">VERDE</span>';
         else winnerStatus.innerHTML = "PAREGGIO";
@@ -198,6 +196,7 @@ function handleSearchDestroyEvents(data) {
     if (data.event === 'game_start') {
         sdBombState.textContent = 'In attesa di innesco...';
         startGameTimerBtn.disabled = false;
+        forceEndSdBtn.classList.remove('hidden'); // Mostra il pulsante
     }
     if (data.event === 'arm_start') { 
         sdBombState.textContent = 'Innesco in corso...';
@@ -227,6 +226,7 @@ function handleSearchDestroyEvents(data) {
     if (data.event === 'game_end') {
         stopGameTimer();
         stopProgressBar();
+        forceEndSdBtn.classList.add('hidden'); // Nasconde il pulsante a fine partita
         let winnerText = data.winner === 'terrorists' ? 'squadra <span class="team-red">T</span>' : 'squadra <span class="team-green">CT</span>';
         sdBombState.innerHTML = `Partita finita! Vince la ${winnerText}`;
     }
@@ -403,6 +403,7 @@ function resetDominationView() {
     winnerStatus.innerHTML = '--';
     scoreTeam1.textContent = '00:00';
     scoreTeam2.textContent = '00:00';
+    forceEndDomBtn.classList.add('hidden');
 }
 
 function resetSdView(isRemoteStart = false) {

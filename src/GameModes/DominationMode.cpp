@@ -639,13 +639,16 @@ void DominationMode::handleGameOverState(bool btn1_was_pressed, bool btn2_was_pr
  * Calcola il vincitore in base al tempo di possesso attuale e passa allo stato GAME_OVER.
  */
 void DominationMode::forceEndGame() {
-    // Non fare nulla se la partita non è in uno stato attivo
-    if (_currentState < ModeState::IN_GAME_NEUTRAL || _currentState == ModeState::GAME_OVER) {
+    Serial.println("!!! COMANDO RICEVUTO: forceEndGame in Dominio !!!");
+
+    // Non fare nulla se la partita è già finita
+    if (_currentState == ModeState::GAME_OVER) {
         return;
     }
     
     _currentState = ModeState::GAME_OVER;
     _hardware->playTone(400, 1000);
+    _hardware->noTone();
 
     // Aggiorna un'ultima volta i tempi di possesso prima di calcolare il vincitore
     unsigned long now = millis();
@@ -664,6 +667,7 @@ void DominationMode::forceEndGame() {
     _network->sendStatus(message);
 
     _hardware->clearLcd();
+    _hardware->printLcd(3, 0, "PARTITA TERMINATA");
     if (_winner == 1) _hardware->printLcd(2, 1, "VINCE SQUADRA 1!");
     else if (_winner == 2) _hardware->printLcd(2, 1, "VINCE SQUADRA 2!");
     else _hardware->printLcd(6, 1, "PAREGGIO!");

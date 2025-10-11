@@ -738,8 +738,10 @@ void SearchDestroyMode::sendSettingsStatus() {
  * @details Chiamata quando viene ricevuto il comando di rete corrispondente.
  */
 void SearchDestroyMode::forceEndGame() {
-    // Non fare nulla se la partita non è in uno stato attivo in cui può essere terminata
-    if (_currentState < ModeState::IN_GAME_AWAIT_ARM || _currentState >= ModeState::IN_GAME_DEFUSED) {
+    Serial.println("!!! COMANDO RICEVUTO: forceEndGame in Cerca & Distruggi !!!");
+
+    // Non fare nulla se la partita è GIA' finita
+    if (_currentState == ModeState::IN_GAME_DEFUSED || _currentState == ModeState::IN_GAME_ENDED) {
         return;
     }
 
@@ -749,7 +751,7 @@ void SearchDestroyMode::forceEndGame() {
     _hardware->noTone();
 
     _hardware->clearLcd();
-    _hardware->printLcd(1, 1, "BOMBA DISINNESCATA"); 
+    _hardware->printLcd(1, 1, "PARTITA TERMINATA"); 
     _hardware->printLcd(0, 2, "Vince la squadra CT!");
     
     _hardware->playTone(1500, 80); 
