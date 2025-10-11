@@ -15,7 +15,7 @@
         .main-container { width: 100%; max-width: 1200px; display: flex; flex-direction: column; gap: 20px; position: relative; }
         h1 { color: #4e94e2; border-bottom: 2px solid #4e94e2; padding-bottom: 10px; width: 100%; text-align: center; }
         h2 { color: #c586c0; text-align: center; font-size: 2em; margin-top: 0; }
-        .hidden { display: none; }
+        .hidden { display: none !important; } /* Aggiunto !important per forzare la visibilità */
         .panel { background-color: #252526; border: 1px solid #3c3c3c; border-radius: 8px; padding: 20px; }
         
         .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
@@ -55,38 +55,20 @@
 
         /* --- Stili per l'indicatore di stato --- */
         .connection-status {
-            position: absolute;
-            top: 0px;
-            right: 0px;
-            display: flex;
-            align-items: center;
-            padding: 5px 10px;
-            border-radius: 5px;
-            font-weight: bold;
-            font-size: 0.9em;
-            transition: all 0.3s ease;
+            position: absolute; top: 0px; right: 0px; display: flex; align-items: center;
+            padding: 5px 10px; border-radius: 5px; font-weight: bold;
+            font-size: 0.9em; transition: all 0.3s ease;
         }
-        .status-dot {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            margin-right: 8px;
-            transition: background-color 0.3s ease;
-        }
-        .connection-status.status-offline {
-            background-color: rgba(209, 109, 109, 0.2);
-            color: #d16d6d;
-        }
-        .connection-status.status-offline .status-dot {
-            background-color: #d16d6d;
-        }
-        .connection-status.status-online {
-            background-color: rgba(106, 153, 85, 0.2);
-            color: #6a9955;
-        }
-        .connection-status.status-online .status-dot {
-            background-color: #6a9955;
-        }
+        .status-dot { width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; transition: background-color 0.3s ease; }
+        .connection-status.status-offline { background-color: rgba(209, 109, 109, 0.2); color: #d16d6d; }
+        .connection-status.status-offline .status-dot { background-color: #d16d6d; }
+        .connection-status.status-online { background-color: rgba(106, 153, 85, 0.2); color: #6a9955; }
+        .connection-status.status-online .status-dot { background-color: #6a9955; }
+
+        /* --- Stili per il pannello "In Attesa" --- */
+        #waiting-view { text-align: center; padding: 50px 20px; }
+        #waiting-view h2 { font-size: 1.8em; }
+        #waiting-view p { font-size: 1.2em; color: #9cdcfe; }
     </style>
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 </head>
@@ -105,6 +87,12 @@
         </div>
         
         <h1>ZULU GAME SYSTEM</h1>
+
+        <!-- NUOVO PANNELLO "IN ATTESA" -->
+        <div id="waiting-view" class="panel">
+            <h2>IN ATTESA DEL DISPOSITIVO</h2>
+            <p>Il pannello di controllo è in attesa che il dispositivo di gioco si connetta alla rete...</p>
+        </div>
 
         <div id="domination-view" class="panel hidden">
             <h2>DOMINIO</h2>
@@ -213,8 +201,8 @@
             </div>
         </div>
 
-        <div id="simple-view" class="panel">
-            <p>Modalità attuale: <span id="simple-mode-name">Menu principale</span></p>
+        <div id="simple-view" class="panel hidden">
+            <p>Modalità attuale: <span id="simple-mode-name"></span></p>
         </div>
 
         <div class="log-container panel">
@@ -225,6 +213,7 @@
 
     <script>
         // Riferimenti agli elementi HTML
+        const waitingView = document.getElementById('waiting-view');
         const simpleView = document.getElementById('simple-view');
         const simpleModeName = document.getElementById('simple-mode-name');
         
@@ -288,7 +277,6 @@
         const socket = io();
         socket.on('connect', () => { console.log('Connesso al server!'); });
 
-        // --- Gestore per lo stato della connessione ---
         const statusIndicator = document.getElementById('connection-status-indicator');
         const statusText = document.getElementById('connection-status-text');
 
@@ -298,12 +286,14 @@
                 statusIndicator.classList.remove('status-offline');
                 statusIndicator.classList.add('status-online');
                 statusText.textContent = 'DISPOSITIVO ONLINE';
+                waitingView.classList.add('hidden'); // Nasconde il pannello di attesa
             } else {
                 statusIndicator.classList.remove('status-online');
                 statusIndicator.classList.add('status-offline');
                 statusText.textContent = 'DISPOSITIVO OFFLINE';
-                // Quando il dispositivo va offline, resettiamo la vista al menu principale
-                resetToMainMenu();
+                waitingView.classList.remove('hidden'); // Mostra il pannello di attesa
+                // Nasconde tutte le altre viste
+                showView('none'); 
             }
         });
 
@@ -331,7 +321,8 @@
                     resetTerminalView();
                 } else {
                     showView('simple');
-                    if (data.mode === 'music') simpleModeName.textContent = 'Stanza dei Suoni';
+                    if (data.mode === 'main_menu') simpleModeName.textContent = 'Menu principale';
+                    else if (data.mode === 'music') simpleModeName.textContent = 'Stanza dei Suoni';
                     else if (data.mode === 'testhw') simpleModeName.textContent = 'Test Hardware';
                 }
             } else if (data.event === 'remote_start') {
@@ -614,8 +605,10 @@
         }
 
         function resetToMainMenu() {
-            showView('simple');
-            simpleModeName.textContent = 'Menu principale';
+            // Non mostriamo più la simpleView di default, ma lasciamo che
+            // il gestore 'connection_status' decida cosa mostrare
+            showView('none'); 
+            simpleModeName.textContent = 'In attesa...';
             stopAllTimers();
         }
 
@@ -635,7 +628,6 @@
             stopGameTimer();
             if (isRemoteStart) {
                 gameDurationWrapper.classList.add('hidden');
-                // Sincronizza le impostazioni dalla vista terminale
                 const termSettings = {
                     bomb_time: document.getElementById('term-sd-bombtime').value,
                     arm_time: document.getElementById('term-sd-armtime').value,
@@ -669,4 +661,3 @@
     </script>
 </body>
 </html>
-
