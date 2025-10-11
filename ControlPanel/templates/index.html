@@ -12,7 +12,7 @@
     <link href="https://fonts.googleapis.com/css2?family=DSEG7+Classic:ital,wght@0,400;1,400&display=swap" rel="stylesheet">
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #1e1e1e; color: #d4d4d4; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
-        .main-container { width: 100%; max-width: 1200px; display: flex; flex-direction: column; gap: 20px; }
+        .main-container { width: 100%; max-width: 1200px; display: flex; flex-direction: column; gap: 20px; position: relative; }
         h1 { color: #4e94e2; border-bottom: 2px solid #4e94e2; padding-bottom: 10px; width: 100%; text-align: center; }
         h2 { color: #c586c0; text-align: center; font-size: 2em; margin-top: 0; }
         .hidden { display: none; }
@@ -52,12 +52,52 @@
         .log { height: 200px; overflow-y: scroll; border: 1px solid #3c3c3c; padding: 10px; background-color: #1e1e1e; border-radius: 4px; font-family: 'Courier New', Courier, monospace; font-size: 0.9em; }
         #log-list { list-style: none; padding: 0; margin: 0; }
         #log-list li { padding: 2px 5px; border-bottom: 1px solid #3a3f4b; }
+
+        /* --- Stili per l'indicatore di stato --- */
+        .connection-status {
+            position: absolute;
+            top: 0px;
+            right: 0px;
+            display: flex;
+            align-items: center;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-weight: bold;
+            font-size: 0.9em;
+            transition: all 0.3s ease;
+        }
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            transition: background-color 0.3s ease;
+        }
+        .connection-status.status-offline {
+            background-color: rgba(209, 109, 109, 0.2);
+            color: #d16d6d;
+        }
+        .connection-status.status-offline .status-dot {
+            background-color: #d16d6d;
+        }
+        .connection-status.status-online {
+            background-color: rgba(106, 153, 85, 0.2);
+            color: #6a9955;
+        }
+        .connection-status.status-online .status-dot {
+            background-color: #6a9955;
+        }
     </style>
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 </head>
 <body>
     <div class="main-container">
-        <div style="width: 100%; text-align: right; margin-bottom: -10px;">
+        <div id="connection-status-indicator" class="connection-status status-offline">
+            <span class="status-dot"></span>
+            <span id="connection-status-text">OFFLINE</span>
+        </div>
+
+        <div style="width: 100%; text-align: right; margin-top: 40px; margin-bottom: -10px;">
             <span>Benvenuto, {{ username }}!</span>
             <form action="{{ url_for('logout') }}" method="get" style="display: inline; margin-left: 15px;">
                 <button type="submit">Logout</button>
@@ -238,6 +278,7 @@
 
         // Variabili di stato
         let activeMode = 'none';
+        let wasStartedFromTerminal = false;
         let actionInterval = null;
         let lastGameState = 'In attesa di inizio...';
         let captureTime = 5, armTime = 5, defuseTime = 10;
@@ -246,6 +287,25 @@
 
         const socket = io();
         socket.on('connect', () => { console.log('Connesso al server!'); });
+
+        // --- Gestore per lo stato della connessione ---
+        const statusIndicator = document.getElementById('connection-status-indicator');
+        const statusText = document.getElementById('connection-status-text');
+
+        socket.on('connection_status', (data) => {
+            console.log("Stato connessione ricevuto:", data);
+            if (data.status === 'ONLINE') {
+                statusIndicator.classList.remove('status-offline');
+                statusIndicator.classList.add('status-online');
+                statusText.textContent = 'DISPOSITIVO ONLINE';
+            } else {
+                statusIndicator.classList.remove('status-online');
+                statusIndicator.classList.add('status-offline');
+                statusText.textContent = 'DISPOSITIVO OFFLINE';
+                // Quando il dispositivo va offline, resettiamo la vista al menu principale
+                resetToMainMenu();
+            }
+        });
 
         socket.on('game_update', (data) => {
             const logList = document.getElementById('log-list');
@@ -609,3 +669,4 @@
     </script>
 </body>
 </html>
+
