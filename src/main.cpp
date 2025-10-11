@@ -159,11 +159,6 @@ void loop() {
             handleTestHardwareState();
             break;
     }
-
-    if (hardware.isKey1Turned())
-    {
-        Serial.println("KEY 1 TURNED ON");
-    }
     
 }
 
@@ -394,11 +389,11 @@ void handleTestHardwareState() {
         int half_leds = hardware.getStripLedCount() / 2;
         // Chiave 1 - Prima metà (Verde)
         for (int i = 0; i < half_leds; i++) {
-            hardware.setPixelColor(i, key1_state ? 0 : 0, key1_state ? 255 : 0, 0);
+            hardware.setPixelColor(i, key1_state ? 255 : 0, 0, 0);
         }
         // Chiave 2 - Seconda metà (Blu)
         for (int i = half_leds; i < hardware.getStripLedCount(); i++) {
-            hardware.setPixelColor(i, 0, 0, key2_state ? 255 : 0);
+            hardware.setPixelColor(i, 0, key2_state ? 255 : 0, 0);
         }
         hardware.showStrip();
 

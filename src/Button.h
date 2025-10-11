@@ -19,7 +19,7 @@ public:
      * @brief Costruttore della classe Button.
      * @param pin Il numero del pin GPIO a cui è collegato il pulsante.
      */
-    Button(int pin);
+    Button(int pin, bool useInternalPullup = true);
 
     /**
      * @brief Inizializza il pin del pulsante. Da chiamare nella funzione setup().
@@ -58,6 +58,7 @@ public:
 
 private:
     int _pin;               // Pin a cui è collegato il pulsante.
+    bool _useInternalPullup; // Usa la resistenza di pull-up interna?
     int _state;             // Stato "pulito" (debounced) del pulsante.
     int _lastReading;       // Ultima lettura grezza dal pin.
     unsigned long _lastDebounceTime; // Timestamp dell'ultimo cambio di stato.

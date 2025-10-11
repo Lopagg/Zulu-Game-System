@@ -14,8 +14,9 @@ const unsigned long DEFAULT_DEBOUNCE_DELAY = 50;
  * @brief Costruttore: inizializza le variabili membro con i loro valori di partenza.
  * @param pin Il pin del pulsante passato durante la creazione dell'oggetto.
  */
-Button::Button(int pin) :
+Button::Button(int pin, bool useInternalPullup) :
     _pin(pin),
+    _useInternalPullup(useInternalPullup),
     _state(HIGH), // Buttons are typically pull-up, so HIGH when not pressed
     _lastReading(HIGH),
     _lastDebounceTime(0),
@@ -31,7 +32,11 @@ Button::Button(int pin) :
  * e LOW quando viene premuto (collegandolo a GND).
  */
 void Button::init() {
-    pinMode(_pin, INPUT_PULLUP);
+    if (_useInternalPullup) {
+        pinMode(_pin, INPUT_PULLUP);
+    } else {
+        pinMode(_pin, INPUT);
+    }
     _state = digitalRead(_pin);
     _lastReading = _state;
 }
@@ -40,50 +45,47 @@ void Button::init() {
  * @brief Funzione principale che aggiorna lo stato del pulsante, applicando la logica di debounce.
  */
 void Button::update() {
+    int reading;
 
-    // 1. Legge lo stato grezzo del pin (può contenere "rumore" dovuto ai rimbalzi).
-    int reading = digitalRead(_pin);
+    // Se stiamo usando un pin problematico (ADC1), usiamo analogRead
+    if (_pin == 34 || _pin == 35) {
+        // Se la lettura analogica è alta (>2000), consideriamo il pin HIGH (1)
+        // altrimenti lo consideriamo LOW (0). 4095 è il massimo.
+        reading = (analogRead(_pin) > 2000) ? HIGH : LOW;
+    } else {
+        // Altrimenti, usiamo il digitalRead standard per tutti gli altri pin
+        reading = digitalRead(_pin);
+    }
 
-    /** 2. Se la lettura è cambiata rispetto all'ultima, significa che potrebbe
-     * esserci stato un cambio di stato (o un rimbalzo). Resetta il timer.
-    */
     if (reading != _lastReading) {
         _lastDebounceTime = millis();
     }
 
-    // 3. Controlla se è passato abbastanza tempo (debounceDelay) dall'ultimo cambio.
     if ((millis() - _lastDebounceTime) > _debounceDelay) {
-        /** Se il tempo è passato e la lettura è stabile ma diversa dallo stato
-        confermato, allora abbiamo un cambio di stato reale. */
         if (reading != _state) {
-            // Se il pulsante è passato da ALTO a BASSO, è stato appena premuto.
             if (reading == LOW && _state == HIGH) {
                 _wasPressedFlag = true;
-                _wasReleasedFlag = false;
             }
-            // Se il pulsante è passato da BASSO ad ALTO, è stato appena rilasciato.
             else if (reading == HIGH && _state == LOW) {
                 _wasReleasedFlag = true;
-                _wasPressedFlag = false;
-            } else {
-                _wasPressedFlag = false;
-                _wasReleasedFlag = false;
             }
-            _state = reading; // Aggiorna lo stato confermato.
-        } else { // If the reading is the same as the debounced state, clear flags
-            _wasPressedFlag = false;
-            _wasReleasedFlag = false;
+            _state = reading;
+        }
+    }
+    
+    // Resetta i flag se lo stato è stabile
+    // Questa parte è stata semplificata per essere più chiara
+    if (reading == _state) {
+        if( (millis() - _lastDebounceTime) > _debounceDelay) {
+            // Solo dopo il debounce, se non c'è stato un cambio di stato, resetta i flag
         }
     } else {
-        /** In ogni ciclo, i flag degli eventi vengono resettati se lo stato è stabile
-         * o se il tempo di debounce non è ancora passato. Questo assicura che
-         * wasPressed() e wasReleased() ritornino 'true' solo per un singolo ciclo.
-        */
+        // Se c'è un rimbalzo, non considerarlo un evento
         _wasPressedFlag = false;
         _wasReleasedFlag = false;
     }
 
-    _lastReading = reading; // Salva l'ultima lettura grezza per il prossimo ciclo.
+    _lastReading = reading;
 }
 
 /**
@@ -99,16 +101,20 @@ bool Button::isPressed() {
  * nello stesso loop (o nei successivi) ritorni 'false' fino a una nuova pressione.
  */
 bool Button::wasPressed() {
-    bool result = _wasPressedFlag;
-    _wasPressedFlag = false;
-    return result;
+    if (_wasPressedFlag) {
+        _wasPressedFlag = false; // Il flag si auto-resetta dopo la lettura
+        return true;
+    }
+    return false;
 }
 
 /**
  * @brief Ritorna 'true' solo per un ciclo se è stato appena rilevato un evento di rilascio.
  */
 bool Button::wasReleased() {
-    bool result = _wasReleasedFlag;
-    _wasReleasedFlag = false;
-    return result;
+    if (_wasReleasedFlag) {
+        _wasReleasedFlag = false; // Il flag si auto-resetta dopo la lettura
+        return true;
+    }
+    return false;
 }
