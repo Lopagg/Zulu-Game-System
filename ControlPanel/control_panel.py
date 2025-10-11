@@ -103,7 +103,7 @@ def logout():
 # --- NUOVO ENDPOINT INTERNO PER IL BRIDGE ---
 @app.route('/internal/forward_data', methods=['POST'])
 def forward_data():
-    global last_known_state, last_device_ip
+    global last_known_state, last_device_ip, device_status, last_heartbeat_time
     
     # Riceve i dati JSON dal nostro script bridge
     data = request.json
