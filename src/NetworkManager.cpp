@@ -7,7 +7,7 @@
 
 #include "NetworkManager.h"
 
-const char* SERVER_HOSTNAME = "192.168.1.4";
+const char* SERVER_HOSTNAME = "zuluserver.ddns.net";
 
 // --- Configurazione Rete ---
 // Qui vengono definite le credenziali della rete WiFi a cui il dispositivo si connetterà.

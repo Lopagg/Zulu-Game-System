@@ -14,7 +14,7 @@ def parse_message(data_str):
 def udp_listener():
     UDP_PORT = 1234
     HOST_IP = '0.0.0.0'
-    FORWARD_URL = '192.168.1.4:5000/internal/forward_data'
+    FORWARD_URL = 'http://localhost:5000/internal/forward_data'
 
     print(f"[*] Avvio UDP Bridge. Ascolto sulla porta {UDP_PORT}...")
     
