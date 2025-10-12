@@ -8,7 +8,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 # --- Configurazione ---
 HOST_IP = '0.0.0.0'
-UDP_PORT = 1234 # La teniamo per inviare comandi
+BRIDGE_CMD_PORT = 12345
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'la-tua-chiave-segreta-super-difficile' 
@@ -37,17 +37,15 @@ def load_user(user_id):
             return User(id=data['id'], username=username, password_hash=data['password_hash'])
     return None
 
-# --- MODIFICA: Logica di stato migliorata con status connessione ---
+# --- Logica di stato ---
 last_known_state = {}
 state_lock = threading.Lock()
-last_device_ip = None
 
 # Variabili per il controllo della connessione
 device_status = "OFFLINE"
 last_heartbeat_time = None
 status_lock = threading.Lock()
 
-# --- NUOVA FUNZIONE: Controlla lo stato del dispositivo in background ---
 def check_device_status():
     """
     Questo task viene eseguito in background per controllare se il dispositivo
@@ -141,7 +139,7 @@ def forward_data():
 
 @socketio.on('connect')
 def handle_connect():
-    print("Nuovo client connesso. Invio dello stato attuale...")
+    print("Nuovo client connesso. Invio stato attuale...")
     with state_lock:
         if last_known_state:
             socketio.emit('game_update', last_known_state)
@@ -150,18 +148,24 @@ def handle_connect():
 
 @socketio.on('send_command')
 def handle_send_command(json):
+    """
+    Riceve un comando dal browser e lo invia al bridge UDP per l'inoltro.
+    """
     command = json.get('command')
-    if command and last_device_ip:
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-            sock.sendto(command.encode('utf-8'), (last_device_ip, UDP_PORT))
-            print(f"Comando inviato a {last_device_ip}: {command}")
+    if command:
+        # Usa un socket temporaneo per inviare il comando al bridge locale
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+                sock.sendto(command.encode('utf-8'), ('127.0.0.1', BRIDGE_CMD_PORT))
+                print(f"Comando inoltrato al bridge per l'invio: {command}")
+        except Exception as e:
+            print(f"ERRORE invio comando al bridge: {e}")
     else:
-        print("Errore: nessun comando o IP del dispositivo non noto.")
+        print("Errore: nessun comando ricevuto dal browser.")
 
 socketio.start_background_task(target=check_device_status)
 
 if __name__ == '__main__':
-    # Quando eseguito manualmente, avvia solo il server web
     print("-> Avvio del server web...")
     hostname = socket.gethostname()
     try: local_ip = socket.gethostbyname(hostname)

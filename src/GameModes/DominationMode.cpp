@@ -641,14 +641,14 @@ void DominationMode::handleGameOverState(bool btn1_was_pressed, bool btn2_was_pr
 void DominationMode::forceEndGame() {
     Serial.println("!!! COMANDO RICEVUTO: forceEndGame in Dominio !!!");
 
-    // Non fare nulla se la partita è già finita
+    // Non fare nulla se la partita è GIA' finita
     if (_currentState == ModeState::GAME_OVER) {
         return;
     }
     
     _currentState = ModeState::GAME_OVER;
     _hardware->playTone(400, 1000);
-    _hardware->noTone();
+    _hardware->noTone(); // Assicura che qualsiasi suono venga interrotto
 
     // Aggiorna un'ultima volta i tempi di possesso prima di calcolare il vincitore
     unsigned long now = millis();

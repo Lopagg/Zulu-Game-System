@@ -739,7 +739,7 @@ void SearchDestroyMode::sendSettingsStatus() {
  */
 void SearchDestroyMode::forceEndGame() {
     Serial.println("!!! COMANDO RICEVUTO: forceEndGame in Cerca & Distruggi !!!");
-
+    
     // Non fare nulla se la partita è GIA' finita
     if (_currentState == ModeState::IN_GAME_DEFUSED || _currentState == ModeState::IN_GAME_ENDED) {
         return;
