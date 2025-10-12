@@ -5,6 +5,8 @@ h2 { color: #c586c0; text-align: center; font-size: 2em; margin-top: 0; }
 .hidden { display: none !important; }
 .panel { background-color: #252526; border: 1px solid #3c3c3c; border-radius: 8px; padding: 20px; }
 
+.user-bar { width: 100%; text-align: right; margin-top: 40px; margin-bottom: -10px; }
+
 .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 .details-grid h3 { color: #61afef; border-bottom: 1px solid #61afef; padding-bottom: 5px; }
 .details-grid p { font-size: 1.2em; }
@@ -56,3 +58,35 @@ h2 { color: #c586c0; text-align: center; font-size: 2em; margin-top: 0; }
 #waiting-view { text-align: center; padding: 50px 20px; }
 #waiting-view h2 { font-size: 1.8em; }
 #waiting-view p { font-size: 1.2em; color: #9cdcfe; }
+
+
+/* --- Media Query per Dispositivi Mobili --- */
+@media screen and (max-width: 768px) {
+    /* Imposta la griglia a colonna singola su schermi piccoli */
+    .details-grid {
+        grid-template-columns: 1fr; /* Una sola colonna */
+        gap: 30px; /* Aumenta un po' lo spazio verticale tra le sezioni */
+    }
+
+    /* Riduci la dimensione dei timer grandi per adattarli allo schermo */
+    .big-timer {
+        font-size: 5em; /* Riduci da 8em */
+    }
+
+    /* Riduci leggermente i titoli per un look più pulito */
+    h1 {
+        font-size: 1.8em;
+    }
+
+    h2 {
+        font-size: 1.5em;
+    }
+    
+    /* Adatta la barra utente e lo stato connessione */
+    .user-bar {
+        margin-top: 50px; /* Abbassa la barra utente per non sovrapporsi */
+    }
+    .connection-status {
+        font-size: 0.8em; /* Riduci un po' il testo per schermi molto piccoli */
+    }
+}
