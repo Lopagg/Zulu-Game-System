@@ -95,15 +95,32 @@ void TerminalMode::parseCommand(String command) {
         
         *_appStatePtr = APP_STATE_DOMINATION_MODE;
         _domMode->enterInGame();
-    }   else if (cmd_event == "SET_SD_SETTINGS") {
-            for (const auto& part : parts) {
-                if (part.startsWith("BOMB_TIME:")) _sdSettings->setBombTime(part.substring(10).toInt());
-                else if (part.startsWith("ARM_TIME:")) _sdSettings->setArmingTime(part.substring(9).toInt());
-                else if (part.startsWith("DEFUSE_TIME:")) _sdSettings->setDefuseTime(part.substring(12).toInt());
+
+    } else if (cmd_event == "SET_SD_SETTINGS") {
+        // --- INIZIO MODIFICA ---
+        for (const auto& part : parts) {
+            if (part.startsWith("BOMB_TIME:")) {
+                _sdSettings->setBombTime(part.substring(10).toInt());
+            } else if (part.startsWith("ARM_TIME:")) {
+                _sdSettings->setArmingTime(part.substring(9).toInt());
+            } else if (part.startsWith("DEFUSE_TIME:")) {
+                _sdSettings->setDefuseTime(part.substring(12).toInt());
+            } else if (part.startsWith("USE_ARM_PIN:")) {
+                _sdSettings->setUseArmingPin(part.substring(12).toInt() == 1);
+            } else if (part.startsWith("ARM_PIN:")) {
+                _sdSettings->setArmingPin(part.substring(8));
+            } else if (part.startsWith("USE_DEFUSE_PIN:")) {
+                _sdSettings->setUseDisarmingPin(part.substring(15).toInt() == 1);
+            } else if (part.startsWith("DEFUSE_PIN:")) {
+                _sdSettings->setDisarmingPin(part.substring(11));
+            }
         }
+        // --- FINE MODIFICA ---
+        
         _sdSettings->saveParameters();
         Serial.println("Impostazioni C&D aggiornate da remoto.");
-        _sdMode->sendSettingsStatus();
+        _sdMode->sendSettingsStatus(); // Notifica il pannello delle nuove impostazioni
+
     } else if (cmd_event == "START_SD_GAME") {
         Serial.println("Avvio partita C&D da remoto...");
         _network->sendStatus("event:remote_start;mode:sd;");
