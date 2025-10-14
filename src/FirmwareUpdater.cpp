@@ -27,7 +27,7 @@ void FirmwareUpdater::checkForUpdates() {
 
         if (strcmp(serverVersion, FIRMWARE_VERSION) > 0) {
             _hardware->clearLcd();
-            _hardware->printLcd(0, 1, "Nuova versione trovata!");
+            _hardware->printLcd(0, 1, "Nuova vers. trovata!");
             _hardware->printLcd(0, 2, "Download in corso...");
             
             const char* firmwareUrl = doc["url"];
@@ -92,7 +92,7 @@ void FirmwareUpdater::checkForUpdates() {
             }
             http.end();
         } else {
-            _hardware->printLcd(0, 2, "Nessun aggiornamento.");
+            _hardware->printLcd(0, 2, "Nessun aggiornamento");
             delay(2000);
         }
     } else {
