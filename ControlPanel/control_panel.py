@@ -17,7 +17,7 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'la-tua-chiave-segreta-super-difficile' 
 socketio = SocketIO(app) 
 
-# --- Gestione Login ---
+# --- Gestione Login (invariata) ---
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
@@ -48,9 +48,10 @@ def check_device_status():
             offline_devices_ids = []
             for device_id, device_data in devices.items():
                 if device_data.get('status') == 'ONLINE':
-                    delta = now - device_data['last_heartbeat']
-                    if delta.total_seconds() > 15:
-                        offline_devices_ids.append(device_id)
+                    if 'last_heartbeat' in device_data:
+                        delta = now - device_data['last_heartbeat']
+                        if delta.total_seconds() > 15:
+                            offline_devices_ids.append(device_id)
             
             if offline_devices_ids:
                 for device_id in offline_devices_ids:
@@ -148,9 +149,11 @@ def handle_send_command(json_data):
             target_device = devices.get(target_id)
         
         if target_device and target_device['status'] == 'ONLINE':
+            # Pacchetto di dati da inviare al bridge
             payload = {'command': command, 'target_id': target_id}
             try:
                 with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+                    # Invia il comando come stringa JSON
                     sock.sendto(json.dumps(payload).encode('utf-8'), ('127.0.0.1', BRIDGE_CMD_PORT))
                     print(f"Comando '{command}' inoltrato al bridge per {target_id}")
             except Exception as e:

@@ -6,7 +6,8 @@ import requests
 
 # --- Variabili Globali Condivise ---
 main_socket = None
-last_known_device_addrs = {} # Dizionario per memorizzare l'addr di ogni dispositivo
+# Dizionario per memorizzare l'indirizzo (IP, porta) di ogni dispositivo
+last_known_device_addrs = {} 
 addr_lock = threading.Lock()
 
 def parse_message(data_str):
@@ -40,13 +41,14 @@ def esp_listener():
             device_id = parsed_data.get('id')
 
             if device_id:
+                # Memorizza l'indirizzo del dispositivo per poter rispondere ai comandi
                 with addr_lock:
                     last_known_device_addrs[device_id] = addr
                 
                 print(f"[LISTENER ESP] Ricevuto da {device_id}@{addr}, inoltro a web server...")
                 
                 try:
-                    # Invia l'indirizzo completo (ip, porta)
+                    # Invia l'indirizzo completo (ip, porta) al pannello di controllo
                     payload = { "parsed_data": parsed_data, "device_ip_info": addr }
                     requests.post(FORWARD_URL, json=payload, timeout=0.5)
                 except requests.exceptions.RequestException as e:
@@ -74,8 +76,9 @@ def command_sender():
             print("[+] Listener comandi attivo.")
             
             while True:
-                data, _ = cmd_sock.recvfrom(1024)
+                data, _ = cmd_sock.recvfrom(1024) # Riceve il comando dal pannello di controllo
                 try:
+                    # Ora il comando arriva in formato JSON, quindi lo decodifichiamo
                     payload = json.loads(data.decode('utf-8'))
                     command = payload['command']
                     target_id = payload['target_id']
@@ -86,11 +89,12 @@ def command_sender():
 
                     if target_addr and main_socket:
                         print(f"[SENDER ESP] Invio comando '{command}' a {target_id} @ {target_addr}")
+                        # Usa il socket principale (quello sulla porta 1234) per inviare il dato!
                         main_socket.sendto(command.encode('utf-8'), target_addr)
                     else:
-                        print(f"[!] Ricevuto comando per {target_id}, ma indirizzo non noto.")
+                        print(f"[!] Ricevuto comando per {target_id}, ma il suo indirizzo non è noto.")
                 except (json.JSONDecodeError, KeyError) as e:
-                    print(f"[!] ERRORE nel formato del comando ricevuto: {e}")
+                    print(f"[!] ERRORE nel formato del comando ricevuto dal pannello: {e}")
 
         except Exception as e:
             print(f"[!!!] ERRORE CRITICO in command_sender: {e}")
@@ -105,5 +109,6 @@ if __name__ == '__main__':
     esp_thread.start()
     cmd_thread.start()
     
+    # Mantiene il programma principale in esecuzione per permettere ai thread di lavorare
     esp_thread.join()
     cmd_thread.join()
