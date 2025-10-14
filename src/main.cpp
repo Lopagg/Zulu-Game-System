@@ -17,6 +17,7 @@
 #include "app_common.h"
 #include "HardwareManager.h"
 #include "NetworkManager.h"
+#include "FirmwareUpdater.h"
 #include "melodies.h"
 #include "GameModes/MusicRoomMode.h"
 #include "GameMode.h" 
@@ -34,6 +35,7 @@
 */
 HardwareManager hardware;
 NetworkManager networkManager;
+FirmwareUpdater updater(&hardware);
 SearchDestroySettings* sdSettings = nullptr;
 SearchDestroyMode* sdMode = nullptr;
 DominationSettings* domSettings = nullptr;
@@ -313,7 +315,7 @@ void handleMainMenuState() {
 void displayTestHardwareMainMenu() {
     hardware.clearLcd();
     hardware.printLcd(0, 0, "Test Hardware");
-    hardware.printLcd(0, 1, "A: RFID B: Chiavi");
+    hardware.printLcd(0, 1, "A:RFID B:Key C:OTA");
     hardware.printLcd(0, 2, "1,2,3 Colori LED");
     hardware.setStripColor(255, 255, 255);
     hardware.printOled1("INDIETRO", 2, 10, 25);
@@ -358,7 +360,13 @@ void handleTestHardwareState() {
                 // Passa al sottomenu di test delle chiavi
                 currentTestSubState = TEST_KEYS;
                 displayKeyTestMenu();
-            } else {
+            }
+              else if (key == 'C') { // Usiamo il tasto 'C' per l'aggiornamento
+                updater.checkForUpdates();
+                // Dopo il controllo, ridisegna il menu di test
+                displayTestHardwareMainMenu();
+        }
+              else {
                 hardware.printLcd(0, 1, "Tasto premuto: " + String(key) + "   ");
                 if (key == '1') hardware.setStripColor(255, 0, 0);
                 if (key == '2') hardware.setStripColor(0, 255, 0);
