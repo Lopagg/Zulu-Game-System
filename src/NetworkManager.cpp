@@ -2,6 +2,8 @@
 
 #include "NetworkManager.h"
 
+String deviceId = "";
+
 // --- Lista delle reti Wi-Fi conosciute ---
 // Aggiungi qui tutte le reti a cui vuoi che il dispositivo si connetta.
 // Puoi aggiungerne quante ne vuoi.
@@ -87,6 +89,9 @@ connection_success:
         hardware->printLcd(4, 2, WiFi.localIP().toString());
         delay(2000);
 
+        deviceId = WiFi.macAddress();
+        Serial.printf("ID Dispositivo (MAC): %s\n", deviceId.c_str());
+
         _udp.begin(_udpPort);
         Serial.print("In ascolto su porta UDP: ");
         Serial.println(_udpPort);
@@ -126,7 +131,8 @@ void NetworkManager::sendStatus(const char* status) {
     IPAddress remote_addr;
     if (WiFi.hostByName(SERVER_HOSTNAME, remote_addr)) {
         _udp.beginPacket(remote_addr, _udpPort);
-        _udp.print(status);
+        String messageWithId = String(status) + "id:" + deviceId + ";";
+        _udp.print(messageWithId);
         _udp.endPacket();
     } else {
         Serial.println("ERRORE: Impossibile risolvere l'hostname del server!");
