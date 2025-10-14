@@ -15,7 +15,7 @@
  * @brief Versione attuale del firmware in formato "MAJOR.MINOR.PATCH".
  * Utile per il debug, la visualizzazione all'avvio e le comunicazioni di rete.
  */
-#define FIRMWARE_VERSION "0.3.0"
+#define FIRMWARE_VERSION "0.3.1"
 
 /**
  * @brief Enumerazione degli stati principali dell'applicazione.
