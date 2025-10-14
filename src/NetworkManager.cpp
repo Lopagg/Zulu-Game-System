@@ -1,90 +1,108 @@
 // src/NetworkManager.cpp
 
-/**
- * @file NetworkManager.cpp
- * @brief Implementazione della classe NetworkManager.
- */
-
 #include "NetworkManager.h"
 
-const char* SERVER_HOSTNAME = "zuluserver.ddns.net";
+// --- Lista delle reti Wi-Fi conosciute ---
+// Aggiungi qui tutte le reti a cui vuoi che il dispositivo si connetta.
+// Puoi aggiungerne quante ne vuoi.
+struct WifiCredential {
+    const char* ssid;
+    const char* password;
+};
 
-// --- Configurazione Rete ---
-// Qui vengono definite le credenziali della rete WiFi a cui il dispositivo si connetterà.
-// DEVONO essere modificate con i dati della rete del campo da gioco.
-const char* WIFI_SSID = "MELONE";
-const char* WIFI_PASSWORD = "wirelessmelone";
+const WifiCredential knownNetworks[] = {
+    {"MELONE", "wirelessmelone"},               // Rete casa
+    {"", ""},       //
+    {"S20Lorenzo", "Satana666"}   // hotspot
+};
+const int numKnownNetworks = sizeof(knownNetworks) / sizeof(knownNetworks[0]);
+
+// --- MODIFICA: L'hostname del server ora è definito qui ---
+const char* SERVER_HOSTNAME = "zuluserver.ddns.net";
 
 // Costruttore
 NetworkManager::NetworkManager() :
-    _ssid(WIFI_SSID),
-    _password(WIFI_PASSWORD),
-    _udpPort(1234) // Porta standard per la comunicazione
+    _udpPort(1234) // Inizializza solo la porta
 {
+    // Le credenziali non vengono più inizializzate qui
 }
 
-/**
- * @brief Inizializza la connessione WiFi e il servizio UDP.
- * @details Questa funzione viene eseguita all'avvio. Tenta ripetutamente di
- * connettersi alla rete WiFi specificata e, una volta connesso, calcola
- * l'indirizzo di broadcast e si mette in ascolto per i pacchetti UDP in arrivo.
- */
 void NetworkManager::initialize(HardwareManager* hardware) {
-    Serial.println("--- Inizializzazione Rete ---");
-    
-    // Mostra il messaggio iniziale sull'LCD
+    Serial.println("--- Inizializzazione Rete (Multi-WiFi) ---");
     hardware->clearLcd();
-    hardware->printLcd(0, 1, "Ricerca Rete WiFi...");
-    hardware->printLcd(0, 2, _ssid);
-
+    hardware->printLcd(0, 1, "Scansione Reti WiFi");
+    
     WiFi.mode(WIFI_STA);
-    WiFi.begin(_ssid, _password);
+    WiFi.disconnect(); // Assicura di partire da uno stato pulito
+    delay(100);
 
-    Serial.print("Connessione a WiFi [");
-    Serial.print(_ssid);
-    Serial.print("]...");
+    Serial.println("Avvio scansione reti...");
+    int numVisibleNetworks = WiFi.scanNetworks();
+    Serial.printf("Trovate %d reti.\n", numVisibleNetworks);
 
-    int dotCount = 0;
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(500);
-        Serial.print(".");
-        
-        // Animazione puntini sull'LCD
-        String dots = "";
-        for(int i = 0; i < dotCount; i++) { dots += "."; }
-        hardware->printLcd(0, 3, dots + "   "); // Aggiunge spazi per cancellare i puntini precedenti
-        dotCount = (dotCount + 1) % 4;
+    if (numVisibleNetworks == 0) {
+        hardware->printLcd(0, 2, "Nessuna rete trovata!");
+        return; // O entra in un loop di attesa
     }
 
-    Serial.println(" CONNESSO!");
-    Serial.print("Indirizzo IP: ");
-    Serial.println(WiFi.localIP());
+    // Cerca una corrispondenza tra le reti conosciute e quelle visibili
+    bool connected = false;
+    for (int i = 0; i < numKnownNetworks; i++) {
+        for (int j = 0; j < numVisibleNetworks; j++) {
+            if (strcmp(knownNetworks[i].ssid, WiFi.SSID(j).c_str()) == 0) {
+                Serial.printf("Rete conosciuta trovata: %s. Tento la connessione...\n", knownNetworks[i].ssid);
+                hardware->clearLcd();
+                hardware->printLcd(0, 1, "Trovata Rete:");
+                hardware->printLcd(0, 2, knownNetworks[i].ssid);
 
-    // Mostra il messaggio di successo sull'LCD
-    hardware->clearLcd();
-    hardware->printLcd(6, 1, "Connesso!");
-    hardware->printLcd(4, 2, WiFi.localIP().toString());
-    delay(2000); // Mostra il messaggio per 2 secondi
+                WiFi.begin(knownNetworks[i].ssid, knownNetworks[i].password);
 
-    _broadcastIP = WiFi.localIP();
-    _broadcastIP[3] = 255;
+                // Attendi la connessione con un timeout di 10 secondi
+                int attempts = 20;
+                while (WiFi.status() != WL_CONNECTED && attempts > 0) {
+                    delay(500);
+                    Serial.print(".");
+                    attempts--;
+                }
 
-    _udp.begin(_udpPort);
-    Serial.print("In ascolto su porta UDP: ");
-    Serial.println(_udpPort);
+                if (WiFi.status() == WL_CONNECTED) {
+                    connected = true;
+                    goto connection_success; // Salta fuori da entrambi i loop
+                } else {
+                    Serial.println(" Connessione fallita. Provo la prossima.");
+                    WiFi.disconnect();
+                }
+            }
+        }
+    }
+
+connection_success:
+    if (connected) {
+        Serial.println("\nCONNESSO!");
+        Serial.print("Indirizzo IP: ");
+        Serial.println(WiFi.localIP());
+
+        hardware->clearLcd();
+        hardware->printLcd(6, 1, "Connesso!");
+        hardware->printLcd(4, 2, WiFi.localIP().toString());
+        delay(2000);
+
+        _udp.begin(_udpPort);
+        Serial.print("In ascolto su porta UDP: ");
+        Serial.println(_udpPort);
+    } else {
+        Serial.println("\nNessuna rete WiFi conosciuta trovata.");
+        hardware->clearLcd();
+        hardware->printLcd(0, 1, "Nessuna Rete Nota");
+        hardware->printLcd(0, 2, "Trovata!");
+    }
     Serial.println("---------------------------");
 }
 
-/**
- * @brief Aggiorna il listener UDP. Da chiamare in loop.
- * @details Controlla se è arrivato un pacchetto di dati. Se sì, lo legge.
- * Al momento stampa solo un messaggio a scopo di debug, ma in futuro
- * qui verrà implementata la logica per interpretare i comandi in arrivo.
- */
 void NetworkManager::update() {
     int packetSize = _udp.parsePacket();
     if (packetSize) {
-        _lastSenderIP = _udp.remoteIP(); // Salva l'IP del mittente
+        _lastSenderIP = _udp.remoteIP();
         char incomingPacket[255];
         int len = _udp.read(incomingPacket, 255);
         if (len > 0) {
@@ -98,18 +116,12 @@ void NetworkManager::update() {
 String NetworkManager::getReceivedMessage() {
     if (_lastMessage != "") {
         String msg = _lastMessage;
-        _lastMessage = ""; // Resetta il messaggio dopo averlo letto
+        _lastMessage = "";
         return msg;
     }
     return "";
 }
 
-/**
- * @brief Invia un pacchetto UDP in broadcast.
- * @param status Il messaggio di testo da inviare.
- * @details Costruisce un pacchetto UDP, lo indirizza all'IP di broadcast
- * e lo invia. Usato da tutte le modalità di gioco per comunicare lo stato.
- */
 void NetworkManager::sendStatus(const char* status) {
     IPAddress remote_addr;
     if (WiFi.hostByName(SERVER_HOSTNAME, remote_addr)) {
