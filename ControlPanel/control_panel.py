@@ -3,12 +3,12 @@ import threading
 from datetime import datetime, timedelta
 import sys
 import json
+import eventlet # Importa eventlet
 
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_socketio import SocketIO
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-import eventlet # Importiamo eventlet per il server
 
 # --- Configurazione ---
 HOST_IP = '0.0.0.0'
@@ -17,9 +17,10 @@ BRIDGE_CMD_PORT = 12345
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'la-tua-chiave-segreta-super-difficile'
-socketio = SocketIO(app)
+# Inizializza SocketIO specificando di usare eventlet
+socketio = SocketIO(app, async_mode='eventlet')
 
-# --- Gestione Login ---
+# --- Gestione Login (invariata) ---
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
@@ -54,7 +55,8 @@ def prepare_devices_for_emit(devices_dict):
     return devices_list
 
 def check_device_status():
-    print("-> Avvio del monitor di connessione...")
+    """Task in background che controlla il timeout di tutti i dispositivi."""
+    print("-> Avvio del monitor di connessione dispositivi...")
     while True:
         with devices_lock:
             now = datetime.utcnow()
@@ -71,7 +73,7 @@ def check_device_status():
                 socketio.emit('devices_update', prepare_devices_for_emit(devices))
         socketio.sleep(5)
 
-# --- Route ---
+# --- Route (invariate) ---
 @app.route('/')
 @login_required
 def dashboard():
@@ -157,6 +159,7 @@ def handle_send_command(json_data):
             try:
                 with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
                     sock.sendto(json.dumps(payload).encode('utf-8'), ('127.0.0.1', BRIDGE_CMD_PORT))
+                    print(f"Comando '{command}' inoltrato al bridge per {target_id}")
             except Exception as e:
                 print(f"ERRORE invio comando al bridge: {e}")
         else:
@@ -164,13 +167,8 @@ def handle_send_command(json_data):
 
 # --- Avvio ---
 if __name__ == '__main__':
-    # Creiamo un'applicazione WSGI che combina Flask e SocketIO
-    app_wsgi = socketio.WSGIApp(app)
-    
-    # Avviamo il task in background per il controllo della connessione
+    # CORREZIONE: Questo è il modo corretto e moderno per avviare il server
+    # con Flask-SocketIO e eventlet.
+    print(f"-> Avvio del server su {HOST_IP}:{PORT}...")
     socketio.start_background_task(target=check_device_status)
-    
-    print(f"-> Avvio del server di produzione Eventlet su {HOST_IP}:{PORT}...")
-    
-    # Usiamo il server WSGI di Eventlet, più robusto di gunicorn per questo caso d'uso
-    eventlet.wsgi.server(eventlet.listen((HOST_IP, PORT)), app_wsgi)
+    socketio.run(app, host=HOST_IP, port=PORT)
