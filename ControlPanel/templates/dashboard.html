@@ -1,15 +1,32 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-    </head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zulu Dashboard</title>
+
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
+    
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+</head>
 <body>
     <div class="main-container">
+        <div class="user-bar">
+            <span>Benvenuto, {{ username }}!</span>
+            <form action="{{ url_for('logout') }}" method="get" style="display: inline; margin-left: 15px;">
+                <button type="submit">Logout</button>
+            </form>
+        </div>
+        
         <h1>Dashboard</h1>
         
         <div class="panel">
             <h2>Dispositivi Connessi</h2>
-            <ul id="device-list">
-                </ul>
+            <ul id="device-list" class="device-list-ul">
+                <li>In attesa di dispositivi...</li>
+            </ul>
         </div>
 
         <div class="panel">
@@ -20,32 +37,6 @@
         </div>
     </div>
 
-    <script>
-        const socket = io();
-        const deviceList = document.getElementById('device-list');
-
-        socket.on('connect', () => {
-            console.log('Connesso al server!');
-        });
-
-        socket.on('devices_update', (devices) => {
-            deviceList.innerHTML = ''; // Pulisce la lista
-            if (devices.length === 0) {
-                deviceList.innerHTML = '<li>Nessun dispositivo online.</li>';
-            } else {
-                devices.forEach(device => {
-                    const li = document.createElement('li');
-                    const statusClass = device.status === 'ONLINE' ? 'team-green' : 'team-red';
-                    li.innerHTML = `Dispositivo: ${device.id} - Stato: <span class="${statusClass}">${device.status}</span> - Modalità: ${device.mode || 'N/A'}`;
-                    deviceList.appendChild(li);
-                });
-            }
-        });
-
-        document.getElementById('start-game-btn').addEventListener('click', () => {
-            // Qui in futuro ci sarà la logica per andare alla selezione della partita
-            alert("Funzionalità da implementare!");
-        });
-    </script>
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>
