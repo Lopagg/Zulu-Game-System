@@ -6,9 +6,7 @@
     <title>Zulu Dashboard</title>
 
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
-    
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 </head>
 <body>
@@ -33,10 +31,10 @@
             <h2>Menu Principale</h2>
             <div class="timer-controls">
                 <button id="start-game-btn">Avvia Partita</button>
-                </div>
+            </div>
         </div>
     </div>
 
-    <script src="{{ url_for('static', filename='app.js') }}"></script>
+    <script src="{{ url_for('static', filename='dashboard.js') }}"></script>
 </body>
 </html>
