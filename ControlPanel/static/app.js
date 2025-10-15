@@ -1,14 +1,13 @@
 document.addEventListener('DOMContentLoaded', () => {
     
-    // Questa parte è globale e necessaria per entrambe le pagine
     const socket = io();
     socket.on('connect', () => {
         console.log('Pagina connessa al server!');
     });
 
     // Rileva su quale pagina ci troviamo
-    const isDashboard = !!document.getElementById('dashboard-main-container');
-    const isGameControl = !!document.getElementById('game-control-main-container');
+    const isDashboard = !!document.getElementById('dashboard-main');
+    const isGameControl = !!document.getElementById('game-control-main');
 
     // --- LOGICA ESEGUITA SOLO SULLA DASHBOARD ---
     if (isDashboard) {
