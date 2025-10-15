@@ -17,7 +17,7 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'la-tua-chiave-segreta-super-difficile' 
 socketio = SocketIO(app) 
 
-# --- Gestione Login (invariata) ---
+# --- Gestione Login ---
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
@@ -25,7 +25,9 @@ users = { 'admin': { 'password_hash': generate_password_hash('zulu'), 'id': '1' 
 
 class User(UserMixin):
     def __init__(self, id, username, password_hash):
-        self.id = id; self.username = username; self.password_hash = password_hash
+        self.id = id
+        self.username = username
+        self.password_hash = password_hash
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
 
@@ -41,6 +43,10 @@ devices = {}
 devices_lock = threading.Lock()
 
 def prepare_devices_for_emit(devices_dict):
+    """
+    CORREZIONE: Converte i dati dei dispositivi in un formato sicuro per JSON,
+    trasformando gli oggetti 'datetime' in stringhe.
+    """
     devices_list = []
     for device_id, device_data in devices_dict.items():
         data_copy = device_data.copy()
@@ -52,6 +58,7 @@ def prepare_devices_for_emit(devices_dict):
     return devices_list
 
 def check_device_status():
+    """Task in background che controlla il timeout di tutti i dispositivi."""
     print("-> Avvio del monitor di connessione dispositivi...")
     while True:
         with devices_lock:
@@ -59,7 +66,7 @@ def check_device_status():
             offline_devices_ids = []
             for device_id, device_data in devices.items():
                 if device_data.get('status') == 'ONLINE':
-                    if 'last_heartbeat' in device_data:
+                    if 'last_heartbeat' in device_data and isinstance(device_data['last_heartbeat'], datetime):
                         delta = now - device_data['last_heartbeat']
                         if delta.total_seconds() > 15:
                             offline_devices_ids.append(device_id)
@@ -68,6 +75,7 @@ def check_device_status():
                 for device_id in offline_devices_ids:
                     print(f"[!] Timeout del dispositivo {device_id}. Stato: OFFLINE.")
                     devices[device_id]['status'] = 'OFFLINE'
+                
                 devices_to_emit = prepare_devices_for_emit(devices)
                 socketio.emit('devices_update', devices_to_emit)
         socketio.sleep(5)
@@ -121,18 +129,15 @@ def forward_data():
             needs_full_update = True
 
         device['status'] = 'ONLINE'
-        device['last_heartbeat'] = datetime.utcnow()
-        device['addr'] = device_ip_info
+        device['last_heartbeat'] = datetime.utcnow() # Questo è l'oggetto datetime
+        device['addr'] = tuple(device_ip_info) # Assicura che sia una tupla
         
-        # --- CORREZIONE LOGICA STATI ---
         if parsed_data.get('event') == 'mode_exit':
             if device.get('mode') != 'main_menu':
-                device['mode'] = 'main_menu'
-                needs_full_update = True
+                device['mode'] = 'main_menu'; needs_full_update = True
         elif 'mode' in parsed_data:
             if device.get('mode') != parsed_data['mode']:
-                device['mode'] = parsed_data['mode']
-                needs_full_update = True
+                device['mode'] = parsed_data['mode']; needs_full_update = True
         
         if needs_full_update:
             devices_to_emit = prepare_devices_for_emit(devices)
@@ -146,7 +151,7 @@ def forward_data():
 
 # --- Socket.IO ---
 @socketio.on('connect')
-def handle_connect():
+def handle_connect(): # CORREZIONE: La funzione non necessita di argomenti qui
     print("Nuovo client web connesso...")
     with devices_lock:
         devices_to_emit = prepare_devices_for_emit(devices)
