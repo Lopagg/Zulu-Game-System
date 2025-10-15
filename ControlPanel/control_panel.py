@@ -25,9 +25,7 @@ users = { 'admin': { 'password_hash': generate_password_hash('zulu'), 'id': '1' 
 
 class User(UserMixin):
     def __init__(self, id, username, password_hash):
-        self.id = id
-        self.username = username
-        self.password_hash = password_hash
+        self.id = id; self.username = username; self.password_hash = password_hash
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
 
@@ -44,8 +42,8 @@ devices_lock = threading.Lock()
 
 def prepare_devices_for_emit(devices_dict):
     """
-    CORREZIONE: Converte i dati dei dispositivi in un formato sicuro per JSON,
-    trasformando gli oggetti 'datetime' in stringhe.
+    Funzione helper per convertire i dati dei dispositivi in un formato
+    sicuro per JSON, trasformando gli oggetti 'datetime' in stringhe.
     """
     devices_list = []
     for device_id, device_data in devices_dict.items():
@@ -129,8 +127,8 @@ def forward_data():
             needs_full_update = True
 
         device['status'] = 'ONLINE'
-        device['last_heartbeat'] = datetime.utcnow() # Questo è l'oggetto datetime
-        device['addr'] = tuple(device_ip_info) # Assicura che sia una tupla
+        device['last_heartbeat'] = datetime.utcnow()
+        device['addr'] = tuple(device_ip_info)
         
         if parsed_data.get('event') == 'mode_exit':
             if device.get('mode') != 'main_menu':
@@ -151,7 +149,7 @@ def forward_data():
 
 # --- Socket.IO ---
 @socketio.on('connect')
-def handle_connect(): # CORREZIONE: La funzione non necessita di argomenti qui
+def handle_connect():
     print("Nuovo client web connesso...")
     with devices_lock:
         devices_to_emit = prepare_devices_for_emit(devices)
@@ -180,7 +178,9 @@ socketio.start_background_task(target=check_device_status)
 if __name__ == '__main__':
     print("-> Avvio del server web in modalità DEBUG...")
     hostname = socket.gethostname()
-    try: local_ip = socket.gethostbyname(hostname)
-    except: local_ip = "127.0.0.1"
+    try: 
+        local_ip = socket.gethostbyname(hostname)
+    except: 
+        local_ip = "127.0.0.1"
     print(f"-> Pannello accessibile a http://{local_ip}:5000")
     socketio.run(app, host=HOST_IP, port=5000)
