@@ -40,6 +40,20 @@ def load_user(user_id):
 devices = {}
 devices_lock = threading.Lock()
 
+def prepare_devices_for_emit(devices_dict):
+    """
+    CORREZIONE: Funzione helper per convertire i dati dei dispositivi in un formato
+    sicuro per JSON, trasformando gli oggetti datetime in stringhe.
+    """
+    devices_list = []
+    for device_id, device_data in devices_dict.items():
+        # Crea una copia per non modificare il dizionario originale
+        data_copy = device_data.copy()
+        if 'last_heartbeat' in data_copy and isinstance(data_copy['last_heartbeat'], datetime):
+            data_copy['last_heartbeat'] = data_copy['last_heartbeat'].isoformat() + "Z"
+        devices_list.append(data_copy)
+    return devices_list
+
 def check_device_status():
     print("-> Avvio del monitor di connessione dispositivi...")
     while True:
@@ -57,15 +71,19 @@ def check_device_status():
                 for device_id in offline_devices_ids:
                     print(f"[!] Timeout del dispositivo {device_id}. Stato: OFFLINE.")
                     devices[device_id]['status'] = 'OFFLINE'
-                socketio.emit('devices_update', list(devices.values()))
+                
+                # CORREZIONE: Usa la funzione helper per preparare i dati
+                devices_to_emit = prepare_devices_for_emit(devices)
+                socketio.emit('devices_update', devices_to_emit)
         socketio.sleep(5)
 
-# --- Route ---
+# --- Route (invariate) ---
 @app.route('/')
 @login_required
 def dashboard():
     return render_template('dashboard.html', username=current_user.username)
 
+# ... (tutte le altre route rimangono invariate) ...
 @app.route('/game_control')
 @login_required
 def game_control():
@@ -74,36 +92,28 @@ def game_control():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
+        username = request.form['username']; password = request.form['password']
         user_data = users.get(username)
         if user_data:
             user = User(id=user_data['id'], username=username, password_hash=user_data['password_hash'])
             if user.check_password(password):
-                login_user(user)
-                return redirect(url_for('dashboard'))
+                login_user(user); return redirect(url_for('dashboard'))
         flash('Credenziali non valide.')
     return render_template('login.html')
 
 @app.route('/logout')
 @login_required
 def logout():
-    logout_user()
-    return redirect(url_for('login'))
+    logout_user(); return redirect(url_for('login'))
 
 @app.route('/internal/forward_data', methods=['POST'])
 def forward_data():
     global devices
     data = request.json
-    parsed_data = data.get('parsed_data')
-    device_ip_info = data.get('device_ip_info')
-
-    if not parsed_data or not device_ip_info:
-        return jsonify({"status": "error"}), 400
-
+    parsed_data = data.get('parsed_data'); device_ip_info = data.get('device_ip_info')
+    if not parsed_data or not device_ip_info: return jsonify({"status": "error"}), 400
     device_id = parsed_data.get('id')
-    if not device_id:
-        return jsonify({"status": "ok"}), 200
+    if not device_id: return jsonify({"status": "ok"}), 200
 
     with devices_lock:
         needs_full_update = False
@@ -117,14 +127,17 @@ def forward_data():
             needs_full_update = True
 
         device['status'] = 'ONLINE'
-        device['last_heartbeat'] = datetime.utcnow()
+        device['last_heartbeat'] = datetime.utcnow() # Questo è l'oggetto datetime
+        device['addr'] = device_ip_info
+        
         if 'mode' in parsed_data:
-            if device.get('mode') != parsed_data['mode']:
-                needs_full_update = True
+            if device.get('mode') != parsed_data['mode']: needs_full_update = True
             device['mode'] = parsed_data['mode']
         
         if needs_full_update:
-            socketio.emit('devices_update', list(devices.values()))
+            # CORREZIONE: Usa la funzione helper per preparare i dati
+            devices_to_emit = prepare_devices_for_emit(devices)
+            socketio.emit('devices_update', devices_to_emit)
 
     if parsed_data.get('event') != 'heartbeat':
         parsed_data['deviceId'] = device_id
@@ -134,26 +147,24 @@ def forward_data():
 
 # --- Socket.IO ---
 @socketio.on('connect')
-def handle_connect():
+def handle_connect(): # CORREZIONE: Accetta l'argomento anche se non lo usiamo
     print("Nuovo client web connesso...")
     with devices_lock:
-        socketio.emit('devices_update', list(devices.values()), room=request.sid)
+        # CORREZIONE: Usa la funzione helper per preparare i dati
+        devices_to_emit = prepare_devices_for_emit(devices)
+        socketio.emit('devices_update', devices_to_emit, room=request.sid)
 
 @socketio.on('send_command')
 def handle_send_command(json_data):
-    command = json_data.get('command')
-    target_id = json_data.get('target_id')
-    
+    # ... (questa funzione era già corretta e rimane invariata) ...
+    command = json_data.get('command'); target_id = json_data.get('target_id')
     if command and target_id:
         with devices_lock:
             target_device = devices.get(target_id)
-        
         if target_device and target_device['status'] == 'ONLINE':
-            # Pacchetto di dati da inviare al bridge
             payload = {'command': command, 'target_id': target_id}
             try:
                 with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-                    # Invia il comando come stringa JSON
                     sock.sendto(json.dumps(payload).encode('utf-8'), ('127.0.0.1', BRIDGE_CMD_PORT))
                     print(f"Comando '{command}' inoltrato al bridge per {target_id}")
             except Exception as e:
