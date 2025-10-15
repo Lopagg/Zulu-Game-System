@@ -1,13 +1,14 @@
 document.addEventListener('DOMContentLoaded', () => {
     
+    // Questa parte è globale e necessaria per entrambe le pagine
     const socket = io();
     socket.on('connect', () => {
         console.log('Pagina connessa al server!');
     });
 
     // Rileva su quale pagina ci troviamo
-    const isDashboard = !!document.getElementById('dashboard-main');
-    const isGameControl = !!document.getElementById('game-control-main');
+    const isDashboard = !!document.getElementById('dashboard-main-container');
+    const isGameControl = !!document.getElementById('game-control-main-container');
 
     // --- LOGICA ESEGUITA SOLO SULLA DASHBOARD ---
     if (isDashboard) {
@@ -45,7 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- LOGICA ESEGUITA SOLO SULLA PAGINA DI CONTROLLO GIOCO ---
     if (isGameControl) {
-        // Riferimenti a tutti gli elementi della pagina di controllo
+        // Riferimenti agli elementi HTML della pagina di gioco
         const waitingView = document.getElementById('waiting-view');
         const simpleView = document.getElementById('simple-view');
         const simpleModeName = document.getElementById('simple-mode-name');
@@ -100,24 +101,31 @@ document.addEventListener('DOMContentLoaded', () => {
         const backToTerminalSelectSdBtn = document.getElementById('back-to-terminal-select-sd');
         
         let activeMode = 'none';
+        let activeDeviceId = null;
         let actionInterval = null;
         let lastGameState = 'In attesa di inizio...';
         let captureTime = 10, armTime = 5, defuseTime = 10;
         let gameTimerInterval = null;
-        let wasStartedFromTerminal = false;
-        let gameTimerSeconds = 0;
 
-        socket.on('connection_status', (data) => {
-            if (!statusIndicator) return;
-            if (data.status === 'ONLINE') {
+        // Funzione per trovare il terminale tra i dispositivi
+        function findTerminal(devices) {
+            if (!devices) return null;
+            return devices.find(d => d.mode === 'terminal' && d.status === 'ONLINE');
+        }
+
+        socket.on('devices_update', (devices) => {
+            const terminal = findTerminal(devices);
+            if (terminal) {
+                activeDeviceId = terminal.id;
                 statusIndicator.classList.remove('status-offline');
                 statusIndicator.classList.add('status-online');
-                statusText.textContent = 'DISPOSITIVO ONLINE';
+                statusText.textContent = `TERMINALE ONLINE (${activeDeviceId.slice(-5)})`;
                 waitingView.classList.add('hidden');
             } else {
+                activeDeviceId = null;
                 statusIndicator.classList.remove('status-online');
                 statusIndicator.classList.add('status-offline');
-                statusText.textContent = 'DISPOSITIVO OFFLINE';
+                statusText.textContent = 'TERMINALE OFFLINE';
                 waitingView.classList.remove('hidden');
                 showView('none');
             }
