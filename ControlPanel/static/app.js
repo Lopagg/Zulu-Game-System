@@ -1,25 +1,24 @@
-// Aggiungiamo un listener per assicurarci che tutto il codice venga eseguito solo dopo che la pagina è stata caricata completamente.
 document.addEventListener('DOMContentLoaded', () => {
     
     const socket = io();
     socket.on('connect', () => {
-        console.log('Connesso al server!');
+        console.log('Pagina connessa al server!');
     });
 
-    // Rileva su quale pagina ci troviamo analizzando l'URL
-    const isDashboard = window.location.pathname === '/';
-    const isGameControl = window.location.pathname.startsWith('/game_control');
+    // Rileva su quale pagina ci troviamo
+    const isDashboard = !!document.getElementById('dashboard-main');
+    const isGameControl = !!document.getElementById('game-control-main');
 
     // --- LOGICA ESEGUITA SOLO SULLA DASHBOARD ---
     if (isDashboard) {
         const deviceListElement = document.getElementById('device-list');
         const startGameBtn = document.getElementById('start-game-btn');
 
-        // Quando il server invia la lista dei dispositivi, la visualizziamo
         socket.on('devices_update', (devices) => {
-            console.log('Ricevuta lista dispositivi:', devices);
-            if (!deviceListElement) return; // Sicurezza: esce se l'elemento non esiste
-            deviceListElement.innerHTML = ''; // Pulisce la lista
+            console.log('Dashboard: Ricevuta lista dispositivi:', devices);
+            if (!deviceListElement) return;
+
+            deviceListElement.innerHTML = '';
             
             if (!devices || devices.length === 0) {
                 deviceListElement.innerHTML = '<li>Nessun dispositivo online al momento.</li>';
@@ -29,11 +28,9 @@ document.addEventListener('DOMContentLoaded', () => {
             devices.forEach(device => {
                 const li = document.createElement('li');
                 const statusClass = device.status === 'ONLINE' ? 'team-green' : 'team-red';
-                // Aggiungiamo un ID univoco per il terminale se necessario
                 let deviceName = device.id;
-                if (device.mode === 'terminal') {
-                    deviceName = `Terminale (${device.id})`;
-                }
+                if (device.mode === 'terminal') deviceName = `Terminale (${device.id})`;
+
                 li.innerHTML = `Dispositivo: <strong>${deviceName}</strong> - Stato: <span class="${statusClass}">${device.status}</span> - Modalità: <em>${device.mode || 'N/A'}</em>`;
                 deviceListElement.appendChild(li);
             });
@@ -41,7 +38,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (startGameBtn) {
             startGameBtn.addEventListener('click', () => {
-                // Quando si clicca "Avvia Partita", reindirizziamo alla pagina di controllo
                 window.location.href = '/game_control';
             });
         }

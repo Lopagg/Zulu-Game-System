@@ -41,16 +41,13 @@ devices = {}
 devices_lock = threading.Lock()
 
 def prepare_devices_for_emit(devices_dict):
-    """
-    CORREZIONE: Funzione helper per convertire i dati dei dispositivi in un formato
-    sicuro per JSON, trasformando gli oggetti datetime in stringhe.
-    """
     devices_list = []
     for device_id, device_data in devices_dict.items():
-        # Crea una copia per non modificare il dizionario originale
         data_copy = device_data.copy()
         if 'last_heartbeat' in data_copy and isinstance(data_copy['last_heartbeat'], datetime):
             data_copy['last_heartbeat'] = data_copy['last_heartbeat'].isoformat() + "Z"
+        # Rimuoviamo l'indirizzo IP, non serve al frontend
+        data_copy.pop('addr', None)
         devices_list.append(data_copy)
     return devices_list
 
@@ -71,19 +68,16 @@ def check_device_status():
                 for device_id in offline_devices_ids:
                     print(f"[!] Timeout del dispositivo {device_id}. Stato: OFFLINE.")
                     devices[device_id]['status'] = 'OFFLINE'
-                
-                # CORREZIONE: Usa la funzione helper per preparare i dati
                 devices_to_emit = prepare_devices_for_emit(devices)
                 socketio.emit('devices_update', devices_to_emit)
         socketio.sleep(5)
 
-# --- Route (invariate) ---
+# --- Route ---
 @app.route('/')
 @login_required
 def dashboard():
     return render_template('dashboard.html', username=current_user.username)
 
-# ... (tutte le altre route rimangono invariate) ...
 @app.route('/game_control')
 @login_required
 def game_control():
@@ -127,15 +121,20 @@ def forward_data():
             needs_full_update = True
 
         device['status'] = 'ONLINE'
-        device['last_heartbeat'] = datetime.utcnow() # Questo è l'oggetto datetime
+        device['last_heartbeat'] = datetime.utcnow()
         device['addr'] = device_ip_info
         
-        if 'mode' in parsed_data:
-            if device.get('mode') != parsed_data['mode']: needs_full_update = True
-            device['mode'] = parsed_data['mode']
+        # --- CORREZIONE LOGICA STATI ---
+        if parsed_data.get('event') == 'mode_exit':
+            if device.get('mode') != 'main_menu':
+                device['mode'] = 'main_menu'
+                needs_full_update = True
+        elif 'mode' in parsed_data:
+            if device.get('mode') != parsed_data['mode']:
+                device['mode'] = parsed_data['mode']
+                needs_full_update = True
         
         if needs_full_update:
-            # CORREZIONE: Usa la funzione helper per preparare i dati
             devices_to_emit = prepare_devices_for_emit(devices)
             socketio.emit('devices_update', devices_to_emit)
 
@@ -147,16 +146,14 @@ def forward_data():
 
 # --- Socket.IO ---
 @socketio.on('connect')
-def handle_connect(): # CORREZIONE: Accetta l'argomento anche se non lo usiamo
+def handle_connect():
     print("Nuovo client web connesso...")
     with devices_lock:
-        # CORREZIONE: Usa la funzione helper per preparare i dati
         devices_to_emit = prepare_devices_for_emit(devices)
         socketio.emit('devices_update', devices_to_emit, room=request.sid)
 
 @socketio.on('send_command')
 def handle_send_command(json_data):
-    # ... (questa funzione era già corretta e rimane invariata) ...
     command = json_data.get('command'); target_id = json_data.get('target_id')
     if command and target_id:
         with devices_lock:
