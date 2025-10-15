@@ -14,8 +14,8 @@ HOST_IP = '0.0.0.0'
 BRIDGE_CMD_PORT = 12345
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'la-tua-chiave-segreta-super-difficile' 
-socketio = SocketIO(app) 
+app.config['SECRET_KEY'] = 'la-tua-chiave-segreta-super-difficile'
+socketio = SocketIO(app)
 
 # --- Gestione Login ---
 login_manager = LoginManager()
@@ -25,7 +25,9 @@ users = { 'admin': { 'password_hash': generate_password_hash('zulu'), 'id': '1' 
 
 class User(UserMixin):
     def __init__(self, id, username, password_hash):
-        self.id = id; self.username = username; self.password_hash = password_hash
+        self.id = id
+        self.username = username
+        self.password_hash = password_hash
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
 
@@ -42,8 +44,8 @@ devices_lock = threading.Lock()
 
 def prepare_devices_for_emit(devices_dict):
     """
-    Funzione helper per convertire i dati dei dispositivi in un formato
-    sicuro per JSON, trasformando gli oggetti 'datetime' in stringhe.
+    CORREZIONE: Converte i dati dei dispositivi in un formato sicuro per JSON,
+    trasformando gli oggetti 'datetime' in stringhe.
     """
     devices_list = []
     for device_id, device_data in devices_dict.items():
@@ -68,12 +70,12 @@ def check_device_status():
                         delta = now - device_data['last_heartbeat']
                         if delta.total_seconds() > 15:
                             offline_devices_ids.append(device_id)
-            
+
             if offline_devices_ids:
                 for device_id in offline_devices_ids:
                     print(f"[!] Timeout del dispositivo {device_id}. Stato: OFFLINE.")
                     devices[device_id]['status'] = 'OFFLINE'
-                
+
                 devices_to_emit = prepare_devices_for_emit(devices)
                 socketio.emit('devices_update', devices_to_emit)
         socketio.sleep(5)
@@ -92,51 +94,59 @@ def game_control():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form['username']; password = request.form['password']
+        username = request.form['username']
+        password = request.form['password']
         user_data = users.get(username)
         if user_data:
             user = User(id=user_data['id'], username=username, password_hash=user_data['password_hash'])
             if user.check_password(password):
-                login_user(user); return redirect(url_for('dashboard'))
+                login_user(user)
+                return redirect(url_for('dashboard'))
         flash('Credenziali non valide.')
     return render_template('login.html')
 
 @app.route('/logout')
 @login_required
 def logout():
-    logout_user(); return redirect(url_for('login'))
+    logout_user()
+    return redirect(url_for('login'))
 
 @app.route('/internal/forward_data', methods=['POST'])
 def forward_data():
     global devices
     data = request.json
-    parsed_data = data.get('parsed_data'); device_ip_info = data.get('device_ip_info')
-    if not parsed_data or not device_ip_info: return jsonify({"status": "error"}), 400
+    parsed_data = data.get('parsed_data')
+    device_ip_info = data.get('device_ip_info')
+    if not parsed_data or not device_ip_info:
+        return jsonify({"status": "error"}), 400
     device_id = parsed_data.get('id')
-    if not device_id: return jsonify({"status": "ok"}), 200
+    if not device_id:
+        return jsonify({"status": "ok"}), 200
 
     with devices_lock:
         needs_full_update = False
         if device_id not in devices:
             devices[device_id] = {'id': device_id, 'status': 'OFFLINE', 'mode': 'Unknown'}
             needs_full_update = True
-        
+
         device = devices[device_id]
         if device['status'] == 'OFFLINE':
             print(f"[+] Dispositivo {device_id} ONLINE (IP: {device_ip_info[0]}).")
             needs_full_update = True
 
         device['status'] = 'ONLINE'
-        device['last_heartbeat'] = datetime.utcnow()
-        device['addr'] = tuple(device_ip_info)
-        
+        device['last_heartbeat'] = datetime.utcnow() # Questo è l'oggetto datetime
+        device['addr'] = tuple(device_ip_info) # Assicura che sia una tupla
+
         if parsed_data.get('event') == 'mode_exit':
             if device.get('mode') != 'main_menu':
-                device['mode'] = 'main_menu'; needs_full_update = True
+                device['mode'] = 'main_menu'
+                needs_full_update = True
         elif 'mode' in parsed_data:
             if device.get('mode') != parsed_data['mode']:
-                device['mode'] = parsed_data['mode']; needs_full_update = True
-        
+                device['mode'] = parsed_data['mode']
+                needs_full_update = True
+
         if needs_full_update:
             devices_to_emit = prepare_devices_for_emit(devices)
             socketio.emit('devices_update', devices_to_emit)
@@ -157,7 +167,8 @@ def handle_connect():
 
 @socketio.on('send_command')
 def handle_send_command(json_data):
-    command = json_data.get('command'); target_id = json_data.get('target_id')
+    command = json_data.get('command')
+    target_id = json_data.get('target_id')
     if command and target_id:
         with devices_lock:
             target_device = devices.get(target_id)
@@ -178,9 +189,9 @@ socketio.start_background_task(target=check_device_status)
 if __name__ == '__main__':
     print("-> Avvio del server web in modalità DEBUG...")
     hostname = socket.gethostname()
-    try: 
+    try:
         local_ip = socket.gethostbyname(hostname)
-    except: 
+    except:
         local_ip = "127.0.0.1"
     print(f"-> Pannello accessibile a http://{local_ip}:5000")
     socketio.run(app, host=HOST_IP, port=5000)
