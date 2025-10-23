@@ -1,12 +1,14 @@
 import socket
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta
+import sys
 import json
+import eventlet # Importa eventlet
+
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_socketio import SocketIO
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-import eventlet
 
 # --- Configurazione ---
 HOST_IP = '0.0.0.0'
@@ -15,9 +17,10 @@ BRIDGE_CMD_PORT = 12345
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'la-tua-chiave-segreta-super-difficile'
+# Inizializza SocketIO specificando di usare eventlet
 socketio = SocketIO(app, async_mode='eventlet')
 
-# --- Gestione Login ---
+# --- Gestione Login (invariata) ---
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
@@ -25,7 +28,9 @@ users = { 'admin': { 'password_hash': generate_password_hash('zulu'), 'id': '1' 
 
 class User(UserMixin):
     def __init__(self, id, username, password_hash):
-        self.id = id; self.username = username; self.password_hash = password_hash
+        self.id = id
+        self.username = username
+        self.password_hash = password_hash
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
 
@@ -41,12 +46,9 @@ devices = {}
 devices_lock = threading.Lock()
 
 def prepare_devices_for_emit(devices_dict):
-    """
-    CORREZIONE: Converte i dati in un formato sicuro per JSON,
-    trasformando gli oggetti 'datetime' in stringhe.
-    """
+    """Converte i dati dei dispositivi in un formato sicuro per JSON."""
     devices_list = []
-    for device_data in devices_dict.values():
+    for device_id, device_data in devices_dict.items():
         data_copy = device_data.copy()
         if 'last_heartbeat' in data_copy and isinstance(data_copy['last_heartbeat'], datetime):
             data_copy['last_heartbeat'] = data_copy['last_heartbeat'].isoformat() + "Z"
@@ -55,7 +57,8 @@ def prepare_devices_for_emit(devices_dict):
     return devices_list
 
 def check_device_status():
-    print("-> Avvio del monitor di connessione...")
+    """Task in background che controlla il timeout di tutti i dispositivi."""
+    print("-> Avvio del monitor di connessione dispositivi...")
     while True:
         with devices_lock:
             now = datetime.utcnow()
@@ -72,7 +75,7 @@ def check_device_status():
                 socketio.emit('devices_update', prepare_devices_for_emit(devices))
         socketio.sleep(5)
 
-# --- Route ---
+# --- Route (invariate) ---
 @app.route('/')
 @login_required
 def dashboard():
@@ -102,6 +105,7 @@ def logout():
 
 @app.route('/internal/forward_data', methods=['POST'])
 def forward_data():
+    global devices
     data = request.json
     parsed_data = data.get('parsed_data'); device_ip_info = data.get('device_ip_info')
     if not parsed_data or not device_ip_info: return jsonify({"status": "error"}), 400
@@ -165,6 +169,9 @@ def handle_send_command(json_data):
 
 # --- Avvio ---
 if __name__ == '__main__':
+    # CORREZIONE: Questo è il modo corretto e moderno per avviare il server
+    # con Flask-SocketIO e eventlet.
     print(f"-> Avvio del server su {HOST_IP}:{PORT}...")
     socketio.start_background_task(target=check_device_status)
+    # socketio.run() è la funzione corretta che gestisce tutto
     socketio.run(app, host=HOST_IP, port=PORT)
