@@ -5,14 +5,13 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('Pagina connessa al server!');
     });
 
-    // --- Rilevamento della pagina ---
-    // Usiamo gli ID degli elementi che sappiamo esistere in ciascuna pagina
+    // Rileva su quale pagina ci troviamo
     const isDashboard = !!document.getElementById('device-list');
     const isGameControl = !!document.getElementById('waiting-view');
 
     // --- LOGICA ESEGUITA SOLO SULLA DASHBOARD ---
     if (isDashboard) {
-        console.log('[DEBUG] Eseguo logica Dashboard (dashboard.js)');
+        console.log('[DEBUG] Eseguo logica Dashboard');
         const deviceListElement = document.getElementById('device-list');
         const startGameBtn = document.getElementById('start-game-btn');
 
@@ -47,7 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- LOGICA ESEGUITA SOLO SULLA PAGINA DI CONTROLLO GIOCO ---
     if (isGameControl) {
-        console.log('[DEBUG] Eseguo logica Game Control (app.js)');
+        console.log('[DEBUG] Eseguo logica Game Control');
         
         // Riferimenti agli elementi HTML
         const waitingView = document.getElementById('waiting-view');
@@ -60,7 +59,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const statusIndicator = document.getElementById('connection-status-indicator');
         const statusText = document.getElementById('connection-status-text');
         
-        // ... (tutti gli altri 'const' per gli elementi di gioco)
         const domTimer = document.getElementById('domination-timer');
         const domGameState = document.getElementById('domination-game-state');
         const settingDuration = document.getElementById('setting-duration');
@@ -118,63 +116,43 @@ document.addEventListener('DOMContentLoaded', () => {
             return devices.find(d => d.mode === 'terminal' && d.status === 'ONLINE');
         }
         
-        // Questo è il listener che gestisce lo stato ONLINE/OFFLINE
         socket.on('devices_update', (devices) => {
             console.log('[DEBUG] Game Control: Ricevuta lista dispositivi:', devices);
             const terminal = findTerminal(devices);
 
             if (terminal) {
-                activeDeviceId = terminal.id; // Imposta o aggiorna l'ID attivo
-                console.log(`[DEBUG] Game Control: Terminale ${activeDeviceId} trovato ONLINE.`);
+                activeDeviceId = terminal.id;
                 statusIndicator.classList.remove('status-offline');
                 statusIndicator.classList.add('status-online');
                 statusText.textContent = `TERMINALE ONLINE (${activeDeviceId.slice(-5)})`;
-                waitingView.classList.add('hidden'); // Nasconde l'attesa
-
-                // Mostra la vista corretta solo se non eravamo già in una modalità attiva
-                // Questo evita di resettare la vista se arriva solo un aggiornamento di stato
+                waitingView.classList.add('hidden');
+                
+                // Se non c'è una modalità attiva e non siamo in terminale, 
+                // mostra la vista terminale (perché è quella che ci aspettiamo qui)
                 if(activeMode === 'none') {
-                    showView('simple');
-                    simpleModeName.textContent = 'Menu principale';
+                    showView('terminal');
+                    resetTerminalView();
                 }
             } else {
-                // Se NESSUN terminale è online
-                if (activeDeviceId !== null) {
-                     // Solo se prima era online, logga la disconnessione
-                    console.log('[DEBUG] Game Control: Terminale precedentemente attivo è ora OFFLINE.');
-                }
-                activeDeviceId = null; // Resetta l'ID attivo
+                activeDeviceId = null;
                 statusIndicator.classList.remove('status-online');
                 statusIndicator.classList.add('status-offline');
                 statusText.textContent = 'TERMINALE OFFLINE';
-                waitingView.classList.remove('hidden'); // Mostra l'attesa
-                showView('none'); // Nasconde tutte le viste di gioco
-                activeMode = 'none'; // Resetta la modalità attiva
-                stopAllTimers(); // Ferma eventuali timer residui
+                waitingView.classList.remove('hidden');
+                showView('none'); 
             }
         });
 
-        // Questo è il listener che gestisce i log
         socket.on('game_update', (data) => {
-            console.log('[DEBUG] Game Control: Ricevuto game_update:', data);
-            
             if (logList) {
                 const newLogEntry = document.createElement('li');
                 newLogEntry.textContent = JSON.stringify(data);
-                logList.prepend(newLogEntry); // Aggiunge in cima
-                // Limita il numero di log visualizzati se necessario (opzionale)
-                // while (logList.children.length > 100) {
-                //    logList.removeChild(logList.lastChild);
-                // }
+                logList.prepend(newLogEntry);
             }
 
-            if (!activeDeviceId) {
-                 console.log(`[DEBUG] Messaggio game_update ignorato, nessun terminale attivo noto (activeDeviceId è null). Dati:`, data);
-                 return; // Ignora se non sappiamo quale sia il terminale attivo
-            }
-            if (data.deviceId !== activeDeviceId) {
-                console.log(`[DEBUG] Messaggio game_update ignorato, proviene da device ${data.deviceId} ma quello attivo è ${activeDeviceId}`);
-                return; // Ignora se proviene da un altro dispositivo
+            if (!activeDeviceId || data.deviceId !== activeDeviceId) {
+                console.log(`[DEBUG] Messaggio ignorato, proviene da device ${data.deviceId} ma quello attivo è ${activeDeviceId}`);
+                return;
             }
 
             if (data.event === 'device_online' || data.event === 'mode_exit') {
@@ -193,7 +171,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } else if (data.event === 'remote_start') {
                 activeMode = data.mode;
-                if (data.mode === 'domination') { showView('domination'); resetDominationView(); } 
+                if(data.mode === 'domination') { showView('domination'); resetDominationView(); } 
                 else if (data.mode === 'sd') {
                     showView('sd');
                     resetSdView(true);
@@ -211,7 +189,6 @@ document.addEventListener('DOMContentLoaded', () => {
         function handleSearchDestroyEvents(data) { if (data.event === 'settings_update') { settingBombTime.textContent = data.bomb_time; settingArmTime.textContent = data.arm_time; armTime = parseInt(data.arm_time, 10); settingDefuseTime.textContent = data.defuse_time; defuseTime = parseInt(data.defuse_time, 10); settingUseArmPin.textContent = data.use_arm_pin === '1' ? 'Sì' : 'No'; settingArmPin.textContent = data.arm_pin; settingUseDefusePin.textContent = data.use_disarm_pin === '1' ? 'Sì' : 'No'; settingDisarmPin.textContent = data.disarm_pin; } if (data.event === 'game_start') { sdBombState.textContent = 'In attesa di innesco...'; startGameTimerBtn.disabled = false; forceEndSdBtn.classList.remove('hidden'); } if (data.event === 'arm_start') { sdBombState.textContent = 'Innesco in corso...'; startProgressBar(armProgressBar, armTime); } if (data.event === 'arm_cancel') { sdBombState.textContent = 'Innesco annullato. In attesa...'; stopProgressBar(); } if (data.event === 'arm_pin_wrong') { sdBombState.textContent = 'PIN innesco errato!'; } if (data.event === 'bomb_armed') { stopProgressBar(); sdBombState.textContent = 'BOMBA INNESCATA!'; } if (data.event === 'time_update') { updateTimerDisplay(sdBombTimer, parseInt(data.time, 10)); } if (data.event === 'defuse_start') { sdBombState.textContent = 'Disinnesco in corso...'; startProgressBar(defuseProgressBar, defuseTime); } if (data.event === 'defuse_cancel') { sdBombState.textContent = 'BOMBA INNESCATA!'; stopProgressBar(); } if (data.event === 'defuse_pin_wrong') { sdBombState.textContent = 'PIN disinnesco errato!'; } if (data.event === 'game_end') { stopGameTimer(); stopProgressBar(); forceEndSdBtn.classList.add('hidden'); let winnerText = data.winner === 'terrorists' ? 'squadra <span class="team-red">T</span>' : 'squadra <span class="team-green">CT</span>'; sdBombState.innerHTML = `Partita finita! Vince la ${winnerText}`; } if (data.event === 'round_reset') { resetSdView(false); } }
         function handleTerminalEvents(data) { if (data.event === 'settings_update') { if (data.duration) { startDomGameBtn.disabled = false; } if (data.bomb_time) { termStartSdGameBtn.disabled = false; } } }
         
-        // Event listeners
         if(prepDomBtn) prepDomBtn.addEventListener('click', () => { terminalModeSelect.classList.add('hidden'); terminalDomConfig.classList.remove('hidden'); });
         if(backToTerminalSelectBtn) backToTerminalSelectBtn.addEventListener('click', () => { terminalModeSelect.classList.remove('hidden'); terminalDomConfig.classList.add('hidden'); });
         if(sendDomSettingsBtn) sendDomSettingsBtn.addEventListener('click', () => { if(!activeDeviceId) { alert("Terminale non connesso!"); return; } const duration = document.getElementById('term-dom-duration').value; const capture = document.getElementById('term-dom-capture').value; socket.emit('send_command', { command: `CMD:SET_DOM_SETTINGS;DURATION:${duration};CAPTURE:${capture};`, target_id: activeDeviceId }); startDomGameBtn.disabled = true; });
@@ -224,11 +201,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if(forceEndSdBtn) forceEndSdBtn.addEventListener('click', () => { if(confirm("Terminare la partita?") && activeDeviceId) socket.emit('send_command', { command: 'CMD:FORCE_END_GAME', target_id: activeDeviceId }); });
         if(startGameTimerBtn) startGameTimerBtn.addEventListener('click', () => startGameTimer(gameDurationInput.value));
 
-        // Funzioni helper
         function startGameTimer(minutes) { stopGameTimer(); gameTimerSeconds = parseInt(minutes, 10) * 60; if (isNaN(gameTimerSeconds) || gameTimerSeconds <= 0) return; gameDurationWrapper.classList.add('hidden'); forceEndSdBtn.classList.remove('hidden'); updateTimerDisplay(sdGameTimer, gameTimerSeconds); gameTimerInterval = setInterval(() => { gameTimerSeconds--; updateTimerDisplay(sdGameTimer, gameTimerSeconds); if (gameTimerSeconds <= 0) { stopGameTimer(); sdBombState.innerHTML = "TEMPO SCADUTO! Vince CT"; if(activeDeviceId) socket.emit('send_command', { command: 'CMD:FORCE_END_GAME', target_id: activeDeviceId }); } }, 1000); }
         function stopGameTimer() { clearInterval(gameTimerInterval); gameTimerInterval = null; if(forceEndSdBtn) forceEndSdBtn.classList.add('hidden'); if(startGameTimerBtn) startGameTimerBtn.disabled = true; if(gameDurationWrapper) gameDurationWrapper.classList.remove('hidden'); }
         function stopAllTimers() { stopGameTimer(); stopProgressBar(); }
-        function updateTimerDisplay(element, totalSeconds) { const minutes = Math.floor(totalSeconds / 60); const seconds = totalSeconds % 60; element.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`; }
+        function updateTimerDisplay(element, totalSeconds) { if(!element) return; const minutes = Math.floor(totalSeconds / 60); const seconds = totalSeconds % 60; element.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`; }
         function startProgressBar(barElement, durationSeconds) { stopProgressBar(); const container = barElement.parentElement; container.classList.remove('hidden'); barElement.style.width = '0%'; const startTime = Date.now(); actionInterval = setInterval(() => { const elapsedTime = Date.now() - startTime; const progress = (elapsedTime / (durationSeconds * 1000)) * 100; barElement.style.width = Math.min(progress, 100) + '%'; if (progress >= 100) stopProgressBar(); }, 50); }
         function stopProgressBar() { clearInterval(actionInterval); if(team1ProgressContainer) team1ProgressContainer.classList.add('hidden'); if(team2ProgressContainer) team2ProgressContainer.classList.add('hidden'); if(armProgressContainer) armProgressContainer.classList.add('hidden'); if(defuseProgressContainer) defuseProgressContainer.classList.add('hidden'); if(team1ProgressBar) team1ProgressBar.style.width = '0%'; if(team2ProgressBar) team2ProgressBar.style.width = '0%'; if(armProgressBar) armProgressBar.style.width = '0%'; if(defuseProgressBar) defuseProgressBar.style.width = '0%'; }
         function formatMilliseconds(ms) { const totalSeconds = Math.floor(ms / 1000); const minutes = Math.floor(totalSeconds / 60); const seconds = totalSeconds % 60; return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`; }
@@ -237,7 +213,7 @@ document.addEventListener('DOMContentLoaded', () => {
         function resetDominationView() { if(domGameState) domGameState.innerHTML = 'In attesa di inizio...'; lastGameState = 'In attesa di inizio...'; if(domTimer) domTimer.textContent = '--:--'; if(winnerStatus) winnerStatus.innerHTML = '--'; if(scoreTeam1) scoreTeam1.textContent = '00:00'; if(scoreTeam2) scoreTeam2.textContent = '00:00'; if(forceEndDomBtn) forceEndDomBtn.classList.add('hidden'); }
         function resetSdView(isRemoteStart = false) { if(sdBombState) sdBombState.textContent = 'In attesa di inizio...'; if(sdBombTimer) sdBombTimer.textContent = '--:--'; if(sdGameTimer) sdGameTimer.textContent = '--:--'; stopGameTimer(); if (isRemoteStart) { if(gameDurationWrapper) gameDurationWrapper.classList.add('hidden'); } else { if(gameDurationWrapper) gameDurationWrapper.classList.remove('hidden'); if(startGameTimerBtn) startGameTimerBtn.disabled = true; if(gameDurationInput && sdGameTimer) updateTimerDisplay(sdGameTimer, parseInt(gameDurationInput.value, 10) * 60); } }
         function resetTerminalView() { if(terminalModeSelect) terminalModeSelect.classList.remove('hidden'); if(terminalDomConfig) terminalDomConfig.classList.add('hidden'); if(terminalSdConfig) terminalSdConfig.classList.add('hidden'); if(startDomGameBtn) startDomGameBtn.disabled = true; if(termStartSdGameBtn) termStartSdGameBtn.disabled = true; }
-        
+    
         console.log("[DEBUG] Logica Game Control caricata e listener agganciati.");
     }
 });
