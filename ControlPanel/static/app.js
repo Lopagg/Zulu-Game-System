@@ -121,19 +121,26 @@ document.addEventListener('DOMContentLoaded', () => {
             const terminal = findTerminal(devices);
 
             if (terminal) {
+                console.log('[DEBUG] Game Control: Terminale trovato ONLINE.');
                 activeDeviceId = terminal.id;
                 statusIndicator.classList.remove('status-offline');
                 statusIndicator.classList.add('status-online');
                 statusText.textContent = `TERMINALE ONLINE (${activeDeviceId.slice(-5)})`;
                 waitingView.classList.add('hidden');
                 
-                // Se non c'è una modalità attiva e non siamo in terminale, 
-                // mostra la vista terminale (perché è quella che ci aspettiamo qui)
-                if(activeMode === 'none') {
+                // Se non c'è una modalità attiva e il dispositivo è in terminale, 
+                // mostra la vista per selezionare la modalità
+                if (activeMode === 'none' && terminal.mode === 'terminal') {
                     showView('terminal');
                     resetTerminalView();
+                } else if (activeMode === 'none' && terminal.mode === 'main_menu') {
+                    // Se è online ma nel menu principale, mostra un messaggio semplice
+                    showView('simple');
+                    simpleModeName.textContent = 'Terminale Online (Menu Principale)';
                 }
+
             } else {
+                console.log('[DEBUG] Game Control: Terminale OFFLINE.');
                 activeDeviceId = null;
                 statusIndicator.classList.remove('status-online');
                 statusIndicator.classList.add('status-offline');
@@ -144,12 +151,15 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         socket.on('game_update', (data) => {
+            console.log('[DEBUG] Game Control: Ricevuto game_update:', data);
+            
             if (logList) {
                 const newLogEntry = document.createElement('li');
                 newLogEntry.textContent = JSON.stringify(data);
                 logList.prepend(newLogEntry);
             }
 
+            // Ignora i messaggi se non provengono dal terminale attivo
             if (!activeDeviceId || data.deviceId !== activeDeviceId) {
                 console.log(`[DEBUG] Messaggio ignorato, proviene da device ${data.deviceId} ma quello attivo è ${activeDeviceId}`);
                 return;
