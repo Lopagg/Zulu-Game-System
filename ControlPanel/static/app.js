@@ -124,25 +124,33 @@ document.addEventListener('DOMContentLoaded', () => {
             const terminal = findTerminal(devices);
 
             if (terminal) {
-                console.log('[DEBUG] Game Control: Terminale trovato ONLINE.');
-                activeDeviceId = terminal.id;
+                activeDeviceId = terminal.id; // Imposta o aggiorna l'ID attivo
+                console.log(`[DEBUG] Game Control: Terminale ${activeDeviceId} trovato ONLINE.`);
                 statusIndicator.classList.remove('status-offline');
                 statusIndicator.classList.add('status-online');
                 statusText.textContent = `TERMINALE ONLINE (${activeDeviceId.slice(-5)})`;
-                waitingView.classList.add('hidden');
-                
+                waitingView.classList.add('hidden'); // Nasconde l'attesa
+
+                // Mostra la vista corretta solo se non eravamo già in una modalità attiva
+                // Questo evita di resettare la vista se arriva solo un aggiornamento di stato
                 if(activeMode === 'none') {
                     showView('simple');
                     simpleModeName.textContent = 'Menu principale';
                 }
             } else {
-                console.log('[DEBUG] Game Control: Terminale OFFLINE.');
-                activeDeviceId = null;
+                // Se NESSUN terminale è online
+                if (activeDeviceId !== null) {
+                     // Solo se prima era online, logga la disconnessione
+                    console.log('[DEBUG] Game Control: Terminale precedentemente attivo è ora OFFLINE.');
+                }
+                activeDeviceId = null; // Resetta l'ID attivo
                 statusIndicator.classList.remove('status-online');
                 statusIndicator.classList.add('status-offline');
                 statusText.textContent = 'TERMINALE OFFLINE';
-                waitingView.classList.remove('hidden');
-                showView('none'); 
+                waitingView.classList.remove('hidden'); // Mostra l'attesa
+                showView('none'); // Nasconde tutte le viste di gioco
+                activeMode = 'none'; // Resetta la modalità attiva
+                stopAllTimers(); // Ferma eventuali timer residui
             }
         });
 
@@ -153,12 +161,20 @@ document.addEventListener('DOMContentLoaded', () => {
             if (logList) {
                 const newLogEntry = document.createElement('li');
                 newLogEntry.textContent = JSON.stringify(data);
-                logList.prepend(newLogEntry);
+                logList.prepend(newLogEntry); // Aggiunge in cima
+                // Limita il numero di log visualizzati se necessario (opzionale)
+                // while (logList.children.length > 100) {
+                //    logList.removeChild(logList.lastChild);
+                // }
             }
 
+            if (!activeDeviceId) {
+                 console.log(`[DEBUG] Messaggio game_update ignorato, nessun terminale attivo noto (activeDeviceId è null). Dati:`, data);
+                 return; // Ignora se non sappiamo quale sia il terminale attivo
+            }
             if (data.deviceId !== activeDeviceId) {
-                console.log(`[DEBUG] Messaggio ignorato, proviene da device ${data.deviceId} ma quello attivo è ${activeDeviceId}`);
-                return;
+                console.log(`[DEBUG] Messaggio game_update ignorato, proviene da device ${data.deviceId} ma quello attivo è ${activeDeviceId}`);
+                return; // Ignora se proviene da un altro dispositivo
             }
 
             if (data.event === 'device_online' || data.event === 'mode_exit') {
