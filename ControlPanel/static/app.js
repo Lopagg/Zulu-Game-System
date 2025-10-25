@@ -114,14 +114,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const terminalDomConfig = document.getElementById('terminal-dom-config');
         const sendDomSettingsBtn = document.getElementById('send-dom-settings-btn');
         const startDomGameBtn = document.getElementById('start-dom-game-btn');
-        // CORREZIONE 2: Dichiarazione dei pulsanti "Annulla"
-        const backToTerminalSelectDomBtn = document.getElementById('back-to-terminal-list-dom');
+        // CORREZIONE 2: ID Corretto
+        const backToTerminalSelectDomBtn = document.getElementById('back-to-terminal-select-dom');
         
         const terminalSdConfig = document.getElementById('terminal-sd-config');
         const termSendSdSettingsBtn = document.getElementById('term-send-sd-settings-btn');
         const termStartSdGameBtn = document.getElementById('term-start-sd-game-btn');
-        // CORREZIONE 2: Dichiarazione dei pulsanti "Annulla"
-        const backToTerminalSelectSdBtn = document.getElementById('back-to-terminal-list-sd');
+        // CORREZIONE 2: ID Corretto
+        const backToTerminalSelectSdBtn = document.getElementById('back-to-terminal-select-sd');
         
         // Stato Globale
         let allDevices = [];
@@ -181,7 +181,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 logList.prepend(newLogEntry);
             }
 
-            // CORREZIONE 1: Gestisce l'abilitazione dei pulsanti "AVVIA"
+            // CORREZIONE (Sblocco Pulsante "Avvia"): 
+            // Gestisce l'abilitazione dei pulsanti "AVVIA"
             // Questo evento deve essere gestito *sempre* se proviene dal terminale attivo
             // e siamo in modalità configurazione.
             if (activeDeviceId && data.deviceId === activeDeviceId && data.event === 'settings_update') {
@@ -194,7 +195,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             
-            // CORREZIONE 3: La transizione di modalità (mode_enter) è l'evento più importante
+            // CORREZIONE (Transizione Vista): 
+            // La transizione di modalità (mode_enter) è l'evento più importante
             // e deve essere gestito *prima* del filtro generale.
             if (data.event === 'mode_enter') {
                 // Se questo evento proviene dal dispositivo che abbiamo appena avviato...
@@ -313,7 +315,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // --- CORREZIONE LOGICA 2: Pulsanti "Annulla" ---
+        // --- CORREZIONE 2: Pulsanti "Annulla" ---
         if(backToTerminalSelectDomBtn) {
             backToTerminalSelectDomBtn.addEventListener('click', () => {
                 activeDeviceId = null;
@@ -454,6 +456,10 @@ document.addEventListener('DOMContentLoaded', () => {
             startDomGameBtn.addEventListener('click', () => {
                 if(!activeDeviceId) { alert("Terminale non connesso!"); return; }
                 socket.emit('send_command', { command: 'CMD:START_DOM_GAME;', target_id: activeDeviceId });
+                // Passa alla schermata di monitoraggio Dominio
+                activeMode = 'domination';
+                resetDominationView();
+                showView('domination');
             });
         }
         
@@ -470,6 +476,14 @@ document.addEventListener('DOMContentLoaded', () => {
             termStartSdGameBtn.addEventListener('click', () => {
                 if(!activeDeviceId) { alert("Terminale non connesso!"); return; }
                 socket.emit('send_command', { command: 'CMD:START_SD_GAME;', target_id: activeDeviceId });
+                // Passa alla schermata di monitoraggio Cerca & Distruggi
+                activeMode = 'sd';
+                resetSdView(false);
+                showView('sd');
+                // Se il tempo di gioco è impostato localmente, avvia il timer
+                if (gameDurationInput && gameDurationInput.value) {
+                    startGameTimer(gameDurationInput.value);
+                }
             });
         }
         
@@ -645,4 +659,3 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log("[DEBUG] Logica Game Control caricata e listener agganciati.");
     }
 });
-
