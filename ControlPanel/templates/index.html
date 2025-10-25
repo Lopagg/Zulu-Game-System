@@ -41,9 +41,9 @@
         <div id="mode-selection-view" class="panel hidden">
             <h2>Seleziona Modalità di Gioco</h2>
             <div class="timer-controls">
-                <button id="select-tdm-btn" disabled>Deathmatch a Squadre</button>
-                <button id="select-sd-btn">Cerca & Distruggi</button>
-                <button id="select-dom-btn">Dominio</button>
+                <button id="select-tdm-btn" class="secondary-btn">Deathmatch a Squadre</button>
+                <button id="select-sd-btn" class="secondary-btn">Cerca &amp; Distruggi</button>
+                <button id="select-dom-btn" class="secondary-btn">Dominio</button>
             </div>
         </div>
 
@@ -84,7 +84,227 @@
                 </div>
                 <div class="timer-controls">
                     <button id="send-dom-settings-btn" class="secondary-btn">Invia Impostazioni</button>
-                    <button id="start-dom-game-btn
+                    <button id="start-dom-game-btn" class="start-game-btn" disabled>AVVIA PARTITA</button>
+                    <button id="back-to-terminal-select-dom" class="secondary-btn">Annulla</button>
+                </div>
+            </div>
+
+            <div id="terminal-sd-config" class="panel hidden">
+                <h3>Imposta partita Cerca & Distruggi</h3>
+                <div class="details-grid">
+                    <div class="panel">
+                        <h3>Durata Round (min)</h3>
+                        <input type="number" id="term-sd-gametime" value="5">
+                        <h3>Tempo Bomba (sec)</h3>
+                        <input type="number" id="term-sd-bombtime" value="45">
+                    </div>
+                    <div class="panel">
+                        <h3>Tempo Innesco (sec)</h3>
+                        <input type="number" id="term-sd-armtime" value="5">
+                        <h3>Tempo Disinnesco (sec)</h3>
+                        <input type="number" id="term-sd-defusetime" value="10">
+                    </div>
+                    <div class="panel">
+                        <h3>Usa PIN Innesco?</h3>
+                        <select id="term-sd-use-arm-pin">
+                            <option value="0">No</option>
+                            <option value="1">Sì</option>
+                        </select>
+                        <h3>PIN Innesco</h3>
+                        <input type="text" id="term-sd-arm-pin" value="1234">
+                    </div>
+                    <div class="panel">
+                        <h3>Usa PIN Disinnesco?</h3>
+                        <select id="term-sd-use-defuse-pin">
+                            <option value="0">No</option>
+                            <option value="1">Sì</option>
+                        </select>
+                        <h3>PIN Disinnesco</h3>
+                        <input type="text" id="term-sd-defuse-pin" value="5678">
+                    </div>
+                </div>
+                <div class="timer-controls">
+                    <button id="term-send-sd-settings-btn" class="secondary-btn">Invia Impostazioni</button>
+                    <button id="term-start-sd-game-btn" class="start-game-btn" disabled>AVVIA PARTITA</button>
+                    <button id="back-to-terminal-select-sd" class="secondary-btn">Annulla</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 5. Viste "Spettatore" (contenuti aggiunti) -->
+        <div id="domination-view" class="panel hidden">
+            <h2>Dominio - Monitor Partita</h2>
+            <div class="details-grid">
+                <div class="panel">
+                    <h3>Timer Partita</h3>
+                    <div class="big-timer" id="domination-timer">--:--</div>
+                    <div id="domination-game-state">In attesa di inizio...</div>
+                </div>
+                <div class="panel">
+                    <h3>Impostazioni</h3>
+                    <p>Durata: <span id="setting-duration">--</span> min</p>
+                    <p>Tempo conquista: <span id="setting-capture">--</span> s</p>
+                    <p>Countdown: <span id="setting-countdown">--</span></p>
+                    <p>Vincitore: <span id="status-winner">--</span></p>
+                </div>
+                <div class="panel">
+                    <h3>Score</h3>
+                    <p>Team Rossa: <span id="score-team1">00:00</span></p>
+                    <div id="team1-progress-container" class="progress-container hidden"><div id="team1-progress" class="progress-bar"></div></div>
+                    <p>Team Verde: <span id="score-team2">00:00</span></p>
+                    <div id="team2-progress-container" class="progress-container hidden"><div id="team2-progress" class="progress-bar"></div></div>
+                </div>
+            </div>
+            <div class="timer-controls">
+                <button id="force-end-dom-btn" class="secondary-btn hidden">Termina Partita</button>
+                <a href="#" class="secondary-btn" id="back-from-dom">Indietro</a>
+            </div>
+        </div>
+
+        <div id="sd-view" class="panel hidden">
+            <h2>Cerca &amp; Distruggi - Monitor Partita</h2>
+            <div class="details-grid">
+                <div class="panel">
+                    <h3>Timer Round</h3>
+                    <div class="big-timer" id="sd-game-timer">--:--</div>
+                    <h4>Stato Bomba</h4>
+                    <div id="sd-bomb-state">In attesa di inizio...</div>
+                    <div id="sd-bomb-timer">--:--</div>
+                </div>
+                <div class="panel">
+                    <h3>Impostazioni</h3>
+                    <p>Tempo bomba: <span id="setting-bomb-time">--</span>s</p>
+                    <p>Tempo innesco: <span id="setting-arm-time">--</span>s</p>
+                    <p>Tempo disinnesco: <span id="setting-defuse-time">--</span>s</p>
+                    <p>Usa PIN innesco: <span id="setting-use-arm-pin">--</span></p>
+                    <p>PIN innesco: <span id="setting-arm-pin">--</span></p>
+                    <p>Usa PIN disinnesco: <span id="setting-use-defuse-pin">--</span></p>
+                    <p>PIN disinnesco: <span id="setting-disarm-pin">--</span></p>
+                </div>
+                <div class="panel">
+                    <h3>Progresso Azioni</h3>
+                    <p>Innesco</p>
+                    <div id="arm-progress-container" class="progress-container hidden"><div id="arm-progress" class="progress-bar"></div></div>
+                    <p>Disinnesco</p>
+                    <div id="defuse-progress-container" class="progress-container hidden"><div id="defuse-progress" class="progress-bar"></div></div>
+                </div>
+            </div>
+
+            <div class="timer-controls">
+                <button id="force-end-sd-btn" class="secondary-btn hidden">Termina Partita</button>
+                <div id="game-duration-wrapper" class="inline-control">
+                    <label>Durata partita (min)</label>
+                    <input id="game-duration-input" type="number" value="5" min="1" style="width:70px;">
+                    <button id="start-game-timer-btn" class="secondary-btn">Avvia Timer</button>
+                </div>
+                <a href="#" class="secondary-btn" id="back-from-sd">Indietro</a>
+            </div>
+        </div>
+        
+        <!-- La vista 'simple' ora mostra lo stato del terminale selezionato -->
+        <div id="simple-view" class="panel hidden">
+            <p>Stato del terminale: <span id="simple-mode-name"></span></p>
+        </div>
+
+        <!-- 6. Log (invariato) -->
+        <div class="log-container panel">
+             <h3>Log eventi raw</h3>
+             <div class="log"><ul id="log-list"></ul></div>
+        </div>
+    </div>
+
+    <!-- Link al file JS corretto -->
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
+```<!-- filepath: d:\Cose Zulu\Progetti\Progettone\Codice\Zulu_Game_System\ControlPanel\templates\index.html -->
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zulu Game System - Controllo Partita</title>
+    
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=DSEG7+Classic:ital,wght@0,400;1,400&display=swap" rel="stylesheet">
+    
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+</head>
+<body>
+    <div class="main-container" id="game-control-main-container">
+        
+        <!-- Indicatore di Stato (ora gestisce lo stato "generale" della connessione) -->
+        <div id="connection-status-indicator" class="connection-status status-offline">
+            <span class="status-dot"></span>
+            <span id="connection-status-text">SERVER OFFLINE</span>
+        </div>
+
+        <div class="user-bar">
+            <!-- Pulsante per tornare alla Dashboard -->
+            <a href="/" class="back-to-dash-btn">Torna alla Dashboard</a>
+            <span>Benvenuto, {{ username }}!</span>
+            <form action="{{ url_for('logout') }}" method="get" style="display: inline; margin-left: 15px;">
+                <button type="submit">Logout</button>
+            </form>
+        </div>
+        
+        <h1>ZULU GAME SYSTEM</h1>
+
+        <!-- 1. Vista "In Attesa" (Mostrata se NESSUN dispositivo è online) -->
+        <div id="waiting-view" class="panel">
+            <h2>IN ATTESA DI DISPOSITIVI</h2>
+            <p>Nessun dispositivo di gioco è attualmente connesso alla rete.</p>
+        </div>
+
+        <!-- 2. NUOVA VISTA: Selezione Modalità -->
+        <div id="mode-selection-view" class="panel hidden">
+            <h2>Seleziona Modalità di Gioco</h2>
+            <div class="timer-controls">
+                <button id="select-tdm-btn" class="secondary-btn">Deathmatch a Squadre</button>
+                <button id="select-sd-btn" class="secondary-btn">Cerca &amp; Distruggi</button>
+                <button id="select-dom-btn" class="secondary-btn">Dominio</button>
+            </div>
+        </div>
+
+        <!-- 3. NUOVA VISTA: Selezione Terminale -->
+        <div id="terminal-selection-view" class="panel hidden">
+            <h2 id="terminal-selection-title">Seleziona Terminale</h2>
+            <p>Scegli un dispositivo. I terminali "Pronti" sono già in modalità di attesa.</p>
+            <ul id="terminal-list" class="terminal-list-ul">
+                <!-- La lista verrà popolata da app.js -->
+            </ul>
+            <div class="timer-controls">
+                <button id="back-to-mode-select-btn" class="secondary-btn">Indietro</button>
+            </div>
+        </div>
+
+        <!-- 4. Vista Configurazione (il vecchio 'terminal-view') -->
+        <div id="terminal-view" class="panel hidden">
+            <h2 id="terminal-config-title">Configura Partita</h2>
+            
+            <!-- Questo div non serve più -->
+            <!-- <div id="terminal-mode-select" class="hidden"> ... </div> -->
+            
+            <div id="terminal-dom-config" class="panel hidden">
+                <h3>Imposta partita Dominio</h3>
+                <div class="details-grid">
+                    <div class="panel">
+                        <h3>Durata Partita (min)</h3>
+                        <div class="timer-controls">
+                            <input type="number" id="term-dom-duration" value="10">
+                        </div>
+                    </div>
+                    <div class="panel">
+                        <h3>Tempo Conquista (sec)</h3>
+                        <div class="timer-controls">
+                            <input type="number" id="term-dom-capture" value="10">
+                        </div>
+                    </div>
+                </div>
+                <div class="timer-controls">
+                    <button id="send-dom-settings-btn" class="secondary-btn">Invia Impostazioni</button>
+                    <button id="start-dom-game-btn" class="start-game-btn" disabled>AVVIA PARTITA</button>
                     <button id="back-to-terminal-select-dom" class="secondary-btn">Annulla</button>
                 </div>
             </div>
