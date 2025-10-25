@@ -84,7 +84,7 @@
                 </div>
                 <div class="timer-controls">
                     <button id="send-dom-settings-btn" class="secondary-btn">Invia Impostazioni</button>
-                    <button id="start-dom-game-btn" class="start-game-btn" disabled>AVVIA PARTITA</button>
+                    <button id="start-dom-game-btn
                     <button id="back-to-terminal-select-dom" class="secondary-btn">Annulla</button>
                 </div>
             </div>
@@ -131,12 +131,74 @@
             </div>
         </div>
 
-        <!-- 5. Viste "Spettatore" (invariate) -->
+        <!-- 5. Viste "Spettatore" (contenuti aggiunti) -->
         <div id="domination-view" class="panel hidden">
-            <!-- ... (Il contenuto HTML di questa vista è invariato) ... -->
+            <h2>Dominio - Monitor Partita</h2>
+            <div class="details-grid">
+                <div class="panel">
+                    <h3>Timer Partita</h3>
+                    <div class="big-timer" id="domination-timer">--:--</div>
+                    <div id="domination-game-state">In attesa di inizio...</div>
+                </div>
+                <div class="panel">
+                    <h3>Impostazioni</h3>
+                    <p>Durata: <span id="setting-duration">--</span> min</p>
+                    <p>Tempo conquista: <span id="setting-capture">--</span> s</p>
+                    <p>Countdown: <span id="setting-countdown">--</span></p>
+                    <p>Vincitore: <span id="status-winner">--</span></p>
+                </div>
+                <div class="panel">
+                    <h3>Score</h3>
+                    <p>Team Rossa: <span id="score-team1">00:00</span></p>
+                    <div id="team1-progress-container" class="progress-container hidden"><div id="team1-progress" class="progress-bar"></div></div>
+                    <p>Team Verde: <span id="score-team2">00:00</span></p>
+                    <div id="team2-progress-container" class="progress-container hidden"><div id="team2-progress" class="progress-bar"></div></div>
+                </div>
+            </div>
+            <div class="timer-controls">
+                <button id="force-end-dom-btn" class="secondary-btn hidden">Termina Partita</button>
+                <a href="#" class="secondary-btn" id="back-from-dom">Indietro</a>
+            </div>
         </div>
+
         <div id="sd-view" class="panel hidden">
-            <!-- ... (Il contenuto HTML di questa vista è invariato) ... -->
+            <h2>Cerca &amp; Distruggi - Monitor Partita</h2>
+            <div class="details-grid">
+                <div class="panel">
+                    <h3>Timer Round</h3>
+                    <div class="big-timer" id="sd-game-timer">--:--</div>
+                    <h4>Stato Bomba</h4>
+                    <div id="sd-bomb-state">In attesa di inizio...</div>
+                    <div id="sd-bomb-timer">--:--</div>
+                </div>
+                <div class="panel">
+                    <h3>Impostazioni</h3>
+                    <p>Tempo bomba: <span id="setting-bomb-time">--</span>s</p>
+                    <p>Tempo innesco: <span id="setting-arm-time">--</span>s</p>
+                    <p>Tempo disinnesco: <span id="setting-defuse-time">--</span>s</p>
+                    <p>Usa PIN innesco: <span id="setting-use-arm-pin">--</span></p>
+                    <p>PIN innesco: <span id="setting-arm-pin">--</span></p>
+                    <p>Usa PIN disinnesco: <span id="setting-use-defuse-pin">--</span></p>
+                    <p>PIN disinnesco: <span id="setting-disarm-pin">--</span></p>
+                </div>
+                <div class="panel">
+                    <h3>Progresso Azioni</h3>
+                    <p>Innesco</p>
+                    <div id="arm-progress-container" class="progress-container hidden"><div id="arm-progress" class="progress-bar"></div></div>
+                    <p>Disinnesco</p>
+                    <div id="defuse-progress-container" class="progress-container hidden"><div id="defuse-progress" class="progress-bar"></div></div>
+                </div>
+            </div>
+
+            <div class="timer-controls">
+                <button id="force-end-sd-btn" class="secondary-btn hidden">Termina Partita</button>
+                <div id="game-duration-wrapper" class="inline-control">
+                    <label>Durata partita (min)</label>
+                    <input id="game-duration-input" type="number" value="5" min="1" style="width:70px;">
+                    <button id="start-game-timer-btn" class="secondary-btn">Avvia Timer</button>
+                </div>
+                <a href="#" class="secondary-btn" id="back-from-sd">Indietro</a>
+            </div>
         </div>
         
         <!-- La vista 'simple' ora mostra lo stato del terminale selezionato -->
