@@ -1,62 +1,92 @@
 document.addEventListener('DOMContentLoaded', () => {
     
-    // Rileva se siamo sulla pagina di controllo
-    const isGameControl = !!document.getElementById('game-control-main-container');
+    const socket = io();
+    socket.on('connect', () => {
+        console.log('Pagina connessa al server!');
+    });
 
-    if (isGameControl) {
-        const socket = io();
-        socket.on('connect', () => {
-            console.log('Pagina Game Control connessa al server!');
+    // Rileva su quale pagina ci troviamo
+    const isDashboard = !!document.getElementById('device-list');
+    const isGameControl = !!document.getElementById('waiting-view');
+
+    // --- LOGICA ESEGUITA SOLO SULLA DASHBOARD ---
+    if (isDashboard) {
+        console.log('[DEBUG] Eseguo logica Dashboard');
+        const deviceListElement = document.getElementById('device-list');
+        const startGameBtn = document.getElementById('start-game-btn');
+
+        socket.on('devices_update', (devices) => {
+            console.log('Dashboard: Ricevuta lista dispositivi:', devices);
+            if (!deviceListElement) return;
+
+            deviceListElement.innerHTML = '';
+            
+            if (!devices || devices.length === 0) {
+                deviceListElement.innerHTML = '<li>Nessun dispositivo online al momento.</li>';
+                return;
+            }
+
+            devices.forEach(device => {
+                const li = document.createElement('li');
+                const statusClass = device.status === 'ONLINE' ? 'team-green' : 'team-red';
+                let deviceName = device.id;
+                if (device.mode === 'terminal') deviceName = `Terminale (${device.id})`;
+
+                li.innerHTML = `Dispositivo: <strong>${deviceName}</strong> - Stato: <span class="${statusClass}">${device.status}</span> - Modalità: <em>${device.mode || 'N/A'}</em>`;
+                deviceListElement.appendChild(li);
+            });
         });
 
-        // Riferimenti a tutte le viste (pannelli)
+        if (startGameBtn) {
+            startGameBtn.addEventListener('click', () => {
+                window.location.href = '/game_control';
+            });
+        }
+    }
+
+    // --- LOGICA ESEGUITA SOLO SULLA PAGINA DI CONTROLLO GIOCO ---
+    if (isGameControl) {
+        console.log('[DEBUG] Eseguo logica Game Control');
+        
+        // Riferimenti agli elementi HTML
         const waitingView = document.getElementById('waiting-view');
-        const modeSelectionView = document.getElementById('mode-selection-view');
-        const terminalSelectionView = document.getElementById('terminal-selection-view');
-        const terminalView = document.getElementById('terminal-view');
         const simpleView = document.getElementById('simple-view');
         const simpleModeName = document.getElementById('simple-mode-name');
         const domView = document.getElementById('domination-view');
         const sdView = document.getElementById('sd-view');
+        const terminalView = document.getElementById('terminal-view');
         const logList = document.getElementById('log-list');
-        
-        // Riferimenti agli elementi di stato
         const statusIndicator = document.getElementById('connection-status-indicator');
         const statusText = document.getElementById('connection-status-text');
         
-        // Riferimenti ai pulsanti di selezione
+        // Viste di selezione
+        const modeSelectionView = document.getElementById('mode-selection-view');
+        const terminalSelectionView = document.getElementById('terminal-selection-view');
+        const terminalListView = document.getElementById('terminal-list');
+        const terminalSelectionTitle = document.getElementById('terminal-selection-title');
+        
+        // Pulsanti di selezione
         const selectTdmBtn = document.getElementById('select-tdm-btn');
         const selectSdBtn = document.getElementById('select-sd-btn');
         const selectDomBtn = document.getElementById('select-dom-btn');
         const backToModeSelectBtn = document.getElementById('back-to-mode-select-btn');
-        const terminalListView = document.getElementById('terminal-list');
-        const terminalSelectionTitle = document.getElementById('terminal-selection-title');
-        
-        // Riferimenti ai pannelli di configurazione
-        const terminalDomConfig = document.getElementById('terminal-dom-config');
-        const terminalSdConfig = document.getElementById('terminal-sd-config');
-        
-        // Riferimenti ai pulsanti di configurazione
-        const sendDomSettingsBtn = document.getElementById('send-dom-settings-btn');
-        const startDomGameBtn = document.getElementById('start-dom-game-btn');
-        const backToTerminalSelectDomBtn = document.getElementById('back-to-terminal-list-dom');
-        
-        const termSendSdSettingsBtn = document.getElementById('term-send-sd-settings-btn');
-        const termStartSdGameBtn = document.getElementById('term-start-sd-game-btn');
-        const backToTerminalSelectSdBtn = document.getElementById('back-to-terminal-list-sd');
 
-        // Riferimenti agli elementi di gioco (per i listener successivi)
+        // Elementi Dominio
         const domTimer = document.getElementById('domination-timer');
         const domGameState = document.getElementById('domination-game-state');
         const settingDuration = document.getElementById('setting-duration');
         const settingCapture = document.getElementById('setting-capture');
         const settingCountdown = document.getElementById('setting-countdown');
         const winnerStatus = document.getElementById('status-winner');
+        const team1ProgressContainer = document.getElementById('team1-progress-container');
         const team1ProgressBar = document.getElementById('team1-progress');
+        const team2ProgressContainer = document.getElementById('team2-progress-container');
         const team2ProgressBar = document.getElementById('team2-progress');
         const scoreTeam1 = document.getElementById('score-team1');
         const scoreTeam2 = document.getElementById('score-team2');
         const forceEndDomBtn = document.getElementById('force-end-dom-btn');
+        
+        // Elementi Cerca & Distruggi
         const sdGameTimer = document.getElementById('sd-game-timer');
         const forceEndSdBtn = document.getElementById('force-end-sd-btn');
         const sdBombState = document.getElementById('sd-bomb-state');
@@ -68,11 +98,24 @@ document.addEventListener('DOMContentLoaded', () => {
         const settingArmPin = document.getElementById('setting-arm-pin');
         const settingUseDefusePin = document.getElementById('setting-use-defuse-pin');
         const settingDisarmPin = document.getElementById('setting-disarm-pin');
+        const armProgressContainer = document.getElementById('arm-progress-container');
         const armProgressBar = document.getElementById('arm-progress');
+        const defuseProgressContainer = document.getElementById('defuse-progress-container');
         const defuseProgressBar = document.getElementById('defuse-progress');
         const gameDurationWrapper = document.getElementById('game-duration-wrapper');
         const gameDurationInput = document.getElementById('game-duration-input');
         const startGameTimerBtn = document.getElementById('start-game-timer-btn');
+        
+        // Elementi Terminale (Configurazione)
+        const terminalDomConfig = document.getElementById('terminal-dom-config');
+        const sendDomSettingsBtn = document.getElementById('send-dom-settings-btn');
+        const startDomGameBtn = document.getElementById('start-dom-game-btn');
+        const backToTerminalSelectDomBtn = document.getElementById('back-to-terminal-list-dom');
+        
+        const terminalSdConfig = document.getElementById('terminal-sd-config');
+        const termSendSdSettingsBtn = document.getElementById('term-send-sd-settings-btn');
+        const termStartSdGameBtn = document.getElementById('term-start-sd-game-btn');
+        const backToTerminalSelectSdBtn = document.getElementById('back-to-terminal-list-sd');
         
         // Stato Globale
         let allDevices = [];
@@ -95,34 +138,30 @@ document.addEventListener('DOMContentLoaded', () => {
         // Listener principale per lo stato dei dispositivi
         socket.on('devices_update', (devices) => {
             console.log('[DEBUG] Game Control: Ricevuta lista dispositivi:', devices);
-            allDevices = devices; // Salva la lista completa per usarla dopo
+            allDevices = devices; 
 
             const anyDeviceOnline = findOnlineDevice(devices);
 
             if (anyDeviceOnline) {
-                // Almeno un dispositivo è online. Nascondi "IN ATTESA".
                 statusIndicator.classList.remove('status-offline');
                 statusIndicator.classList.add('status-online');
                 statusText.textContent = `DISPOSITIVI ONLINE: ${devices.filter(d => d.status === 'ONLINE').length}`;
                 waitingView.classList.add('hidden');
                 
-                // Se siamo nella vista di selezione terminale, aggiorna la lista
                 if (!terminalSelectionView.classList.contains('hidden')) {
                     populateTerminalList();
                 }
-                // Se non stiamo facendo nulla, mostra la selezione modalità
                 else if (activeMode === 'none') {
                     showView('mode-selection');
                 }
 
             } else {
-                // Nessun dispositivo online. Mostra "IN ATTESA".
                 activeDeviceId = null;
                 statusIndicator.classList.remove('status-online');
                 statusIndicator.classList.add('status-offline');
                 statusText.textContent = 'NESSUN DISPOSITIVO ONLINE';
-                waitingView.classList.add('hidden');
-                showView('none'); // Nasconde tutte le altre viste
+                waitingView.classList.remove('hidden');
+                showView('none');
             }
         });
 
@@ -134,7 +173,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 logList.prepend(newLogEntry);
             }
 
-            // Se il messaggio non proviene dal terminale che stiamo controllando, ignora
+            // --- CORREZIONE LOGICA 1: Gestione 'settings_update' ---
+            // Gestisce l'abilitazione dei pulsanti AVVIA
+            // Questo evento deve essere gestito indipendentemente dalla modalità UI,
+            // purché provenga dal dispositivo corretto.
+            if (data.deviceId === activeDeviceId && data.event === 'settings_update') {
+                console.log("[DEBUG] Ricevuto settings_update, sblocco pulsante AVVIA");
+                if (data.duration) { 
+                    startDomGameBtn.disabled = false;
+                }
+                if (data.bomb_time) {
+                    termStartSdGameBtn.disabled = false;
+                }
+            }
+            
+            // Ignora tutti gli altri messaggi se non provengono dal terminale che stiamo controllando
             if (!activeDeviceId || data.deviceId !== activeDeviceId) {
                 return;
             }
@@ -144,9 +197,19 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (data.event === 'mode_enter') {
                 stopAllTimers();
                 activeMode = data.mode;
-                if (data.mode === 'domination') { showView('domination'); resetDominationView(); } 
-                else if (data.mode === 'sd') { showView('sd'); resetSdView(false); }
-                else if (data.mode === 'terminal') { showView('terminal'); resetTerminalView(); } 
+                if (data.mode === 'domination') { 
+                    showView('domination'); 
+                    resetDominationView(); 
+                } 
+                else if (data.mode === 'sd') { 
+                    showView('sd'); 
+                    resetSdView(false); 
+                }
+                else if (data.mode === 'terminal') {
+                    // Se il dispositivo entra in modalità terminale (es. dopo una partita),
+                    // torniamo alla selezione modalità.
+                    resetToMainMenu();
+                } 
                 else {
                     showView('simple');
                     if (data.mode === 'main_menu') simpleModeName.textContent = 'Menu principale';
@@ -155,7 +218,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } else if (data.event === 'remote_start') {
                 activeMode = data.mode;
-                if(data.mode === 'domination') { showView('domination'); resetDominationView(); } 
+                if (data.mode === 'domination') { 
+                    showView('domination'); 
+                    resetDominationView(); 
+                } 
                 else if (data.mode === 'sd') {
                     showView('sd');
                     resetSdView(true);
@@ -164,46 +230,37 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            if (activeMode === 'domination') handleDominationEvents(data);
-            else if (activeMode === 'sd') handleSearchDestroyEvents(data);
-            else if (activeMode === 'terminal') handleTerminalEvents(data);
+            // Gestori specifici per modalità
+            if (activeMode === 'domination') {
+                handleDominationEvents(data);
+            } else if (activeMode === 'sd') {
+                handleSearchDestroyEvents(data);
+            }
+            // Non c'è più bisogno di 'handleTerminalEvents' qui
         });
 
         // --- NUOVA LOGICA DI FLUSSO ---
 
-        // 1. Pulsanti Selezione Modalità
-        if (selectTdmBtn) {
-            selectTdmBtn.addEventListener('click', () => {
-                alert('Modalità Deathmatch a Squadre non ancora implementata.');
-            });
-        }
+        if(selectTdmBtn) selectTdmBtn.addEventListener('click', () => {
+            alert('Modalità Deathmatch a Squadre non ancora implementata.');
+        });
+        if(selectSdBtn) selectSdBtn.addEventListener('click', () => {
+            selectedGameMode = 'sd';
+            terminalSelectionTitle.textContent = 'Seleziona Terminale (Cerca e Distruggi)';
+            populateTerminalList();
+            showView('terminal-selection');
+        });
+        if(selectDomBtn) selectDomBtn.addEventListener('click', () => {
+            selectedGameMode = 'dom';
+            terminalSelectionTitle.textContent = 'Seleziona Terminale (Dominio)';
+            populateTerminalList();
+            showView('terminal-selection');
+        });
 
-        if (selectSdBtn) {
-            selectSdBtn.addEventListener('click', () => {
-                selectedGameMode = 'sd';
-                terminalSelectionTitle.textContent = 'Seleziona Terminale (Cerca e Distruggi)';
-                populateTerminalList();
-                showView('terminal-selection');
-            });
-        }
+        if(backToModeSelectBtn) backToModeSelectBtn.addEventListener('click', () => {
+            showView('mode-selection');
+        });
 
-        if (selectDomBtn) {
-            selectDomBtn.addEventListener('click', () => {
-                selectedGameMode = 'dom';
-                terminalSelectionTitle.textContent = 'Seleziona Terminale (Dominio)';
-                populateTerminalList();
-                showView('terminal-selection');
-            });
-        }
-
-        // 2. Pulsante Indietro (da Selezione Terminale a Selezione Modalità)
-        if (backToModeSelectBtn) {
-            backToModeSelectBtn.addEventListener('click', () => {
-                showView('mode-selection');
-            });
-        }
-
-        // 3. Funzione per Popolare la Lista Terminali
         function populateTerminalList() {
             terminalListView.innerHTML = '';
             const onlineDevices = allDevices.filter(d => d.status === 'ONLINE');
@@ -219,51 +276,43 @@ document.addEventListener('DOMContentLoaded', () => {
                 li.className = 'terminal-list-item ' + (isReady ? 'ready' : 'busy');
                 li.innerHTML = `<span>${device.id}</span> <span>${isReady ? 'Pronto' : `Occupato (${device.mode})`}</span>`;
                 
-                // Rendi il terminale cliccabile
-                li.addEventListener('click', () => {
-                    activeDeviceId = device.id; // Imposta questo come terminale attivo
-                    console.log(`Terminale ${activeDeviceId} selezionato per la partita.`);
-                    activeMode = 'config'; // Siamo in modalità configurazione
-                    
-                    // Se il dispositivo non è in modalità terminale, invia un messaggio
-                    if (!isReady) {
-                        alert(`Questo dispositivo non è in modalità terminale. Non può essere configurato.`);
-                        return;
-                    }
-
-                    showView('terminal');
-                    
-                    // Mostra il pannello di configurazione corretto
-                    if (selectedGameMode === 'sd') {
-                        terminalDomConfig.classList.add('hidden');
-                        terminalSdConfig.classList.remove('hidden');
-                    } else if (selectedGameMode === 'dom') {
-                        terminalSdConfig.classList.add('hidden');
-                        terminalDomConfig.classList.remove('hidden');
-                    }
-                });
+                if (isReady) {
+                    li.addEventListener('click', () => {
+                        activeDeviceId = device.id;
+                        console.log(`Terminale ${activeDeviceId} selezionato per la partita.`);
+                        activeMode = 'config'; // Siamo in modalità configurazione
+                        
+                        showView('terminal');
+                        
+                        if (selectedGameMode === 'sd') {
+                            terminalDomConfig.classList.add('hidden');
+                            terminalSdConfig.classList.remove('hidden');
+                        } else if (selectedGameMode === 'dom') {
+                            terminalSdConfig.classList.add('hidden');
+                            terminalDomConfig.classList.remove('hidden');
+                        }
+                    });
+                }
                 terminalListView.appendChild(li);
             });
         }
 
-        // 4. Pulsanti Indietro (dai pannelli di config a Selezione Terminale)
-        if (backToTerminalSelectDomBtn) {
-            backToTerminalSelectDomBtn.addEventListener('click', () => {
-                activeDeviceId = null;
-                activeMode = 'none';
-                populateTerminalList();
-                showView('terminal-selection');
-            });
-        }
+        // --- CORREZIONE LOGICA 2: Pulsanti "Annulla" ---
+        if(backToTerminalSelectDomBtn) backToTerminalSelectDomBtn.addEventListener('click', () => {
+            activeDeviceId = null;
+            activeMode = 'none';
+            populateTerminalList();
+            showView('terminal-selection');
+        });
+        if(backToTerminalSelectSdBtn) backToTerminalSelectSdBtn.addEventListener('click', () => {
+            activeDeviceId = null;
+            activeMode = 'none';
+            populateTerminalList();
+            showView('terminal-selection');
+        });
 
-        if (backToTerminalSelectSdBtn) {
-            backToTerminalSelectSdBtn.addEventListener('click', () => {
-                activeDeviceId = null;
-                activeMode = 'none';
-                populateTerminalList();
-                showView('terminal-selection');
-            });
-        }
+        
+        // --- FUNZIONI DI GIOCO (formattate e corrette) ---
         
         function handleDominationEvents(data) {
             if (data.event === 'settings_update') {
@@ -272,64 +321,47 @@ document.addEventListener('DOMContentLoaded', () => {
                 captureTime = parseInt(data.capture, 10);
                 settingCountdown.textContent = data.countdown;
             }
-
             if (data.event === 'countdown_start' || data.event === 'game_start') {
                 forceEndDomBtn.classList.remove('hidden');
-                lastGameState = (data.event === 'game_start')
-                    ? 'ZONA NEUTRA'
-                    : `Partita inizia in ${data.duration || data.time}s...`;
+                lastGameState = (data.event === 'game_start') ? 'ZONA NEUTRA' : `Partita inizia in ${data.duration || data.time}s...`;
                 domGameState.innerHTML = lastGameState;
             }
-
             if (data.event === 'countdown_update') {
                 lastGameState = `Partita inizia in ${data.time}s...`;
                 domGameState.innerHTML = lastGameState;
             }
-
             if (data.event === 'time_update') {
                 updateTimerDisplay(domTimer, parseInt(data.time, 10));
             }
-
             if (data.event === 'capture_start') {
                 lastGameState = domGameState.innerHTML;
                 domGameState.innerHTML = `Squadra <span class="team-${data.team === '1' ? 'red' : 'green'}">${data.team === '1' ? 'Rossa' : 'Verde'}</span> sta conquistando...`;
                 startProgressBar(data.team === '1' ? team1ProgressBar : team2ProgressBar, captureTime);
             }
-
             if (data.event === 'capture_cancel') {
                 stopProgressBar();
                 domGameState.innerHTML = 'Conquista annullata!';
-                setTimeout(() => {
-                    domGameState.innerHTML = lastGameState;
-                }, 2000);
+                setTimeout(() => { domGameState.innerHTML = lastGameState; }, 2000);
             }
-
             if (data.event === 'zone_captured') {
                 stopProgressBar();
                 lastGameState = `ZONA SQUADRA <span class="team-${data.team === '1' ? 'red' : 'green'}">${data.team === '1' ? 'ROSSA' : 'VERDE'}</span>!`;
                 domGameState.innerHTML = lastGameState;
             }
-
             if (data.event === 'score_update') {
                 scoreTeam1.textContent = formatMilliseconds(data.team1_score);
                 scoreTeam2.textContent = formatMilliseconds(data.team2_score);
             }
-
             if (data.event === 'game_end') {
                 domTimer.textContent = "00:00";
                 domGameState.innerHTML = "Partita Terminata!";
                 forceEndDomBtn.classList.add('hidden');
-
-                if (data.winner === '1') {
-                    winnerStatus.innerHTML = 'SQUADRA <span class="team-red">ROSSA</span>';
-                } else if (data.winner === '2') {
-                    winnerStatus.innerHTML = 'SQUADRA <span class="team-green">VERDE</span>';
-                } else {
-                    winnerStatus.innerHTML = "PAREGGIO";
-                }
+                if (data.winner === '1') winnerStatus.innerHTML = 'SQUADRA <span class="team-red">ROSSA</span>';
+                else if (data.winner === '2') winnerStatus.innerHTML = 'SQUADRA <span class="team-green">VERDE</span>';
+                else winnerStatus.innerHTML = "PAREGGIO";
             }
         }
-
+        
         function handleSearchDestroyEvents(data) {
             if (data.event === 'settings_update') {
                 settingBombTime.textContent = data.bomb_time;
@@ -342,282 +374,162 @@ document.addEventListener('DOMContentLoaded', () => {
                 settingUseDefusePin.textContent = data.use_disarm_pin === '1' ? 'Sì' : 'No';
                 settingDisarmPin.textContent = data.disarm_pin;
             }
-
             if (data.event === 'game_start') {
                 sdBombState.textContent = 'In attesa di innesco...';
                 startGameTimerBtn.disabled = false;
                 forceEndSdBtn.classList.remove('hidden');
             }
-
             if (data.event === 'arm_start') {
                 sdBombState.textContent = 'Innesco in corso...';
                 startProgressBar(armProgressBar, armTime);
             }
-
             if (data.event === 'arm_cancel') {
                 sdBombState.textContent = 'Innesco annullato. In attesa...';
                 stopProgressBar();
             }
-
             if (data.event === 'arm_pin_wrong') {
                 sdBombState.textContent = 'PIN innesco errato!';
             }
-
             if (data.event === 'bomb_armed') {
                 stopProgressBar();
                 sdBombState.textContent = 'BOMBA INNESCATA!';
             }
-
             if (data.event === 'time_update') {
                 updateTimerDisplay(sdBombTimer, parseInt(data.time, 10));
             }
-
             if (data.event === 'defuse_start') {
                 sdBombState.textContent = 'Disinnesco in corso...';
                 startProgressBar(defuseProgressBar, defuseTime);
             }
-
             if (data.event === 'defuse_cancel') {
                 sdBombState.textContent = 'BOMBA INNESCATA!';
                 stopProgressBar();
             }
-
             if (data.event === 'defuse_pin_wrong') {
                 sdBombState.textContent = 'PIN disinnesco errato!';
             }
-
             if (data.event === 'game_end') {
                 stopGameTimer();
                 stopProgressBar();
                 forceEndSdBtn.classList.add('hidden');
-
-                let winnerText = data.winner === 'terrorists'
-                    ? 'squadra <span class="team-red">T</span>'
-                    : 'squadra <span class="team-green">CT</span>';
-
+                let winnerText = data.winner === 'terrorists' ? 'squadra <span class="team-red">T</span>' : 'squadra <span class="team-green">CT</span>';
                 sdBombState.innerHTML = `Partita finita! Vince la ${winnerText}`;
             }
-
             if (data.event === 'round_reset') {
                 resetSdView(false);
             }
         }
 
-        function handleTerminalEvents(data) {
-            // Aggiornato per abilitare i pulsanti giusti
-            if (data.event === 'settings_update') {
-                if (data.duration) {
-                    startDomGameBtn.disabled = false;
-                }
-                if (data.bomb_time) {
-                    termStartSdGameBtn.disabled = false;
-                }
+        // Non più necessario perché gestito sopra
+        // function handleTerminalEvents(data) { ... }
+        
+        if(sendDomSettingsBtn) sendDomSettingsBtn.addEventListener('click', () => {
+            if(!activeDeviceId) { alert("Terminale non connesso!"); return; }
+            const duration = document.getElementById('term-dom-duration').value;
+            const capture = document.getElementById('term-dom-capture').value;
+            socket.emit('send_command', { command: `CMD:SET_DOM_SETTINGS;DURATION:${duration};CAPTURE:${capture};`, target_id: activeDeviceId });
+            startDomGameBtn.disabled = true;
+        });
+        
+        if(startDomGameBtn) startDomGameBtn.addEventListener('click', () => {
+            if(!activeDeviceId) { alert("Terminale non connesso!"); return; }
+            socket.emit('send_command', { command: 'CMD:START_DOM_GAME;', target_id: activeDeviceId });
+        });
+        
+        if(termSendSdSettingsBtn) termSendSdSettingsBtn.addEventListener('click', () => {
+            if(!activeDeviceId) { alert("Terminale non connesso!"); return; }
+            const cmd = `CMD:SET_SD_SETTINGS;BOMB_TIME:${document.getElementById('term-sd-bombtime').value};ARM_TIME:${document.getElementById('term-sd-armtime').value};DEFUSE_TIME:${document.getElementById('term-sd-defusetime').value};USE_ARM_PIN:${document.getElementById('term-sd-use-arm-pin').value};ARM_PIN:${document.getElementById('term-sd-arm-pin').value};USE_DEFUSE_PIN:${document.getElementById('term-sd-use-defuse-pin').value};DEFUSE_PIN:${document.getElementById('term-sd-defuse-pin').value};`;
+            socket.emit('send_command', { command: cmd, target_id: activeDeviceId });
+            termStartSdGameBtn.disabled = true;
+        });
+
+        if(termStartSdGameBtn) termStartSdGameBtn.addEventListener('click', () => {
+            if(!activeDeviceId) { alert("Terminale non connesso!"); return; }
+            socket.emit('send_command', { command: 'CMD:START_SD_GAME;', target_id: activeDeviceId });
+        });
+        
+        if(forceEndDomBtn) forceEndDomBtn.addEventListener('click', () => {
+            if(confirm("Terminare la partita?") && activeDeviceId) {
+                socket.emit('send_command', { command: 'CMD:FORCE_END_GAME', target_id: activeDeviceId });
             }
-        }
+        });
         
-        if (sendDomSettingsBtn) {
-            sendDomSettingsBtn.addEventListener('click', () => {
-                if (!activeDeviceId) {
-                    alert("Terminale non connesso!");
-                    return;
-                }
-                const duration = document.getElementById('term-dom-duration').value;
-                const capture = document.getElementById('term-dom-capture').value;
-                socket.emit('send_command', {
-                    command: `CMD:SET_DOM_SETTINGS;DURATION:${duration};CAPTURE:${capture};`,
-                    target_id: activeDeviceId
-                });
-                startDomGameBtn.disabled = true;
-            });
-        }
+        if(forceEndSdBtn) forceEndSdBtn.addEventListener('click', () => {
+            if(confirm("Terminare la partita?") && activeDeviceId) {
+                socket.emit('send_command', { command: 'CMD:FORCE_END_GAME', target_id: activeDeviceId });
+            }
+        });
         
-        if (startDomGameBtn) {
-            startDomGameBtn.addEventListener('click', () => {
-                if (!activeDeviceId) {
-                    alert("Terminale non connesso!");
-                    return;
-                }
-                socket.emit('send_command', {
-                    command: 'CMD:START_DOM_GAME;',
-                    target_id: activeDeviceId
-                });
-            });
-        }
-        
-        if (termSendSdSettingsBtn) {
-            termSendSdSettingsBtn.addEventListener('click', () => {
-                if (!activeDeviceId) {
-                    alert("Terminale non connesso!");
-                    return;
-                }
-                const cmd = `CMD:SET_SD_SETTINGS;BOMB_TIME:${document.getElementById('term-sd-bombtime').value};ARM_TIME:${document.getElementById('term-sd-armtime').value};DEFUSE_TIME:${document.getElementById('term-sd-defusetime').value};USE_ARM_PIN:${document.getElementById('term-sd-use-arm-pin').value};ARM_PIN:${document.getElementById('term-sd-arm-pin').value};USE_DEFUSE_PIN:${document.getElementById('term-sd-use-defuse-pin').value};DEFUSE_PIN:${document.getElementById('term-sd-defuse-pin').value};`;
-                socket.emit('send_command', {
-                    command: cmd,
-                    target_id: activeDeviceId
-                });
-                termStartSdGameBtn.disabled = true;
-            });
-        }
+        if(startGameTimerBtn) startGameTimerBtn.addEventListener('click', () => {
+            startGameTimer(gameDurationInput.value);
+        });
 
-        if (termStartSdGameBtn) {
-            termStartSdGameBtn.addEventListener('click', () => {
-                if (!activeDeviceId) {
-                    alert("Terminale non connesso!");
-                    return;
-                }
-                socket.emit('send_command', {
-                    command: 'CMD:START_SD_GAME;',
-                    target_id: activeDeviceId
-                });
-            });
-        }
-        
-        if (forceEndDomBtn) {
-            forceEndDomBtn.addEventListener('click', () => {
-                if (confirm("Terminare la partita?") && activeDeviceId) {
-                    socket.emit('send_command', {
-                        command: 'CMD:FORCE_END_GAME',
-                        target_id: activeDeviceId
-                    });
-                }
-            });
-        }
-
-        if (forceEndSdBtn) {
-            forceEndSdBtn.addEventListener('click', () => {
-                if (confirm("Terminare la partita?") && activeDeviceId) {
-                    socket.emit('send_command', {
-                        command: 'CMD:FORCE_END_GAME',
-                        target_id: activeDeviceId
-                    });
-                }
-            });
-        }
-
-        if (startGameTimerBtn) {
-            startGameTimerBtn.addEventListener('click', () => {
-                startGameTimer(gameDurationInput.value);
-            });
-        }
-
-        // --- Funzioni Helper (Incollate dal vecchio codice) ---
+        // --- Funzioni Helper (formattate) ---
         
         function startGameTimer(minutes) {
             stopGameTimer();
-
             gameTimerSeconds = parseInt(minutes, 10) * 60;
-            if (isNaN(gameTimerSeconds) || gameTimerSeconds <= 0) {
-                return;
-            }
-
-            if (gameDurationWrapper) {
-                gameDurationWrapper.classList.add('hidden');
-            }
-            if (forceEndSdBtn) {
-                forceEndSdBtn.classList.remove('hidden');
-            }
-
+            if (isNaN(gameTimerSeconds) || gameTimerSeconds <= 0) return;
+            gameDurationWrapper.classList.add('hidden');
+            forceEndSdBtn.classList.remove('hidden');
             updateTimerDisplay(sdGameTimer, gameTimerSeconds);
-
             gameTimerInterval = setInterval(() => {
                 gameTimerSeconds--;
                 updateTimerDisplay(sdGameTimer, gameTimerSeconds);
-
                 if (gameTimerSeconds <= 0) {
                     stopGameTimer();
                     sdBombState.innerHTML = "TEMPO SCADUTO! Vince CT";
-
-                    if (activeDeviceId) {
-                        socket.emit('send_command', {
-                            command: 'CMD:FORCE_END_GAME',
-                            target_id: activeDeviceId
-                        });
-                    }
+                    if(activeDeviceId) socket.emit('send_command', { command: 'CMD:FORCE_END_GAME', target_id: activeDeviceId });
                 }
             }, 1000);
         }
-
+        
         function stopGameTimer() {
             clearInterval(gameTimerInterval);
             gameTimerInterval = null;
-
-            if (forceEndSdBtn) {
-                forceEndSdBtn.classList.add('hidden');
-            }
-            if (startGameTimerBtn) {
-                startGameTimerBtn.disabled = true;
-            }
-            if (gameDurationWrapper) {
-                gameDurationWrapper.classList.remove('hidden');
-            }
+            if(forceEndSdBtn) forceEndSdBtn.classList.add('hidden');
+            if(startGameTimerBtn) startGameTimerBtn.disabled = true;
+            if(gameDurationWrapper) gameDurationWrapper.classList.remove('hidden');
         }
-
+        
         function stopAllTimers() {
             stopGameTimer();
             stopProgressBar();
         }
-
+        
         function updateTimerDisplay(element, totalSeconds) {
-            if (!element) return;
-
+            if(!element) return;
             const minutes = Math.floor(totalSeconds / 60);
             const seconds = totalSeconds % 60;
             element.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
         }
-
+        
         function startProgressBar(barElement, durationSeconds) {
             stopProgressBar();
-
-            if (!barElement) return;
             const container = barElement.parentElement;
-            if (container) {
-                container.classList.remove('hidden');
-            }
+            container.classList.remove('hidden');
             barElement.style.width = '0%';
-
             const startTime = Date.now();
             actionInterval = setInterval(() => {
                 const elapsedTime = Date.now() - startTime;
                 const progress = (elapsedTime / (durationSeconds * 1000)) * 100;
                 barElement.style.width = Math.min(progress, 100) + '%';
-
-                if (progress >= 100) {
-                    stopProgressBar();
-                }
+                if (progress >= 100) stopProgressBar();
             }, 50);
         }
-
+        
         function stopProgressBar() {
             clearInterval(actionInterval);
-            actionInterval = null;
-
-            if (typeof team1ProgressContainer !== 'undefined' && team1ProgressContainer) {
-                team1ProgressContainer.classList.add('hidden');
-            }
-            if (typeof team2ProgressContainer !== 'undefined' && team2ProgressContainer) {
-                team2ProgressContainer.classList.add('hidden');
-            }
-            if (typeof armProgressContainer !== 'undefined' && armProgressContainer) {
-                armProgressContainer.classList.add('hidden');
-            }
-            if (typeof defuseProgressContainer !== 'undefined' && defuseProgressContainer) {
-                defuseProgressContainer.classList.add('hidden');
-            }
-
-            if (team1ProgressBar) {
-                team1ProgressBar.style.width = '0%';
-            }
-            if (team2ProgressBar) {
-                team2ProgressBar.style.width = '0%';
-            }
-            if (armProgressBar) {
-                armProgressBar.style.width = '0%';
-            }
-            if (defuseProgressBar) {
-                defuseProgressBar.style.width = '0%';
-            }
+            if(team1ProgressContainer) team1ProgressContainer.classList.add('hidden');
+            if(team2ProgressContainer) team2ProgressContainer.classList.add('hidden');
+            if(armProgressContainer) armProgressContainer.classList.add('hidden');
+            if(defuseProgressContainer) defuseProgressContainer.classList.add('hidden');
+            if(team1ProgressBar) team1ProgressBar.style.width = '0%';
+            if(team2ProgressBar) team2ProgressBar.style.width = '0%';
+            if(armProgressBar) armProgressBar.style.width = '0%';
+            if(defuseProgressBar) defuseProgressBar.style.width = '0%';
         }
-
+        
         function formatMilliseconds(ms) {
             const totalSeconds = Math.floor(ms / 1000);
             const minutes = Math.floor(totalSeconds / 60);
@@ -626,63 +538,61 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         function showView(viewName) {
-            // Nascondi tutte le viste
-            if (waitingView) waitingView.classList.add('hidden');
-            if (simpleView) simpleView.classList.add('hidden');
-            if (domView) domView.classList.add('hidden');
-            if (sdView) sdView.classList.add('hidden');
-            if (terminalView) terminalView.classList.add('hidden');
-            if (modeSelectionView) modeSelectionView.classList.add('hidden');
-            if (terminalSelectionView) terminalSelectionView.classList.add('hidden');
+            if(waitingView) waitingView.classList.add('hidden');
+            if(simpleView) simpleView.classList.add('hidden');
+            if(domView) domView.classList.add('hidden');
+            if(sdView) sdView.classList.add('hidden');
+            if(terminalView) terminalView.classList.add('hidden');
+            if(modeSelectionView) modeSelectionView.classList.add('hidden');
+            if(terminalSelectionView) terminalSelectionView.classList.add('hidden');
             
-            // Mostra solo quella richiesta
-            if (viewName === 'simple') simpleView.classList.remove('hidden');
-            else if (viewName === 'domination') domView.classList.remove('hidden');
-            else if (viewName === 'sd') sdView.classList.remove('hidden');
-            else if (viewName === 'terminal') terminalView.classList.remove('hidden');
-            else if (viewName === 'mode-selection') modeSelectionView.classList.remove('hidden');
-            else if (viewName === 'terminal-selection') terminalSelectionView.classList.remove('hidden');
-            else if (viewName === 'waiting') waitingView.classList.remove('hidden');
+            if(viewName === 'waiting') waitingView.classList.remove('hidden');
+            else if(viewName === 'simple') simpleView.classList.remove('hidden');
+            else if(viewName === 'domination') domView.classList.remove('hidden');
+            else if(viewName === 'sd') sdView.classList.remove('hidden');
+            else if(viewName === 'terminal') terminalView.classList.remove('hidden');
+            else if(viewName === 'mode-selection') modeSelectionView.classList.remove('hidden');
+            else if(viewName === 'terminal-selection') terminalSelectionView.classList.remove('hidden');
         }
 
-        function resetToMainMenu() { 
-            showView('mode-selection'); 
-            stopAllTimers();
+        function resetToMainMenu() {
             activeMode = 'none';
             activeDeviceId = null;
+            showView('mode-selection'); 
+            stopAllTimers();
         }
-        function resetDominationView() { 
-            if (domGameState) domGameState.innerHTML = 'In attesa di inizio...';
+        
+        function resetDominationView() {
+            if(domGameState) domGameState.innerHTML = 'In attesa di inizio...';
             lastGameState = 'In attesa di inizio...';
-            if (domTimer) domTimer.textContent = '--:--';
-            if (winnerStatus) winnerStatus.innerHTML = '--';
-            if (scoreTeam1) scoreTeam1.textContent = '00:00';
-            if (scoreTeam2) scoreTeam2.textContent = '00:00';
-            if (forceEndDomBtn) forceEndDomBtn.classList.add('hidden');
+            if(domTimer) domTimer.textContent = '--:--';
+            if(winnerStatus) winnerStatus.innerHTML = '--';
+            if(scoreTeam1) scoreTeam1.textContent = '00:00';
+            if(scoreTeam2) scoreTeam2.textContent = '00:00';
+            if(forceEndDomBtn) forceEndDomBtn.classList.add('hidden');
         }
-        function resetSdView(isRemoteStart = false) { 
-            if (sdBombState) sdBombState.textContent = 'In attesa di inizio...';
-            if (sdBombTimer) sdBombTimer.textContent = '--:--';
-            if (sdGameTimer) sdGameTimer.textContent = '--:--';
+        
+        function resetSdView(isRemoteStart = false) {
+            if(sdBombState) sdBombState.textContent = 'In attesa di inizio...';
+            if(sdBombTimer) sdBombTimer.textContent = '--:--';
+            if(sdGameTimer) sdGameTimer.textContent = '--:--';
             stopGameTimer();
             if (isRemoteStart) {
-                if (gameDurationWrapper) gameDurationWrapper.classList.add('hidden');
+                if(gameDurationWrapper) gameDurationWrapper.classList.add('hidden');
             } else {
-                if (gameDurationWrapper) gameDurationWrapper.classList.remove('hidden');
-                if (startGameTimerBtn) startGameTimerBtn.disabled = true;
-                if (gameDurationInput && sdGameTimer) {
-                    updateTimerDisplay(sdGameTimer, parseInt(gameDurationInput.value, 10) * 60);
-                }
+                if(gameDurationWrapper) gameDurationWrapper.classList.remove('hidden');
+                if(startGameTimerBtn) startGameTimerBtn.disabled = true;
+                if(gameDurationInput && sdGameTimer) updateTimerDisplay(sdGameTimer, parseInt(gameDurationInput.value, 10) * 60);
             }
         }
-        function resetTerminalView() { 
-            // Questa funzione ora resetta i pannelli di configurazione
-            if (terminalDomConfig) terminalDomConfig.classList.add('hidden'); 
-            if (terminalSdConfig) terminalSdConfig.classList.add('hidden'); 
-            if (startDomGameBtn) startDomGameBtn.disabled = true; 
-            if (termStartSdGameBtn) termStartSdGameBtn.disabled = true; 
+        
+        function resetTerminalView() {
+            // Nasconde i pannelli di configurazione
+            if(terminalDomConfig) terminalDomConfig.classList.add('hidden'); 
+            if(terminalSdConfig) terminalSdConfig.classList.add('hidden'); 
+            // Disabilita i pulsanti di avvio
+            if(startDomGameBtn) startDomGameBtn.disabled = true; 
+            if(termStartSdGameBtn) termStartSdGameBtn.disabled = true; 
         }
-    
-        console.log("[DEBUG] Logica Game Control caricata e listener agganciati.");
     }
 });
