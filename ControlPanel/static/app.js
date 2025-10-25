@@ -3,6 +3,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const socket = io();
     socket.on('connect', () => {
         console.log('Pagina connessa al server!');
+        // Chiedi uno stato aggiornato appena ti connetti
+        socket.emit('request_device_update'); 
     });
 
     // Rileva su quale pagina ci troviamo
@@ -149,21 +151,25 @@ document.addEventListener('DOMContentLoaded', () => {
             const anyDeviceOnline = findOnlineDevice(devices);
 
             if (anyDeviceOnline) {
-                statusIndicator.classList.remove('status-offline');
+                tatusIndicator.classList.remove('status-offline');
                 statusIndicator.classList.add('status-online');
                 statusText.textContent = `DISPOSITIVI ONLINE: ${devices.filter(d => d.status === 'ONLINE').length}`;
-                
-                if (activeMode === 'none') {
-                    waitingView.classList.add('hidden');
+            
+                // Se siamo in 'none' (appena caricato) o 'waiting', mostra la selezione modalità
+                if (activeMode === 'none' || activeMode === 'waiting') {
+                    activeMode = 'mode-selection';
                     showView('mode-selection');
                 }
-                
+            
+                // Se siamo nella selezione terminale, aggiorna la lista
                 if (activeMode === 'terminal-selection') {
                     populateTerminalList();
                 }
 
             } else {
+                // NESSUN dispositivo online
                 activeDeviceId = null;
+                activeMode = 'waiting'; // Imposta lo stato su 'waiting'
                 statusIndicator.classList.remove('status-online');
                 statusIndicator.classList.add('status-offline');
                 statusText.textContent = 'NESSUN DISPOSITIVO ONLINE';
@@ -173,82 +179,68 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Listener per i messaggi di gioco
         socket.on('game_update', (data) => {
-            if (logList) {
-                const newLogEntry = document.createElement('li');
-                newLogEntry.textContent = JSON.stringify(data);
-                logList.prepend(newLogEntry);
-            }
+                if (logList) {
+                    const newLogEntry = document.createElement('li');
+                    newLogEntry.textContent = JSON.stringify(data);
+                    logList.prepend(newLogEntry);
+                }
 
-            // Gestisce l'abilitazione dei pulsanti "AVVIA"
-            if (activeMode === 'config' && activeDeviceId && data.deviceId === activeDeviceId && data.event === 'settings_update') {
-                console.log("[DEBUG] Ricevuto settings_update, sblocco pulsante AVVIA");
-                if (data.duration) { 
-                    startDomGameBtn.disabled = false;
-                }
-                if (data.bomb_time) {
-                    termStartSdGameBtn.disabled = false;
-                }
-            }
-            
-            // CORREZIONE 1: La transizione di modalità (mode_enter) è l'evento più importante
-            // e deve essere gestito *prima* del filtro generale.
-            if (data.event === 'mode_enter') {
-                // Se questo evento proviene dal dispositivo che abbiamo appena avviato...
-                if (data.deviceId === activeDeviceId) {
-                    console.log(`[DEBUG] Transizione alla modalità di gioco: ${data.mode}`);
-                    stopAllTimers();
-                    activeMode = data.mode; // Imposta lo stato della UI sulla modalità di gioco (es. 'domination')
-                    
-                    if (data.mode === 'domination') { 
-                        showView('domination'); 
-                        resetDominationView(); 
-                    } 
-                    else if (data.mode === 'sd') { 
-                        showView('sd'); 
-                        resetSdView(false); 
+                // Gestione sblocco pulsanti "AVVIA" (logica corretta)
+                if (activeDeviceId && data.deviceId === activeDeviceId && data.event === 'settings_update' && activeMode === 'config') {
+                    console.log("[DEBUG] Ricevuto settings_update, sblocco pulsante AVVIA");
+                    if (data.duration) { 
+                        startDomGameBtn.disabled = false;
                     }
-                    else {
-                        // Se entra in un'altra modalità (es. music, main_menu)
-                        // torniamo alla selezione modalità.
-                        resetToMainMenu();
+                    if (data.bomb_time) {
+                        termStartSdGameBtn.disabled = false;
                     }
-                    return; // Evento gestito
                 }
-            }
-
-            // Ignora tutti gli altri messaggi se non provengono dal terminale attivo
-            if (!activeDeviceId || data.deviceId !== activeDeviceId) {
-                return;
-            }
-
-            // GESTIONE ALTRI EVENTI (solo per il dispositivo attivo)
-            if (data.event === 'device_online' || data.event === 'mode_exit') {
                 
-                // CORREZIONE 1: Resettiamo solo se usciamo da una modalità di gioco,
-                // non da 'config' o 'terminal'.
-                if (data.mode === 'domination' || data.mode === 'sd') {
-                    console.log(`[DEBUG] Dispositivo ${data.deviceId} uscito da ${data.mode}, resetto UI`);
-                    resetToMainMenu();
-                } else {
-                    // Se siamo in 'config', stiamo aspettando 'mode_enter',
-                    // quindi ignoriamo 'mode_exit' (da 'terminal') per evitare il reset.
-                    console.log(`[DEBUG] 'mode_exit' da ${data.mode} ignorato.`);
+                // Gestione transizione di stato
+                if (data.event === 'mode_enter') {
+                    if (data.deviceId === activeDeviceId) {
+                        console.log(`[DEBUG] Transizione alla modalità di gioco: ${data.mode}`);
+                        stopAllTimers();
+                        
+                        if (data.mode === 'domination') { 
+                            activeMode = 'domination'; // IMPOSTA LO STATO
+                            showView('domination');    // MOSTRA LA VISTA
+                            resetDominationView(); 
+                        } 
+                        else if (data.mode === 'sd') { 
+                            activeMode = 'sd';         // IMPOSTA LO STATO
+                            showView('sd');            // MOSTRA LA VISTA
+                            resetSdView(false); 
+                        }
+                        else {
+                            // Se entra in un'altra modalità (es. music, main_menu, terminal)
+                            // torniamo alla selezione modalità.
+                            resetToMainMenu();
+                        }
+                        return; // Evento gestito
+                    }
                 }
-            
-            } else if (data.event === 'remote_start') {
-                // Questo evento (che arriva prima di mode_enter)
-                // ora viene solo loggato. La transizione della vista
-                // è gestita correttamente da 'mode_enter'.
-                console.log("[DEBUG] Comando remote_start ricevuto (ora ignorato per la UI).");
-            }
 
-            // Gestori specifici per gli eventi *interni* a una modalità
-            if (activeMode === 'domination') {
-                handleDominationEvents(data);
-            } else if (activeMode === 'sd') {
-                handleSearchDestroyEvents(data);
-            }
-        });
+                // Ignora tutti gli altri messaggi se non provengono dal terminale attivo
+                if (!activeDeviceId || data.deviceId !== activeDeviceId) {
+                    return;
+                }
+
+                // GESTIONE ALTRI EVENTI (solo per il dispositivo attivo)
+                if (data.event === 'device_online' || data.event === 'mode_exit') {
+                    resetToMainMenu();
+                } else if (data.event === 'remote_start') {
+                    console.log("[DEBUG] Comando remote_start ricevuto.");
+                }
+
+                // Gestori specifici per gli eventi *interni* a una modalità
+                // Questi ora funzioneranno perché 'activeMode' è stato impostato da 'mode_enter'
+                if (activeMode === 'domination') {
+                    handleDominationEvents(data);
+                } else if (activeMode === 'sd') {
+                    handleSearchDestroyEvents(data);
+                }
+            });
 
         // --- NUOVA LOGICA DI FLUSSO ---
 
@@ -286,202 +278,101 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         function populateTerminalList() {
-            terminalListView.innerHTML = '';
-            const onlineDevices = allDevices.filter(d => d.status === 'ONLINE');
+                terminalListView.innerHTML = '';
+                const onlineDevices = allDevices.filter(d => d.status === 'ONLINE');
 
-            if (onlineDevices.length === 0) {
-                terminalListView.innerHTML = '<li class="terminal-list-item busy">Nessun terminale online trovato.</li>';
-                return;
-            }
-
-            onlineDevices.forEach(device => {
-                const li = document.createElement('li');
-                const isReady = device.mode === 'terminal';
-                li.className = 'terminal-list-item ' + (isReady ? 'ready' : 'busy');
-                li.innerHTML = `<span>${device.id}</span> <span>${isReady ? 'Pronto' : `Occupato (${device.mode})`}</span>`;
-                
-                if (isReady) {
-                    li.addEventListener('click', () => {
-                        activeDeviceId = device.id; 
-                        console.log(`Terminale ${activeDeviceId} selezionato per la partita.`);
-                        activeMode = 'config'; // Siamo in modalità configurazione
-                        
-                        showView('terminal');
-                        resetTerminalView(); // Resetta i pulsanti AVVIA
-                        
-                        if (selectedGameMode === 'sd') {
-                            terminalDomConfig.classList.add('hidden');
-                            terminalSdConfig.classList.remove('hidden');
-                        } else if (selectedGameMode === 'dom') {
-                            terminalSdConfig.classList.add('hidden');
-                            terminalDomConfig.classList.remove('hidden');
-                        }
-                    });
+                if (onlineDevices.length === 0) {
+                    terminalListView.innerHTML = '<li class="terminal-list-item busy">Nessun terminale online trovato.</li>';
+                    return;
                 }
-                terminalListView.appendChild(li);
-            });
-        }
 
-        // --- CORREZIONE 2: Pulsanti "Annulla" ---
-        // (La dichiarazione delle costanti è già stata corretta sopra)
-        if (backToTerminalSelectDomBtn) {
-            backToTerminalSelectDomBtn.addEventListener('click', () => {
-                activeDeviceId = null;
-                activeMode = 'terminal-selection'; // Torna alla selezione terminale
-                populateTerminalList();
-                showView('terminal-selection');
-            });
-        }
-        if (backToTerminalSelectSdBtn) {
-            backToTerminalSelectSdBtn.addEventListener('click', () => {
-                activeDeviceId = null;
-                activeMode = 'terminal-selection'; // Torna alla selezione terminale
-                populateTerminalList();
-                showView('terminal-selection');
-            });
-        }
-        
-        // --- FUNZIONI DI GIOCO (con formattazione) ---
-        
-        function handleDominationEvents(data) {
-            if (data.event === 'settings_update') {
-                settingDuration.textContent = data.duration;
-                settingCapture.textContent = data.capture;
-                captureTime = parseInt(data.capture, 10);
-                settingCountdown.textContent = data.countdown;
+                onlineDevices.forEach(device => {
+                    const li = document.createElement('li');
+                    const isReady = device.mode === 'terminal';
+                    li.className = 'terminal-list-item ' + (isReady ? 'ready' : 'busy');
+                    li.innerHTML = `<span>${device.id}</span> <span>${isReady ? 'Pronto' : `Occupato (${device.mode})`}</span>`;
+                    
+                    if (isReady) {
+                        li.addEventListener('click', () => {
+                            activeDeviceId = device.id; 
+                            console.log(`Terminale ${activeDeviceId} selezionato per la partita.`);
+                            activeMode = 'config'; // Siamo in modalità configurazione
+                            
+                            showView('terminal');
+                            
+                            if (selectedGameMode === 'sd') {
+                                terminalDomConfig.classList.add('hidden');
+                                terminalSdConfig.classList.remove('hidden');
+                            } else if (selectedGameMode === 'dom') {
+                                terminalSdConfig.classList.add('hidden');
+                                terminalDomConfig.classList.remove('hidden');
+                            }
+                        });
+                    }
+                    terminalListView.appendChild(li);
+                });
             }
-            if (data.event === 'countdown_start' || data.event === 'game_start') {
-                forceEndDomBtn.classList.remove('hidden');
-                lastGameState = (data.event === 'game_start') ? 'ZONA NEUTRA' : `Partita inizia in ${data.duration || data.time}s...`;
-                domGameState.innerHTML = lastGameState;
-            }
-            if (data.event === 'countdown_update') {
-                lastGameState = `Partita inizia in ${data.time}s...`;
-                domGameState.innerHTML = lastGameState;
-            }
-            if (data.event === 'time_update') {
-                updateTimerDisplay(domTimer, parseInt(data.time, 10));
-            }
-            if (data.event === 'capture_start') {
-                lastGameState = domGameState.innerHTML;
-                domGameState.innerHTML = `Squadra <span class="team-${data.team === '1' ? 'red' : 'green'}">${data.team === '1' ? 'Rossa' : 'Verde'}</span> sta conquistando...`;
-                startProgressBar(data.team === '1' ? team1ProgressBar : team2ProgressBar, captureTime);
-            }
-            if (data.event === 'capture_cancel') {
-                stopProgressBar();
-                domGameState.innerHTML = 'Conquista annullata!';
-                setTimeout(() => { domGameState.innerHTML = lastGameState; }, 2000);
-            }
-            if (data.event === 'zone_captured') {
-                stopProgressBar();
-                lastGameState = `ZONA SQUADRA <span class="team-${data.team === '1' ? 'red' : 'green'}">${data.team === '1' ? 'ROSSA' : 'VERDE'}</span>!`;
-                domGameState.innerHTML = lastGameState;
-            }
-            if (data.event === 'score_update') {
-                scoreTeam1.textContent = formatMilliseconds(data.team1_score);
-                scoreTeam2.textContent = formatMilliseconds(data.team2_score);
-            }
-            if (data.event === 'game_end') {
-                domTimer.textContent = "00:00";
-                domGameState.innerHTML = "Partita Terminata!";
-                forceEndDomBtn.classList.add('hidden');
-                if (data.winner === '1') winnerStatus.innerHTML = 'SQUADRA <span class="team-red">ROSSA</span>';
-                else if (data.winner === '2') winnerStatus.innerHTML = 'SQUADRA <span class="team-green">VERDE</span>';
-                else winnerStatus.innerHTML = "PAREGGIO";
-            }
-        }
-        
-        function handleSearchDestroyEvents(data) {
-            if (data.event === 'settings_update') {
-                settingBombTime.textContent = data.bomb_time;
-                settingArmTime.textContent = data.arm_time;
-                armTime = parseInt(data.arm_time, 10);
-                settingDefuseTime.textContent = data.defuse_time;
-                defuseTime = parseInt(data.defuse_time, 10);
-                settingUseArmPin.textContent = data.use_arm_pin === '1' ? 'Sì' : 'No';
-                settingArmPin.textContent = data.arm_pin;
-                settingUseDefusePin.textContent = data.use_disarm_pin === '1' ? 'Sì' : 'No';
-                settingDisarmPin.textContent = data.disarm_pin;
-            }
-            if (data.event === 'game_start') {
-                sdBombState.textContent = 'In attesa di innesco...';
-                startGameTimerBtn.disabled = false;
-                forceEndSdBtn.classList.remove('hidden');
-            }
-            if (data.event === 'arm_start') {
-                sdBombState.textContent = 'Innesco in corso...';
-                startProgressBar(armProgressBar, armTime);
-            }
-            if (data.event === 'arm_cancel') {
-                sdBombState.textContent = 'Innesco annullato. In attesa...';
-                stopProgressBar();
-            }
-            if (data.event === 'arm_pin_wrong') {
-                sdBombState.textContent = 'PIN innesco errato!';
-            }
-            if (data.event === 'bomb_armed') {
-                stopProgressBar();
-                sdBombState.textContent = 'BOMBA INNESCATA!';
-            }
-            if (data.event === 'time_update') {
-                updateTimerDisplay(sdBombTimer, parseInt(data.time, 10));
-            }
-            if (data.event === 'defuse_start') {
-                sdBombState.textContent = 'Disinnesco in corso...';
-                startProgressBar(defuseProgressBar, defuseTime);
-            }
-            if (data.event === 'defuse_cancel') {
-                sdBombState.textContent = 'BOMBA INNESCATA!';
-                stopProgressBar();
-            }
-            if (data.event === 'defuse_pin_wrong') {
-                sdBombState.textContent = 'PIN disinnesco errato!';
-            }
-            if (data.event === 'game_end') {
-                stopGameTimer();
-                stopProgressBar();
-                forceEndSdBtn.classList.add('hidden');
-                let winnerText = data.winner === 'terrorists' ? 'squadra <span class="team-red">T</span>' : 'squadra <span class="team-green">CT</span>';
-                sdBombState.innerHTML = `Partita finita! Vince la ${winnerText}`;
-            }
-            if (data.event === 'round_reset') {
-                resetSdView(false);
-            }
-        }
-        
-        // Pulsanti di invio comandi
-        if(sendDomSettingsBtn) {
-            sendDomSettingsBtn.addEventListener('click', () => {
-                if(!activeDeviceId) { alert("Terminale non connesso!"); return; }
-                const duration = document.getElementById('term-dom-duration').value;
-                const capture = document.getElementById('term-dom-capture').value;
-                socket.emit('send_command', { command: `CMD:SET_DOM_SETTINGS;DURATION:${duration};CAPTURE:${capture};`, target_id: activeDeviceId });
-                startDomGameBtn.disabled = true;
-            });
-        }
-        
-        if(startDomGameBtn) {
-            startDomGameBtn.addEventListener('click', () => {
-                if(!activeDeviceId) { alert("Terminale non connesso!"); return; }
-                socket.emit('send_command', { command: 'CMD:START_DOM_GAME;', target_id: activeDeviceId });
-            });
-        }
-        
-        if(termSendSdSettingsBtn) {
-            termSendSdSettingsBtn.addEventListener('click', () => {
-                if(!activeDeviceId) { alert("Terminale non connesso!"); return; }
-                const cmd = `CMD:SET_SD_SETTINGS;BOMB_TIME:${document.getElementById('term-sd-bombtime').value};ARM_TIME:${document.getElementById('term-sd-armtime').value};DEFUSE_TIME:${document.getElementById('term-sd-defusetime').value};USE_ARM_PIN:${document.getElementById('term-sd-use-arm-pin').value};ARM_PIN:${document.getElementById('term-sd-arm-pin').value};USE_DEFUSE_PIN:${document.getElementById('term-sd-use-defuse-pin').value};DEFUSE_PIN:${document.getElementById('term-sd-defuse-pin').value};`;
-                socket.emit('send_command', { command: cmd, target_id: activeDeviceId });
-                termStartSdGameBtn.disabled = true;
-            });
-        }
 
-        if(termStartSdGameBtn) {
-            termStartSdGameBtn.addEventListener('click', () => {
-                if(!activeDeviceId) { alert("Terminale non connesso!"); return; }
-                socket.emit('send_command', { command: 'CMD:START_SD_GAME;', target_id: activeDeviceId });
-            });
-        }
+            // --- CORREZIONE PULSANTI "ANNULLA" ---
+            if(backToTerminalSelectDomBtn) {
+                backToTerminalSelectDomBtn.addEventListener('click', () => {
+                    // activeDeviceId = null; // NON AZZERARE
+                    activeMode = 'terminal-selection'; // Imposta lo stato UI corretto
+                    populateTerminalList(); 
+                    showView('terminal-selection'); 
+                });
+            }
+            if(backToTerminalSelectSdBtn) {
+                backToTerminalSelectSdBtn.addEventListener('click', () => {
+                    // activeDeviceId = null; // NON AZZERARE
+                    activeMode = 'terminal-selection'; // Imposta lo stato UI corretto
+                    populateTerminalList();
+                    showView('terminal-selection');
+                });
+            }
+            
+            // --- CORREZIONE PULSANTI "AVVIA PARTITA" ---
+            
+            if(sendDomSettingsBtn) {
+                sendDomSettingsBtn.addEventListener('click', () => {
+                    // Questo controllo ora funzionerà
+                    if(!activeDeviceId) { alert("Terminale non connesso!"); return; } 
+                    const duration = document.getElementById('term-dom-duration').value;
+                    const capture = document.getElementById('term-dom-capture').value;
+                    socket.emit('send_command', { command: `CMD:SET_DOM_SETTINGS;DURATION:${duration};CAPTURE:${capture};`, target_id: activeDeviceId });
+                    startDomGameBtn.disabled = true;
+                });
+            }
+            
+            if(startDomGameBtn) {
+                startDomGameBtn.addEventListener('click', () => {
+                    // Questo controllo ora funzionerà
+                    if(!activeDeviceId) { alert("Nessun terminale attivo selezionato!"); return; } 
+                    socket.emit('send_command', { command: 'CMD:START_DOM_GAME;', target_id: activeDeviceId });
+                    console.log(`[CMD SENT] Inviato START_DOM_GAME a ${activeDeviceId}. In attesa di mode_enter...`);
+                    // NON cambiare vista o activeMode qui, aspetta l'evento mode_enter
+                });
+            }
+            
+            if(termSendSdSettingsBtn) {
+                termSendSdSettingsBtn.addEventListener('click', () => {
+                    // Questo controllo ora funzionerà
+                    if(!activeDeviceId) { alert("Terminale non connesso!"); return; } 
+                    const cmd = `CMD:SET_SD_SETTINGS;BOMB_TIME:${document.getElementById('term-sd-bombtime').value};ARM_TIME:${document.getElementById('term-sd-armtime').value};DEFUSE_TIME:${document.getElementById('term-sd-defusetime').value};USE_ARM_PIN:${document.getElementById('term-sd-use-arm-pin').value};ARM_PIN:${document.getElementById('term-sd-arm-pin').value};USE_DEFUSE_PIN:${document.getElementById('term-sd-use-defuse-pin').value};DEFUSE_PIN:${document.getElementById('term-sd-defuse-pin').value};`;
+                    socket.emit('send_command', { command: cmd, target_id: activeDeviceId });
+                    termStartSdGameBtn.disabled = true;
+                });
+            }
+
+            if(termStartSdGameBtn) {
+                termStartSdGameBtn.addEventListener('click', () => {
+                    // Questo controllo ora funzionerà
+                    if(!activeDeviceId) { alert("Nessun terminale attivo selezionato!"); return; } 
+                    socket.emit('send_command', { command: 'CMD:START_SD_GAME;', target_id: activeDeviceId });
+                    console.log(`[CMD SENT] Inviato START_SD_GAME a ${activeDeviceId}. In attesa di mode_enter...`);
+                    // NON cambiare vista o activeMode qui, aspetta l'evento mode_enter
+                });
+            }
         
         if(forceEndDomBtn) {
             forceEndDomBtn.addEventListener('click', () => {
