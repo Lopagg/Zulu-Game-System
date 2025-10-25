@@ -51,8 +51,10 @@ void SearchDestroyMode::enter() {
  * @brief Funzione di ingresso diretto in partita, saltando i menu.
  */
 void SearchDestroyMode::enterInGame() {
+    _network->sendStatus("event:mode_enter;mode:sd;");
+    sendSettingsStatus();
     Serial.println("Entrato in Cerca & Distruggi (remoto)");
-    _network->sendStatus("event:game_start;");
+    // _network->sendStatus("event:game_start;");
     _hardware->playTone(1500, 150);
     _currentState = ModeState::IN_GAME_AWAIT_ARM; 
     displayAwaitArmScreen();

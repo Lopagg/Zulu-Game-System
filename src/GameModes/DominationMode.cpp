@@ -31,7 +31,7 @@ void DominationMode::enter() {
  */
 void DominationMode::enterInGame() {
     Serial.println("Entrato in modalita' Dominio (remoto)");
-    
+    _network->sendStatus("event:mode_enter;mode:domination;");
     // Salta direttamente allo stato di gioco attivo
     _currentState = ModeState::IN_GAME_NEUTRAL;
     _lastZoneState = ModeState::IN_GAME_NEUTRAL;
