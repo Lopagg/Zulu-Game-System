@@ -1,55 +1,19 @@
 document.addEventListener('DOMContentLoaded', () => {
     
-    const socket = io();
-    socket.on('connect', () => {
-        console.log('Pagina connessa al server!');
-    });
+    // Controlla se siamo sulla pagina di controllo
+    const isGameControl = !!document.getElementById('game-control-main-container');
 
-    // Rileva su quale pagina ci troviamo
-    const isDashboard = !!document.getElementById('device-list');
-    const isGameControl = !!document.getElementById('waiting-view');
-
-    // --- LOGICA ESEGUITA SOLO SULLA DASHBOARD ---
-    if (isDashboard) {
-        console.log('[DEBUG] Eseguo logica Dashboard');
-        const deviceListElement = document.getElementById('device-list');
-        const startGameBtn = document.getElementById('start-game-btn');
-
-        socket.on('devices_update', (devices) => {
-            console.log('Dashboard: Ricevuta lista dispositivi:', devices);
-            if (!deviceListElement) return;
-
-            deviceListElement.innerHTML = '';
-            
-            if (!devices || devices.length === 0) {
-                deviceListElement.innerHTML = '<li>Nessun dispositivo online al momento.</li>';
-                return;
-            }
-
-            devices.forEach(device => {
-                const li = document.createElement('li');
-                const statusClass = device.status === 'ONLINE' ? 'team-green' : 'team-red';
-                let deviceName = device.id;
-                if (device.mode === 'terminal') deviceName = `Terminale (${device.id})`;
-
-                li.innerHTML = `Dispositivo: <strong>${deviceName}</strong> - Stato: <span class="${statusClass}">${device.status}</span> - Modalità: <em>${device.mode || 'N/A'}</em>`;
-                deviceListElement.appendChild(li);
-            });
+    if (isGameControl) {
+        const socket = io();
+        socket.on('connect', () => {
+            console.log('Pagina Game Control connessa al server!');
         });
 
-        if (startGameBtn) {
-            startGameBtn.addEventListener('click', () => {
-                window.location.href = '/game_control';
-            });
-        }
-    }
-
-    // --- LOGICA ESEGUITA SOLO SULLA PAGINA DI CONTROLLO GIOCO ---
-    if (isGameControl) {
-        console.log('[DEBUG] Eseguo logica Game Control');
-        
         // Riferimenti agli elementi HTML
         const waitingView = document.getElementById('waiting-view');
+        const modeSelectionView = document.getElementById('mode-selection-view');
+        const terminalSelectionView = document.getElementById('terminal-selection-view');
+        const terminalListView = document.getElementById('terminal-list');
         const simpleView = document.getElementById('simple-view');
         const simpleModeName = document.getElementById('simple-mode-name');
         const domView = document.getElementById('domination-view');
@@ -102,8 +66,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const termStartSdGameBtn = document.getElementById('term-start-sd-game-btn');
         const backToTerminalSelectSdBtn = document.getElementById('back-to-terminal-select-sd');
         
+        // Pulsanti nuova logica
+        const selectTdmBtn = document.getElementById('select-tdm-btn');
+        const selectSdBtn = document.getElementById('select-sd-btn');
+        const selectDomBtn = document.getElementById('select-dom-btn');
+        const backToModeSelectBtn = document.getElementById('back-to-mode-select');
+        const backToTerminalListDomBtn = document.getElementById('back-to-terminal-list-dom');
+        const backToTerminalListSdBtn = document.getElementById('back-to-terminal-list-sd');
+
+        // Stato Globale
+        let allDevices = [];
         let activeMode = 'none';
-        let activeDeviceId = null;
+        let activeDeviceId = null; // L'ID del terminale che abbiamo SELEZIONATO
+        let selectedGameMode = null; // 'sd' o 'dom', per sapere quale config mostrare
         let actionInterval = null;
         let lastGameState = 'In attesa di inizio...';
         let captureTime = 10, armTime = 5, defuseTime = 10;
@@ -111,60 +86,59 @@ document.addEventListener('DOMContentLoaded', () => {
         let wasStartedFromTerminal = false;
         let gameTimerSeconds = 0;
 
-        function findTerminal(devices) {
+        // Funzione per trovare un terminale (qualsiasi dispositivo online)
+        function findOnlineTerminal(devices) {
             if (!devices) return null;
-            return devices.find(d => d.mode === 'terminal' && d.status === 'ONLINE');
+            return devices.find(d => d.status === 'ONLINE');
         }
         
+        // Listener principale per lo stato dei dispositivi
         socket.on('devices_update', (devices) => {
             console.log('[DEBUG] Game Control: Ricevuta lista dispositivi:', devices);
-            const terminal = findTerminal(devices);
+            allDevices = devices; // Salva la lista completa per dopo
 
-            if (terminal) {
-                console.log('[DEBUG] Game Control: Terminale trovato ONLINE.');
-                activeDeviceId = terminal.id;
+            const anyDeviceOnline = findOnlineTerminal(devices);
+
+            if (anyDeviceOnline) {
+                // Un dispositivo è online. Nascondi "IN ATTESA".
                 statusIndicator.classList.remove('status-offline');
                 statusIndicator.classList.add('status-online');
-                statusText.textContent = `TERMINALE ONLINE (${activeDeviceId.slice(-5)})`;
+                statusText.textContent = `DISPOSITIVI ONLINE: ${devices.filter(d => d.status === 'ONLINE').length}`;
                 waitingView.classList.add('hidden');
                 
-                // Se non c'è una modalità attiva e il dispositivo è in terminale, 
-                // mostra la vista per selezionare la modalità
-                if (activeMode === 'none' && terminal.mode === 'terminal') {
-                    showView('terminal');
-                    resetTerminalView();
-                } else if (activeMode === 'none' && terminal.mode === 'main_menu') {
-                    // Se è online ma nel menu principale, mostra un messaggio semplice
-                    showView('simple');
-                    simpleModeName.textContent = 'Terminale Online (Menu Principale)';
+                // Se non siamo in nessuna vista, mostra la selezione modalità
+                if (activeMode === 'none' && !terminalSelectionView.classList.contains('hidden')) {
+                    // Se siamo nella lista terminali, aggiorniamola
+                    populateTerminalList();
+                } else if (activeMode === 'none' && terminalSelectionView.classList.contains('hidden') && terminalView.classList.contains('hidden')) {
+                    showView('mode-selection');
                 }
 
             } else {
-                console.log('[DEBUG] Game Control: Terminale OFFLINE.');
+                // Nessun dispositivo online. Mostra "IN ATTESA".
                 activeDeviceId = null;
                 statusIndicator.classList.remove('status-online');
                 statusIndicator.classList.add('status-offline');
-                statusText.textContent = 'TERMINALE OFFLINE';
+                statusText.textContent = 'NESSUN DISPOSITIVO ONLINE';
                 waitingView.classList.remove('hidden');
-                showView('none'); 
+                showView('none'); // Nasconde tutte le altre viste
             }
         });
 
+        // Listener per i messaggi di gioco
         socket.on('game_update', (data) => {
-            console.log('[DEBUG] Game Control: Ricevuto game_update:', data);
-            
             if (logList) {
                 const newLogEntry = document.createElement('li');
                 newLogEntry.textContent = JSON.stringify(data);
                 logList.prepend(newLogEntry);
             }
 
-            // Ignora i messaggi se non provengono dal terminale attivo
+            // Se il messaggio non proviene dal terminale che stiamo controllando, ignora
             if (!activeDeviceId || data.deviceId !== activeDeviceId) {
-                console.log(`[DEBUG] Messaggio ignorato, proviene da device ${data.deviceId} ma quello attivo è ${activeDeviceId}`);
                 return;
             }
 
+            // --- Logica di gestione eventi di gioco (invariata) ---
             if (data.event === 'device_online' || data.event === 'mode_exit') {
                 resetToMainMenu();
             } else if (data.event === 'mode_enter') {
@@ -193,6 +167,74 @@ document.addEventListener('DOMContentLoaded', () => {
             if (activeMode === 'domination') handleDominationEvents(data);
             else if (activeMode === 'sd') handleSearchDestroyEvents(data);
             else if (activeMode === 'terminal') handleTerminalEvents(data);
+        });
+
+        // --- NUOVA LOGICA DI FLUSSO ---
+
+        // 1. Pulsanti Selezione Modalità
+        if(selectTdmBtn) selectTdmBtn.addEventListener('click', () => {
+            alert('Modalità Deathmatch a Squadre non ancora implementata.');
+        });
+        if(selectSdBtn) selectSdBtn.addEventListener('click', () => {
+            selectedGameMode = 'sd';
+            populateTerminalList();
+            showView('terminal-selection');
+        });
+        if(selectDomBtn) selectDomBtn.addEventListener('click', () => {
+            selectedGameMode = 'dom';
+            populateTerminalList();
+            showView('terminal-selection');
+        });
+
+        // 2. Pulsante Indietro (da Selezione Terminale a Selezione Modalità)
+        if(backToModeSelectBtn) backToModeSelectBtn.addEventListener('click', () => {
+            showView('mode-selection');
+        });
+
+        // 3. Funzione per Popolare la Lista Terminali
+        function populateTerminalList() {
+            terminalListView.innerHTML = '';
+            const onlineDevices = allDevices.filter(d => d.status === 'ONLINE');
+
+            if (onlineDevices.length === 0) {
+                terminalListView.innerHTML = '<li class="terminal-list-item busy">Nessun terminale online trovato.</li>';
+                return;
+            }
+
+            onlineDevices.forEach(device => {
+                const li = document.createElement('li');
+                const isReady = device.mode === 'terminal';
+                li.className = 'terminal-list-item ' + (isReady ? 'ready' : 'busy');
+                li.innerHTML = `<span>${device.id}</span> <span>${isReady ? 'Pronto' : `Occupato (${device.mode})`}</span>`;
+                
+                // Aggiungi il click solo se è pronto
+                if (isReady) {
+                    li.addEventListener('click', () => {
+                        activeDeviceId = device.id; // Imposta questo come terminale attivo
+                        console.log(`Terminale ${activeDeviceId} selezionato per la partita.`);
+                        showView('terminal');
+                        resetTerminalView();
+                        
+                        // Mostra il pannello di configurazione corretto
+                        if (selectedGameMode === 'sd') {
+                            terminalSdConfig.classList.remove('hidden');
+                        } else if (selectedGameMode === 'dom') {
+                            terminalDomConfig.classList.remove('hidden');
+                        }
+                    });
+                }
+                terminalListView.appendChild(li);
+            });
+        }
+
+        // 4. Pulsanti Indietro (dai pannelli di config a Selezione Terminale)
+        if(backToTerminalListDomBtn) backToTerminalListDomBtn.addEventListener('click', () => {
+            populateTerminalList();
+            showView('terminal-selection');
+        });
+        if(backToTerminalListSdBtn) backToTerminalListSdBtn.addEventListener('click', () => {
+            populateTerminalList();
+            showView('terminal-selection');
         });
         
         function handleDominationEvents(data) {

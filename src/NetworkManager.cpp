@@ -14,7 +14,7 @@ struct WifiCredential {
 
 const WifiCredential knownNetworks[] = {
     {"MELONE", "wirelessmelone"},               // Rete casa
-    {"", ""},       //
+    {"Som🅱️​rero🔆", "cristone"},       //
     {"S20Lorenzo", "Satana666"}   // hotspot
 };
 const int numKnownNetworks = sizeof(knownNetworks) / sizeof(knownNetworks[0]);

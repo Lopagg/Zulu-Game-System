@@ -3,26 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Zulu Game System</title>
-
+    <title>Zulu Game System - Controllo Partita</title>
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
-    
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DSEG7+Classic:ital,wght@0,400;1,400&display=swap" rel="stylesheet">
-    
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    
+    <link href="https://fonts.googleapis.com/css2?family=DSEG7+Classic:ital,wght@0,400;1,400&display=swap" rel="stylesheet">
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 </head>
 <body>
-    <div class="main-container">
+    <div class="main-container" id="game-control-main-container">
         <div id="connection-status-indicator" class="connection-status status-offline">
             <span class="status-dot"></span>
-            <span id="connection-status-text">OFFLINE</span>
+            <span id="connection-status-text">IN ATTESA...</span>
         </div>
 
         <div class="user-bar">
+            <a href="/" class="back-to-dash-btn">Torna alla Dashboard</a>
             <span>Benvenuto, {{ username }}!</span>
             <form action="{{ url_for('logout') }}" method="get" style="display: inline; margin-left: 15px;">
                 <button type="submit">Logout</button>
@@ -33,18 +28,53 @@
 
         <div id="waiting-view" class="panel">
             <h2>IN ATTESA DEL DISPOSITIVO</h2>
-            <p>Il pannello di controllo è in attesa che il dispositivo di gioco si connetta alla rete...</p>
+            <p>Il pannello di controllo è in attesa che un dispositivo si connetta alla rete...</p>
+        </div>
+
+        <div id="mode-selection-view" class="panel hidden">
+            <h2>Seleziona Modalità di Gioco</h2>
+            <div class="timer-controls">
+                <button id="select-tdm-btn" disabled>Deathmatch a Squadre</button>
+                <button id="select-sd-btn">Cerca & Distruggi</button>
+                <button id="select-dom-btn">Dominio</button>
+            </div>
+        </div>
+
+        <div id="terminal-selection-view" class="panel hidden">
+            <h2>Seleziona un Terminale</h2>
+            <p>Scegli un dispositivo online da usare per la partita. I terminali "Pronti" sono già in modalità di attesa.</p>
+            <ul id="terminal-list" class="terminal-list-ul">
+                </ul>
+            <div class="timer-controls">
+                <button id="back-to-mode-select">Indietro</button>
+            </div>
+        </div>
+
+        <div id="terminal-view" class="panel hidden">
+            <h2>MODALITÀ TERMINALE</h2>
+            <div id="terminal-mode-select" class="hidden">
+                <p>Seleziona una modalità da configurare e avviare da remoto:</p>
+                <div class="timer-controls">
+                    <button id="prep-dom-btn">Prepara Dominio</button>
+                    <button id="prep-sd-btn">Prepara Cerca & Distruggi</button>
+                </div>
+            </div>
+            
+            <div id="terminal-dom-config" class="panel hidden">
+                <h3>Imposta partita Dominio</h3>
+                <button id="back-to-terminal-list-dom">Annulla</button>
+            </div>
+
+            <div id="terminal-sd-config" class="panel hidden">
+                <h3>Imposta partita Cerca & Distruggi</h3>
+                <button id="back-to-terminal-list-sd">Annulla</button>
+            </div>
         </div>
 
         <div id="domination-view" class="panel hidden">
             </div>
-        
         <div id="sd-view" class="panel hidden">
             </div>
-        
-        <div id="terminal-view" class="panel hidden">
-            </div>
-
         <div id="simple-view" class="panel hidden">
             <p>Modalità attuale: <span id="simple-mode-name"></span></p>
         </div>
