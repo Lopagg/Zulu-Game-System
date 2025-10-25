@@ -114,13 +114,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const terminalDomConfig = document.getElementById('terminal-dom-config');
         const sendDomSettingsBtn = document.getElementById('send-dom-settings-btn');
         const startDomGameBtn = document.getElementById('start-dom-game-btn');
-        // CORREZIONE 2: ID Corretto
         const backToTerminalSelectDomBtn = document.getElementById('back-to-terminal-select-dom');
         
         const terminalSdConfig = document.getElementById('terminal-sd-config');
         const termSendSdSettingsBtn = document.getElementById('term-send-sd-settings-btn');
         const termStartSdGameBtn = document.getElementById('term-start-sd-game-btn');
-        // CORREZIONE 2: ID Corretto
         const backToTerminalSelectSdBtn = document.getElementById('back-to-terminal-select-sd');
         
         // Stato Globale
@@ -181,11 +179,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 logList.prepend(newLogEntry);
             }
 
-            // CORREZIONE (Sblocco Pulsante "Avvia"): 
             // Gestisce l'abilitazione dei pulsanti "AVVIA"
-            // Questo evento deve essere gestito *sempre* se proviene dal terminale attivo
-            // e siamo in modalità configurazione.
-            if (activeDeviceId && data.deviceId === activeDeviceId && data.event === 'settings_update') {
+            if (activeMode === 'config' && activeDeviceId && data.deviceId === activeDeviceId && data.event === 'settings_update') {
                 console.log("[DEBUG] Ricevuto settings_update, sblocco pulsante AVVIA");
                 if (data.duration) { 
                     startDomGameBtn.disabled = false;
@@ -195,8 +190,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             
-            // CORREZIONE (Transizione Vista): 
-            // La transizione di modalità (mode_enter) è l'evento più importante
+            // CORREZIONE 1: La transizione di modalità (mode_enter) è l'evento più importante
             // e deve essere gestito *prima* del filtro generale.
             if (data.event === 'mode_enter') {
                 // Se questo evento proviene dal dispositivo che abbiamo appena avviato...
@@ -229,14 +223,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // GESTIONE ALTRI EVENTI (solo per il dispositivo attivo)
             if (data.event === 'device_online' || data.event === 'mode_exit') {
-                // Il dispositivo è tornato al menu principale, quindi torniamo alla selezione modalità
-                resetToMainMenu();
+                
+                // CORREZIONE 1: Resettiamo solo se usciamo da una modalità di gioco,
+                // non da 'config' o 'terminal'.
+                if (data.mode === 'domination' || data.mode === 'sd') {
+                    console.log(`[DEBUG] Dispositivo ${data.deviceId} uscito da ${data.mode}, resetto UI`);
+                    resetToMainMenu();
+                } else {
+                    // Se siamo in 'config', stiamo aspettando 'mode_enter',
+                    // quindi ignoriamo 'mode_exit' (da 'terminal') per evitare il reset.
+                    console.log(`[DEBUG] 'mode_exit' da ${data.mode} ignorato.`);
+                }
             
             } else if (data.event === 'remote_start') {
                 // Questo evento (che arriva prima di mode_enter)
                 // ora viene solo loggato. La transizione della vista
                 // è gestita correttamente da 'mode_enter'.
-                console.log("[DEBUG] Comando remote_start ricevuto.");
+                console.log("[DEBUG] Comando remote_start ricevuto (ora ignorato per la UI).");
             }
 
             // Gestori specifici per gli eventi *interni* a una modalità
@@ -249,32 +252,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // --- NUOVA LOGICA DI FLUSSO ---
 
-        if(selectTdmBtn) {
+        if (selectTdmBtn) {
             selectTdmBtn.addEventListener('click', () => {
                 alert('Modalità Deathmatch a Squadre non ancora implementata.');
             });
         }
 
-        if(selectSdBtn) {
+        if (selectSdBtn) {
             selectSdBtn.addEventListener('click', () => {
                 selectedGameMode = 'sd';
                 terminalSelectionTitle.textContent = 'Seleziona Terminale (Cerca e Distruggi)';
+                activeMode = 'terminal-selection';
                 populateTerminalList();
                 showView('terminal-selection');
             });
         }
 
-        if(selectDomBtn) {
+        if (selectDomBtn) {
             selectDomBtn.addEventListener('click', () => {
                 selectedGameMode = 'dom';
                 terminalSelectionTitle.textContent = 'Seleziona Terminale (Dominio)';
+                activeMode = 'terminal-selection';
                 populateTerminalList();
                 showView('terminal-selection');
             });
         }
 
-        if(backToModeSelectBtn) {
+        if (backToModeSelectBtn) {
             backToModeSelectBtn.addEventListener('click', () => {
+                activeMode = 'none';
                 showView('mode-selection');
             });
         }
@@ -301,6 +307,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         activeMode = 'config'; // Siamo in modalità configurazione
                         
                         showView('terminal');
+                        resetTerminalView(); // Resetta i pulsanti AVVIA
                         
                         if (selectedGameMode === 'sd') {
                             terminalDomConfig.classList.add('hidden');
@@ -315,24 +322,26 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        if(backToTerminalSelectDomBtn) {
+        // --- CORREZIONE 2: Pulsanti "Annulla" ---
+        // (La dichiarazione delle costanti è già stata corretta sopra)
+        if (backToTerminalSelectDomBtn) {
             backToTerminalSelectDomBtn.addEventListener('click', () => {
-                    // activeDeviceId = null; // NON azzerare l'ID, l'utente potrebbe voler solo cambiare le impostazioni
-                    activeMode = 'terminal-selection'; // Imposta lo stato corretto
-                    populateTerminalList(); // Aggiorna solo la lista
-                    showView('terminal-selection'); // Torna alla selezione
+                activeDeviceId = null;
+                activeMode = 'terminal-selection'; // Torna alla selezione terminale
+                populateTerminalList();
+                showView('terminal-selection');
             });
         }
-        if(backToTerminalSelectSdBtn) {
+        if (backToTerminalSelectSdBtn) {
             backToTerminalSelectSdBtn.addEventListener('click', () => {
-                // activeDeviceId = null; // NON azzerare l'ID
-                activeMode = 'terminal-selection'; // Imposta lo stato corretto
+                activeDeviceId = null;
+                activeMode = 'terminal-selection'; // Torna alla selezione terminale
                 populateTerminalList();
                 showView('terminal-selection');
             });
         }
         
-        // --- FUNZIONI DI GIOCO (con formattazione e logica corretta) ---
+        // --- FUNZIONI DI GIOCO (con formattazione) ---
         
         function handleDominationEvents(data) {
             if (data.event === 'settings_update') {
@@ -440,7 +449,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         
-        // Pulsanti di invio comandi (ora usano activeDeviceId)
+        // Pulsanti di invio comandi
         if(sendDomSettingsBtn) {
             sendDomSettingsBtn.addEventListener('click', () => {
                 if(!activeDeviceId) { alert("Terminale non connesso!"); return; }
@@ -453,10 +462,8 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if(startDomGameBtn) {
             startDomGameBtn.addEventListener('click', () => {
-                // Questo controllo ora funzionerà perché activeDeviceId non è stato azzerato
-                if(!activeDeviceId) { alert("Nessun terminale attivo selezionato!"); return; } 
+                if(!activeDeviceId) { alert("Terminale non connesso!"); return; }
                 socket.emit('send_command', { command: 'CMD:START_DOM_GAME;', target_id: activeDeviceId });
-                console.log(`[CMD SENT] Inviato START_DOM_GAME a ${activeDeviceId}. In attesa di mode_enter...`);
             });
         }
         
@@ -471,10 +478,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if(termStartSdGameBtn) {
             termStartSdGameBtn.addEventListener('click', () => {
-                // Questo controllo ora funzionerà
-                if(!activeDeviceId) { alert("Nessun terminale attivo selezionato!"); return; } 
+                if(!activeDeviceId) { alert("Terminale non connesso!"); return; }
                 socket.emit('send_command', { command: 'CMD:START_SD_GAME;', target_id: activeDeviceId });
-                console.log(`[CMD SENT] Inviato START_SD_GAME a ${activeDeviceId}. In attesa di mode_enter...`);
             });
         }
         
@@ -650,3 +655,4 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log("[DEBUG] Logica Game Control caricata e listener agganciati.");
     }
 });
+
