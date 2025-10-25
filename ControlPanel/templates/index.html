@@ -4,19 +4,24 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Zulu Game System - Controllo Partita</title>
+    
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=DSEG7+Classic:ital,wght@0,400;1,400&display=swap" rel="stylesheet">
+    
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 </head>
 <body>
     <div class="main-container" id="game-control-main-container">
+        
+        <!-- Indicatore di Stato (ora gestisce lo stato "generale" della connessione) -->
         <div id="connection-status-indicator" class="connection-status status-offline">
             <span class="status-dot"></span>
-            <span id="connection-status-text">IN ATTESA...</span>
+            <span id="connection-status-text">SERVER OFFLINE</span>
         </div>
 
         <div class="user-bar">
+            <!-- Pulsante per tornare alla Dashboard -->
             <a href="/" class="back-to-dash-btn">Torna alla Dashboard</a>
             <span>Benvenuto, {{ username }}!</span>
             <form action="{{ url_for('logout') }}" method="get" style="display: inline; margin-left: 15px;">
@@ -26,11 +31,13 @@
         
         <h1>ZULU GAME SYSTEM</h1>
 
+        <!-- 1. Vista "In Attesa" (Mostrata se NESSUN dispositivo è online) -->
         <div id="waiting-view" class="panel">
-            <h2>IN ATTESA DEL DISPOSITIVO</h2>
-            <p>Il pannello di controllo è in attesa che un dispositivo si connetta alla rete...</p>
+            <h2>IN ATTESA DI DISPOSITIVI</h2>
+            <p>Nessun dispositivo di gioco è attualmente connesso alla rete.</p>
         </div>
 
+        <!-- 2. NUOVA VISTA: Selezione Modalità -->
         <div id="mode-selection-view" class="panel hidden">
             <h2>Seleziona Modalità di Gioco</h2>
             <div class="timer-controls">
@@ -40,51 +47,111 @@
             </div>
         </div>
 
+        <!-- 3. NUOVA VISTA: Selezione Terminale -->
         <div id="terminal-selection-view" class="panel hidden">
-            <h2>Seleziona un Terminale</h2>
-            <p>Scegli un dispositivo online da usare per la partita. I terminali "Pronti" sono già in modalità di attesa.</p>
+            <h2 id="terminal-selection-title">Seleziona Terminale</h2>
+            <p>Scegli un dispositivo. I terminali "Pronti" sono già in modalità di attesa.</p>
             <ul id="terminal-list" class="terminal-list-ul">
-                </ul>
+                <!-- La lista verrà popolata da app.js -->
+            </ul>
             <div class="timer-controls">
-                <button id="back-to-mode-select">Indietro</button>
+                <button id="back-to-mode-select-btn" class="secondary-btn">Indietro</button>
             </div>
         </div>
 
+        <!-- 4. Vista Configurazione (il vecchio 'terminal-view') -->
         <div id="terminal-view" class="panel hidden">
-            <h2>MODALITÀ TERMINALE</h2>
-            <div id="terminal-mode-select" class="hidden">
-                <p>Seleziona una modalità da configurare e avviare da remoto:</p>
-                <div class="timer-controls">
-                    <button id="prep-dom-btn">Prepara Dominio</button>
-                    <button id="prep-sd-btn">Prepara Cerca & Distruggi</button>
-                </div>
-            </div>
+            <h2 id="terminal-config-title">Configura Partita</h2>
+            
+            <!-- Questo div non serve più -->
+            <!-- <div id="terminal-mode-select" class="hidden"> ... </div> -->
             
             <div id="terminal-dom-config" class="panel hidden">
                 <h3>Imposta partita Dominio</h3>
-                <button id="back-to-terminal-list-dom">Annulla</button>
+                <div class="details-grid">
+                    <div class="panel">
+                        <h3>Durata Partita (min)</h3>
+                        <div class="timer-controls">
+                            <input type="number" id="term-dom-duration" value="10">
+                        </div>
+                    </div>
+                    <div class="panel">
+                        <h3>Tempo Conquista (sec)</h3>
+                        <div class="timer-controls">
+                            <input type="number" id="term-dom-capture" value="10">
+                        </div>
+                    </div>
+                </div>
+                <div class="timer-controls">
+                    <button id="send-dom-settings-btn" class="secondary-btn">Invia Impostazioni</button>
+                    <button id="start-dom-game-btn" class="start-game-btn" disabled>AVVIA PARTITA</button>
+                    <button id="back-to-terminal-select-dom" class="secondary-btn">Annulla</button>
+                </div>
             </div>
 
             <div id="terminal-sd-config" class="panel hidden">
                 <h3>Imposta partita Cerca & Distruggi</h3>
-                <button id="back-to-terminal-list-sd">Annulla</button>
+                <div class="details-grid">
+                    <div class="panel">
+                        <h3>Durata Round (min)</h3>
+                        <input type="number" id="term-sd-gametime" value="5">
+                        <h3>Tempo Bomba (sec)</h3>
+                        <input type="number" id="term-sd-bombtime" value="45">
+                    </div>
+                    <div class="panel">
+                        <h3>Tempo Innesco (sec)</h3>
+                        <input type="number" id="term-sd-armtime" value="5">
+                        <h3>Tempo Disinnesco (sec)</h3>
+                        <input type="number" id="term-sd-defusetime" value="10">
+                    </div>
+                    <div class="panel">
+                        <h3>Usa PIN Innesco?</h3>
+                        <select id="term-sd-use-arm-pin">
+                            <option value="0">No</option>
+                            <option value="1">Sì</option>
+                        </select>
+                        <h3>PIN Innesco</h3>
+                        <input type="text" id="term-sd-arm-pin" value="1234">
+                    </div>
+                    <div class="panel">
+                        <h3>Usa PIN Disinnesco?</h3>
+                        <select id="term-sd-use-defuse-pin">
+                            <option value="0">No</option>
+                            <option value="1">Sì</option>
+                        </select>
+                        <h3>PIN Disinnesco</h3>
+                        <input type="text" id="term-sd-defuse-pin" value="5678">
+                    </div>
+                </div>
+                <div class="timer-controls">
+                    <button id="term-send-sd-settings-btn" class="secondary-btn">Invia Impostazioni</button>
+                    <button id="term-start-sd-game-btn" class="start-game-btn" disabled>AVVIA PARTITA</button>
+                    <button id="back-to-terminal-select-sd" class="secondary-btn">Annulla</button>
+                </div>
             </div>
         </div>
 
+        <!-- 5. Viste "Spettatore" (invariate) -->
         <div id="domination-view" class="panel hidden">
-            </div>
+            <!-- ... (Il contenuto HTML di questa vista è invariato) ... -->
+        </div>
         <div id="sd-view" class="panel hidden">
-            </div>
+            <!-- ... (Il contenuto HTML di questa vista è invariato) ... -->
+        </div>
+        
+        <!-- La vista 'simple' ora mostra lo stato del terminale selezionato -->
         <div id="simple-view" class="panel hidden">
-            <p>Modalità attuale: <span id="simple-mode-name"></span></p>
+            <p>Stato del terminale: <span id="simple-mode-name"></span></p>
         </div>
 
+        <!-- 6. Log (invariato) -->
         <div class="log-container panel">
              <h3>Log eventi raw</h3>
              <div class="log"><ul id="log-list"></ul></div>
         </div>
     </div>
 
+    <!-- Link al file JS corretto -->
     <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>
