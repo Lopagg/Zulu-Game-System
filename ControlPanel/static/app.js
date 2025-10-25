@@ -195,34 +195,384 @@ document.addEventListener('DOMContentLoaded', () => {
             else if (activeMode === 'terminal') handleTerminalEvents(data);
         });
         
-        function handleDominationEvents(data) { if (data.event === 'settings_update') { settingDuration.textContent = data.duration; settingCapture.textContent = data.capture; captureTime = parseInt(data.capture, 10); settingCountdown.textContent = data.countdown; } if (data.event === 'countdown_start' || data.event === 'game_start') { forceEndDomBtn.classList.remove('hidden'); lastGameState = (data.event === 'game_start') ? 'ZONA NEUTRA' : `Partita inizia in ${data.duration || data.time}s...`; domGameState.innerHTML = lastGameState; } if (data.event === 'countdown_update') { lastGameState = `Partita inizia in ${data.time}s...`; domGameState.innerHTML = lastGameState; } if (data.event === 'time_update') { updateTimerDisplay(domTimer, parseInt(data.time, 10)); } if (data.event === 'capture_start') { lastGameState = domGameState.innerHTML; domGameState.innerHTML = `Squadra <span class="team-${data.team === '1' ? 'red' : 'green'}">${data.team === '1' ? 'Rossa' : 'Verde'}</span> sta conquistando...`; startProgressBar(data.team === '1' ? team1ProgressBar : team2ProgressBar, captureTime); } if (data.event === 'capture_cancel') { stopProgressBar(); domGameState.innerHTML = 'Conquista annullata!'; setTimeout(() => { domGameState.innerHTML = lastGameState; }, 2000); } if (data.event === 'zone_captured') { stopProgressBar(); lastGameState = `ZONA SQUADRA <span class="team-${data.team === '1' ? 'red' : 'green'}">${data.team === '1' ? 'ROSSA' : 'VERDE'}</span>!`; domGameState.innerHTML = lastGameState; } if (data.event === 'score_update') { scoreTeam1.textContent = formatMilliseconds(data.team1_score); scoreTeam2.textContent = formatMilliseconds(data.team2_score); } if (data.event === 'game_end') { domTimer.textContent = "00:00"; domGameState.innerHTML = "Partita Terminata!"; forceEndDomBtn.classList.add('hidden'); if (data.winner === '1') winnerStatus.innerHTML = 'SQUADRA <span class="team-red">ROSSA</span>'; else if (data.winner === '2') winnerStatus.innerHTML = 'SQUADRA <span class="team-green">VERDE</span>'; else winnerStatus.innerHTML = "PAREGGIO"; } }
-        function handleSearchDestroyEvents(data) { if (data.event === 'settings_update') { settingBombTime.textContent = data.bomb_time; settingArmTime.textContent = data.arm_time; armTime = parseInt(data.arm_time, 10); settingDefuseTime.textContent = data.defuse_time; defuseTime = parseInt(data.defuse_time, 10); settingUseArmPin.textContent = data.use_arm_pin === '1' ? 'Sì' : 'No'; settingArmPin.textContent = data.arm_pin; settingUseDefusePin.textContent = data.use_disarm_pin === '1' ? 'Sì' : 'No'; settingDisarmPin.textContent = data.disarm_pin; } if (data.event === 'game_start') { sdBombState.textContent = 'In attesa di innesco...'; startGameTimerBtn.disabled = false; forceEndSdBtn.classList.remove('hidden'); } if (data.event === 'arm_start') { sdBombState.textContent = 'Innesco in corso...'; startProgressBar(armProgressBar, armTime); } if (data.event === 'arm_cancel') { sdBombState.textContent = 'Innesco annullato. In attesa...'; stopProgressBar(); } if (data.event === 'arm_pin_wrong') { sdBombState.textContent = 'PIN innesco errato!'; } if (data.event === 'bomb_armed') { stopProgressBar(); sdBombState.textContent = 'BOMBA INNESCATA!'; } if (data.event === 'time_update') { updateTimerDisplay(sdBombTimer, parseInt(data.time, 10)); } if (data.event === 'defuse_start') { sdBombState.textContent = 'Disinnesco in corso...'; startProgressBar(defuseProgressBar, defuseTime); } if (data.event === 'defuse_cancel') { sdBombState.textContent = 'BOMBA INNESCATA!'; stopProgressBar(); } if (data.event === 'defuse_pin_wrong') { sdBombState.textContent = 'PIN disinnesco errato!'; } if (data.event === 'game_end') { stopGameTimer(); stopProgressBar(); forceEndSdBtn.classList.add('hidden'); let winnerText = data.winner === 'terrorists' ? 'squadra <span class="team-red">T</span>' : 'squadra <span class="team-green">CT</span>'; sdBombState.innerHTML = `Partita finita! Vince la ${winnerText}`; } if (data.event === 'round_reset') { resetSdView(false); } }
-        function handleTerminalEvents(data) { if (data.event === 'settings_update') { if (data.duration) { startDomGameBtn.disabled = false; } if (data.bomb_time) { termStartSdGameBtn.disabled = false; } } }
-        
-        if(prepDomBtn) prepDomBtn.addEventListener('click', () => { terminalModeSelect.classList.add('hidden'); terminalDomConfig.classList.remove('hidden'); });
-        if(backToTerminalSelectBtn) backToTerminalSelectBtn.addEventListener('click', () => { terminalModeSelect.classList.remove('hidden'); terminalDomConfig.classList.add('hidden'); });
-        if(sendDomSettingsBtn) sendDomSettingsBtn.addEventListener('click', () => { if(!activeDeviceId) { alert("Terminale non connesso!"); return; } const duration = document.getElementById('term-dom-duration').value; const capture = document.getElementById('term-dom-capture').value; socket.emit('send_command', { command: `CMD:SET_DOM_SETTINGS;DURATION:${duration};CAPTURE:${capture};`, target_id: activeDeviceId }); startDomGameBtn.disabled = true; });
-        if(startDomGameBtn) startDomGameBtn.addEventListener('click', () => { if(!activeDeviceId) { alert("Terminale non connesso!"); return; } wasStartedFromTerminal = true; socket.emit('send_command', { command: 'CMD:START_DOM_GAME;', target_id: activeDeviceId }); });
-        if(prepSdBtn) prepSdBtn.addEventListener('click', () => { terminalModeSelect.classList.add('hidden'); terminalSdConfig.classList.remove('hidden'); });
-        if(backToTerminalSelectSdBtn) backToTerminalSelectSdBtn.addEventListener('click', () => { terminalModeSelect.classList.remove('hidden'); terminalSdConfig.classList.add('hidden'); });
-        if(termSendSdSettingsBtn) termSendSdSettingsBtn.addEventListener('click', () => { if(!activeDeviceId) { alert("Terminale non connesso!"); return; } const cmd = `CMD:SET_SD_SETTINGS;BOMB_TIME:${document.getElementById('term-sd-bombtime').value};ARM_TIME:${document.getElementById('term-sd-armtime').value};DEFUSE_TIME:${document.getElementById('term-sd-defusetime').value};USE_ARM_PIN:${document.getElementById('term-sd-use-arm-pin').value};ARM_PIN:${document.getElementById('term-sd-arm-pin').value};USE_DEFUSE_PIN:${document.getElementById('term-sd-use-defuse-pin').value};DEFUSE_PIN:${document.getElementById('term-sd-defuse-pin').value};`; socket.emit('send_command', { command: cmd, target_id: activeDeviceId }); termStartSdGameBtn.disabled = true; });
-        if(termStartSdGameBtn) termStartSdGameBtn.addEventListener('click', () => { if(!activeDeviceId) { alert("Terminale non connesso!"); return; } wasStartedFromTerminal = true; socket.emit('send_command', { command: 'CMD:START_SD_GAME;', target_id: activeDeviceId }); });
-        if(forceEndDomBtn) forceEndDomBtn.addEventListener('click', () => { if(confirm("Terminare la partita?") && activeDeviceId) socket.emit('send_command', { command: 'CMD:FORCE_END_GAME', target_id: activeDeviceId }); });
-        if(forceEndSdBtn) forceEndSdBtn.addEventListener('click', () => { if(confirm("Terminare la partita?") && activeDeviceId) socket.emit('send_command', { command: 'CMD:FORCE_END_GAME', target_id: activeDeviceId }); });
-        if(startGameTimerBtn) startGameTimerBtn.addEventListener('click', () => startGameTimer(gameDurationInput.value));
+        function handleDominationEvents(data) {
+            if (data.event === 'settings_update') {
+            settingDuration.textContent = data.duration;
+            settingCapture.textContent = data.capture;
+            captureTime = parseInt(data.capture, 10);
+            settingCountdown.textContent = data.countdown;
+            }
 
-        function startGameTimer(minutes) { stopGameTimer(); gameTimerSeconds = parseInt(minutes, 10) * 60; if (isNaN(gameTimerSeconds) || gameTimerSeconds <= 0) return; gameDurationWrapper.classList.add('hidden'); forceEndSdBtn.classList.remove('hidden'); updateTimerDisplay(sdGameTimer, gameTimerSeconds); gameTimerInterval = setInterval(() => { gameTimerSeconds--; updateTimerDisplay(sdGameTimer, gameTimerSeconds); if (gameTimerSeconds <= 0) { stopGameTimer(); sdBombState.innerHTML = "TEMPO SCADUTO! Vince CT"; if(activeDeviceId) socket.emit('send_command', { command: 'CMD:FORCE_END_GAME', target_id: activeDeviceId }); } }, 1000); }
-        function stopGameTimer() { clearInterval(gameTimerInterval); gameTimerInterval = null; if(forceEndSdBtn) forceEndSdBtn.classList.add('hidden'); if(startGameTimerBtn) startGameTimerBtn.disabled = true; if(gameDurationWrapper) gameDurationWrapper.classList.remove('hidden'); }
-        function stopAllTimers() { stopGameTimer(); stopProgressBar(); }
-        function updateTimerDisplay(element, totalSeconds) { if(!element) return; const minutes = Math.floor(totalSeconds / 60); const seconds = totalSeconds % 60; element.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`; }
-        function startProgressBar(barElement, durationSeconds) { stopProgressBar(); const container = barElement.parentElement; container.classList.remove('hidden'); barElement.style.width = '0%'; const startTime = Date.now(); actionInterval = setInterval(() => { const elapsedTime = Date.now() - startTime; const progress = (elapsedTime / (durationSeconds * 1000)) * 100; barElement.style.width = Math.min(progress, 100) + '%'; if (progress >= 100) stopProgressBar(); }, 50); }
-        function stopProgressBar() { clearInterval(actionInterval); if(team1ProgressContainer) team1ProgressContainer.classList.add('hidden'); if(team2ProgressContainer) team2ProgressContainer.classList.add('hidden'); if(armProgressContainer) armProgressContainer.classList.add('hidden'); if(defuseProgressContainer) defuseProgressContainer.classList.add('hidden'); if(team1ProgressBar) team1ProgressBar.style.width = '0%'; if(team2ProgressBar) team2ProgressBar.style.width = '0%'; if(armProgressBar) armProgressBar.style.width = '0%'; if(defuseProgressBar) defuseProgressBar.style.width = '0%'; }
-        function formatMilliseconds(ms) { const totalSeconds = Math.floor(ms / 1000); const minutes = Math.floor(totalSeconds / 60); const seconds = totalSeconds % 60; return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`; }
-        function showView(viewName) { if(simpleView) simpleView.classList.add('hidden'); if(domView) domView.classList.add('hidden'); if(sdView) sdView.classList.add('hidden'); if(terminalView) terminalView.classList.add('hidden'); if(viewName === 'simple') simpleView.classList.remove('hidden'); else if(viewName === 'domination') domView.classList.remove('hidden'); else if(viewName === 'sd') sdView.classList.remove('hidden'); else if(viewName === 'terminal') terminalView.classList.remove('hidden'); }
-        function resetToMainMenu() { showView('simple'); if(simpleModeName) simpleModeName.textContent = 'Menu principale'; stopAllTimers(); }
-        function resetDominationView() { if(domGameState) domGameState.innerHTML = 'In attesa di inizio...'; lastGameState = 'In attesa di inizio...'; if(domTimer) domTimer.textContent = '--:--'; if(winnerStatus) winnerStatus.innerHTML = '--'; if(scoreTeam1) scoreTeam1.textContent = '00:00'; if(scoreTeam2) scoreTeam2.textContent = '00:00'; if(forceEndDomBtn) forceEndDomBtn.classList.add('hidden'); }
-        function resetSdView(isRemoteStart = false) { if(sdBombState) sdBombState.textContent = 'In attesa di inizio...'; if(sdBombTimer) sdBombTimer.textContent = '--:--'; if(sdGameTimer) sdGameTimer.textContent = '--:--'; stopGameTimer(); if (isRemoteStart) { if(gameDurationWrapper) gameDurationWrapper.classList.add('hidden'); } else { if(gameDurationWrapper) gameDurationWrapper.classList.remove('hidden'); if(startGameTimerBtn) startGameTimerBtn.disabled = true; if(gameDurationInput && sdGameTimer) updateTimerDisplay(sdGameTimer, parseInt(gameDurationInput.value, 10) * 60); } }
-        function resetTerminalView() { if(terminalModeSelect) terminalModeSelect.classList.remove('hidden'); if(terminalDomConfig) terminalDomConfig.classList.add('hidden'); if(terminalSdConfig) terminalSdConfig.classList.add('hidden'); if(startDomGameBtn) startDomGameBtn.disabled = true; if(termStartSdGameBtn) termStartSdGameBtn.disabled = true; }
+            if (data.event === 'countdown_start' || data.event === 'game_start') {
+            forceEndDomBtn.classList.remove('hidden');
+            lastGameState = (data.event === 'game_start')
+                ? 'ZONA NEUTRA'
+                : `Partita inizia in ${data.duration || data.time}s...`;
+            domGameState.innerHTML = lastGameState;
+            }
+
+            if (data.event === 'countdown_update') {
+            lastGameState = `Partita inizia in ${data.time}s...`;
+            domGameState.innerHTML = lastGameState;
+            }
+
+            if (data.event === 'time_update') {
+            updateTimerDisplay(domTimer, parseInt(data.time, 10));
+            }
+
+            if (data.event === 'capture_start') {
+            lastGameState = domGameState.innerHTML;
+            domGameState.innerHTML = `Squadra <span class="team-${data.team === '1' ? 'red' : 'green'}">${data.team === '1' ? 'Rossa' : 'Verde'}</span> sta conquistando...`;
+            startProgressBar(data.team === '1' ? team1ProgressBar : team2ProgressBar, captureTime);
+            }
+
+            if (data.event === 'capture_cancel') {
+            stopProgressBar();
+            domGameState.innerHTML = 'Conquista annullata!';
+            setTimeout(() => {
+                domGameState.innerHTML = lastGameState;
+            }, 2000);
+            }
+
+            if (data.event === 'zone_captured') {
+            stopProgressBar();
+            lastGameState = `ZONA SQUADRA <span class="team-${data.team === '1' ? 'red' : 'green'}">${data.team === '1' ? 'ROSSA' : 'VERDE'}</span>!`;
+            domGameState.innerHTML = lastGameState;
+            }
+
+            if (data.event === 'score_update') {
+            scoreTeam1.textContent = formatMilliseconds(data.team1_score);
+            scoreTeam2.textContent = formatMilliseconds(data.team2_score);
+            }
+
+            if (data.event === 'game_end') {
+            domTimer.textContent = "00:00";
+            domGameState.innerHTML = "Partita Terminata!";
+            forceEndDomBtn.classList.add('hidden');
+
+            if (data.winner === '1') {
+                winnerStatus.innerHTML = 'SQUADRA <span class="team-red">ROSSA</span>';
+            } else if (data.winner === '2') {
+                winnerStatus.innerHTML = 'SQUADRA <span class="team-green">VERDE</span>';
+            } else {
+                winnerStatus.innerHTML = "PAREGGIO";
+            }
+            }
+        }
+
+        function handleSearchDestroyEvents(data) {
+            if (data.event === 'settings_update') {
+            settingBombTime.textContent = data.bomb_time;
+            settingArmTime.textContent = data.arm_time;
+            armTime = parseInt(data.arm_time, 10);
+            settingDefuseTime.textContent = data.defuse_time;
+            defuseTime = parseInt(data.defuse_time, 10);
+            settingUseArmPin.textContent = data.use_arm_pin === '1' ? 'Sì' : 'No';
+            settingArmPin.textContent = data.arm_pin;
+            settingUseDefusePin.textContent = data.use_disarm_pin === '1' ? 'Sì' : 'No';
+            settingDisarmPin.textContent = data.disarm_pin;
+            }
+
+            if (data.event === 'game_start') {
+            sdBombState.textContent = 'In attesa di innesco...';
+            startGameTimerBtn.disabled = false;
+            forceEndSdBtn.classList.remove('hidden');
+            }
+
+            if (data.event === 'arm_start') {
+            sdBombState.textContent = 'Innesco in corso...';
+            startProgressBar(armProgressBar, armTime);
+            }
+
+            if (data.event === 'arm_cancel') {
+            sdBombState.textContent = 'Innesco annullato. In attesa...';
+            stopProgressBar();
+            }
+
+            if (data.event === 'arm_pin_wrong') {
+            sdBombState.textContent = 'PIN innesco errato!';
+            }
+
+            if (data.event === 'bomb_armed') {
+            stopProgressBar();
+            sdBombState.textContent = 'BOMBA INNESCATA!';
+            }
+
+            if (data.event === 'time_update') {
+            updateTimerDisplay(sdBombTimer, parseInt(data.time, 10));
+            }
+
+            if (data.event === 'defuse_start') {
+            sdBombState.textContent = 'Disinnesco in corso...';
+            startProgressBar(defuseProgressBar, defuseTime);
+            }
+
+            if (data.event === 'defuse_cancel') {
+            sdBombState.textContent = 'BOMBA INNESCATA!';
+            stopProgressBar();
+            }
+
+            if (data.event === 'defuse_pin_wrong') {
+            sdBombState.textContent = 'PIN disinnesco errato!';
+            }
+
+            if (data.event === 'game_end') {
+            stopGameTimer();
+            stopProgressBar();
+            forceEndSdBtn.classList.add('hidden');
+
+            let winnerText = data.winner === 'terrorists'
+                ? 'squadra <span class="team-red">T</span>'
+                : 'squadra <span class="team-green">CT</span>';
+
+            sdBombState.innerHTML = `Partita finita! Vince la ${winnerText}`;
+            }
+
+            if (data.event === 'round_reset') {
+            resetSdView(false);
+            }
+        }
+
+        function handleTerminalEvents(data) {
+            if (data.event === 'settings_update') {
+            if (data.duration) {
+                startDomGameBtn.disabled = false;
+            }
+            if (data.bomb_time) {
+                termStartSdGameBtn.disabled = false;
+            }
+            }
+        }
+
+        if (prepDomBtn) {
+            prepDomBtn.addEventListener('click', () => {
+            terminalModeSelect.classList.add('hidden');
+            terminalDomConfig.classList.remove('hidden');
+            });
+        }
+
+        if (backToTerminalSelectBtn) {
+            backToTerminalSelectBtn.addEventListener('click', () => {
+            terminalModeSelect.classList.remove('hidden');
+            terminalDomConfig.classList.add('hidden');
+            });
+        }
+
+        if (sendDomSettingsBtn) {
+            sendDomSettingsBtn.addEventListener('click', () => {
+            if (!activeDeviceId) {
+                alert("Terminale non connesso!");
+                return;
+            }
+            const duration = document.getElementById('term-dom-duration').value;
+            const capture = document.getElementById('term-dom-capture').value;
+            socket.emit('send_command', {
+                command: `CMD:SET_DOM_SETTINGS;DURATION:${duration};CAPTURE:${capture};`,
+                target_id: activeDeviceId
+            });
+            startDomGameBtn.disabled = true;
+            });
+        }
+
+        if (startDomGameBtn) {
+            startDomGameBtn.addEventListener('click', () => {
+            if (!activeDeviceId) {
+                alert("Terminale non connesso!");
+                return;
+            }
+            wasStartedFromTerminal = true;
+            socket.emit('send_command', { command: 'CMD:START_DOM_GAME;', target_id: activeDeviceId });
+            });
+        }
+
+        if (prepSdBtn) {
+            prepSdBtn.addEventListener('click', () => {
+            terminalModeSelect.classList.add('hidden');
+            terminalSdConfig.classList.remove('hidden');
+            });
+        }
+
+        if (backToTerminalSelectSdBtn) {
+            backToTerminalSelectSdBtn.addEventListener('click', () => {
+            terminalModeSelect.classList.remove('hidden');
+            terminalSdConfig.classList.add('hidden');
+            });
+        }
+
+        if (termSendSdSettingsBtn) {
+            termSendSdSettingsBtn.addEventListener('click', () => {
+            if (!activeDeviceId) {
+                alert("Terminale non connesso!");
+                return;
+            }
+            const cmd = `CMD:SET_SD_SETTINGS;BOMB_TIME:${document.getElementById('term-sd-bombtime').value};ARM_TIME:${document.getElementById('term-sd-armtime').value};DEFUSE_TIME:${document.getElementById('term-sd-defusetime').value};USE_ARM_PIN:${document.getElementById('term-sd-use-arm-pin').value};ARM_PIN:${document.getElementById('term-sd-arm-pin').value};USE_DEFUSE_PIN:${document.getElementById('term-sd-use-defuse-pin').value};DEFUSE_PIN:${document.getElementById('term-sd-defuse-pin').value};`;
+            socket.emit('send_command', { command: cmd, target_id: activeDeviceId });
+            termStartSdGameBtn.disabled = true;
+            });
+        }
+
+        if (termStartSdGameBtn) {
+            termStartSdGameBtn.addEventListener('click', () => {
+            if (!activeDeviceId) {
+                alert("Terminale non connesso!");
+                return;
+            }
+            wasStartedFromTerminal = true;
+            socket.emit('send_command', { command: 'CMD:START_SD_GAME;', target_id: activeDeviceId });
+            });
+        }
+
+        if (forceEndDomBtn) {
+            forceEndDomBtn.addEventListener('click', () => {
+            if (confirm("Terminare la partita?") && activeDeviceId) {
+                socket.emit('send_command', { command: 'CMD:FORCE_END_GAME', target_id: activeDeviceId });
+            }
+            });
+        }
+
+        if (forceEndSdBtn) {
+            forceEndSdBtn.addEventListener('click', () => {
+            if (confirm("Terminare la partita?") && activeDeviceId) {
+                socket.emit('send_command', { command: 'CMD:FORCE_END_GAME', target_id: activeDeviceId });
+            }
+            });
+        }
+
+        if (startGameTimerBtn) {
+            startGameTimerBtn.addEventListener('click', () => startGameTimer(gameDurationInput.value));
+        }
+
+        function startGameTimer(minutes) {
+            stopGameTimer();
+            gameTimerSeconds = parseInt(minutes, 10) * 60;
+            if (isNaN(gameTimerSeconds) || gameTimerSeconds <= 0) return;
+
+            gameDurationWrapper.classList.add('hidden');
+            forceEndSdBtn.classList.remove('hidden');
+            updateTimerDisplay(sdGameTimer, gameTimerSeconds);
+
+            gameTimerInterval = setInterval(() => {
+            gameTimerSeconds--;
+            updateTimerDisplay(sdGameTimer, gameTimerSeconds);
+            if (gameTimerSeconds <= 0) {
+                stopGameTimer();
+                sdBombState.innerHTML = "TEMPO SCADUTO! Vince CT";
+                if (activeDeviceId) {
+                socket.emit('send_command', { command: 'CMD:FORCE_END_GAME', target_id: activeDeviceId });
+                }
+            }
+            }, 1000);
+        }
+
+        function stopGameTimer() {
+            clearInterval(gameTimerInterval);
+            gameTimerInterval = null;
+            if (forceEndSdBtn) forceEndSdBtn.classList.add('hidden');
+            if (startGameTimerBtn) startGameTimerBtn.disabled = true;
+            if (gameDurationWrapper) gameDurationWrapper.classList.remove('hidden');
+        }
+
+        function stopAllTimers() {
+            stopGameTimer();
+            stopProgressBar();
+        }
+
+        function updateTimerDisplay(element, totalSeconds) {
+            if (!element) return;
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            element.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+
+        function startProgressBar(barElement, durationSeconds) {
+            stopProgressBar();
+            const container = barElement.parentElement;
+            container.classList.remove('hidden');
+            barElement.style.width = '0%';
+
+            const startTime = Date.now();
+            actionInterval = setInterval(() => {
+            const elapsedTime = Date.now() - startTime;
+            const progress = (elapsedTime / (durationSeconds * 1000)) * 100;
+            barElement.style.width = Math.min(progress, 100) + '%';
+            if (progress >= 100) stopProgressBar();
+            }, 50);
+        }
+
+        function stopProgressBar() {
+            clearInterval(actionInterval);
+            actionInterval = null;
+
+            if (team1ProgressContainer) team1ProgressContainer.classList.add('hidden');
+            if (team2ProgressContainer) team2ProgressContainer.classList.add('hidden');
+            if (armProgressContainer) armProgressContainer.classList.add('hidden');
+            if (defuseProgressContainer) defuseProgressContainer.classList.add('hidden');
+
+            if (team1ProgressBar) team1ProgressBar.style.width = '0%';
+            if (team2ProgressBar) team2ProgressBar.style.width = '0%';
+            if (armProgressBar) armProgressBar.style.width = '0%';
+            if (defuseProgressBar) defuseProgressBar.style.width = '0%';
+        }
+
+        function formatMilliseconds(ms) {
+            const totalSeconds = Math.floor(ms / 1000);
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+
+        function showView(viewName) {
+            if (simpleView) simpleView.classList.add('hidden');
+            if (domView) domView.classList.add('hidden');
+            if (sdView) sdView.classList.add('hidden');
+            if (terminalView) terminalView.classList.add('hidden');
+
+            if (viewName === 'simple') simpleView.classList.remove('hidden');
+            else if (viewName === 'domination') domView.classList.remove('hidden');
+            else if (viewName === 'sd') sdView.classList.remove('hidden');
+            else if (viewName === 'terminal') terminalView.classList.remove('hidden');
+        }
+
+        function resetToMainMenu() {
+            showView('simple');
+            if (simpleModeName) simpleModeName.textContent = 'Menu principale';
+            stopAllTimers();
+        }
+
+        function resetDominationView() {
+            if (domGameState) domGameState.innerHTML = 'In attesa di inizio...';
+            lastGameState = 'In attesa di inizio...';
+            if (domTimer) domTimer.textContent = '--:--';
+            if (winnerStatus) winnerStatus.innerHTML = '--';
+            if (scoreTeam1) scoreTeam1.textContent = '00:00';
+            if (scoreTeam2) scoreTeam2.textContent = '00:00';
+            if (forceEndDomBtn) forceEndDomBtn.classList.add('hidden');
+        }
+
+        function resetSdView(isRemoteStart = false) {
+            if (sdBombState) sdBombState.textContent = 'In attesa di inizio...';
+            if (sdBombTimer) sdBombTimer.textContent = '--:--';
+            if (sdGameTimer) sdGameTimer.textContent = '--:--';
+            stopGameTimer();
+
+            if (isRemoteStart) {
+            if (gameDurationWrapper) gameDurationWrapper.classList.add('hidden');
+            } else {
+            if (gameDurationWrapper) gameDurationWrapper.classList.remove('hidden');
+            if (startGameTimerBtn) startGameTimerBtn.disabled = true;
+            if (gameDurationInput && sdGameTimer) {
+                updateTimerDisplay(sdGameTimer, parseInt(gameDurationInput.value, 10) * 60);
+            }
+            }
+        }
+
+        function resetTerminalView() {
+            if (terminalModeSelect) terminalModeSelect.classList.remove('hidden');
+            if (terminalDomConfig) terminalDomConfig.classList.add('hidden');
+            if (terminalSdConfig) terminalSdConfig.classList.add('hidden');
+            if (startDomGameBtn) startDomGameBtn.disabled = true;
+            if (termStartSdGameBtn) termStartSdGameBtn.disabled = true;
+        }
     
         console.log("[DEBUG] Logica Game Control caricata e listener agganciati.");
     }
