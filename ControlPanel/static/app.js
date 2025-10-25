@@ -317,16 +317,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if(backToTerminalSelectDomBtn) {
             backToTerminalSelectDomBtn.addEventListener('click', () => {
-                // activeDeviceId = null; // NON resettare l'ID qui
-                // activeMode = 'none'; // NON resettare lo stato qui, siamo in terminal-selection
-                populateTerminalList(); // Aggiorna solo la lista
-                showView('terminal-selection'); // Torna alla selezione
+                    // activeDeviceId = null; // NON azzerare l'ID, l'utente potrebbe voler solo cambiare le impostazioni
+                    activeMode = 'terminal-selection'; // Imposta lo stato corretto
+                    populateTerminalList(); // Aggiorna solo la lista
+                    showView('terminal-selection'); // Torna alla selezione
             });
         }
         if(backToTerminalSelectSdBtn) {
             backToTerminalSelectSdBtn.addEventListener('click', () => {
-                // activeDeviceId = null; // NON resettare l'ID qui
-                // activeMode = 'none'; // NON resettare lo stato qui
+                // activeDeviceId = null; // NON azzerare l'ID
+                activeMode = 'terminal-selection'; // Imposta lo stato corretto
                 populateTerminalList();
                 showView('terminal-selection');
             });
@@ -453,16 +453,10 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if(startDomGameBtn) {
             startDomGameBtn.addEventListener('click', () => {
-                if(!activeDeviceId) { alert("Nessun terminale attivo selezionato!"); return; }
+                // Questo controllo ora funzionerà perché activeDeviceId non è stato azzerato
+                if(!activeDeviceId) { alert("Nessun terminale attivo selezionato!"); return; } 
                 socket.emit('send_command', { command: 'CMD:START_DOM_GAME;', target_id: activeDeviceId });
                 console.log(`[CMD SENT] Inviato START_DOM_GAME a ${activeDeviceId}. In attesa di mode_enter...`);
-                // --- RIMUOVI QUESTE RIGHE ---
-                // activeMode = 'domination'; // Non impostare activeMode qui
-                // resetDominationView();    // Non resettare/mostrare la vista qui
-                // showView('domination');   // Aspetta mode_enter
-                // --- FINE RIMOZIONE ---
-                // Opzionale: puoi mostrare un messaggio temporaneo tipo "Avvio in corso..."
-                // nella vista di configurazione attuale.
             });
         }
         
@@ -477,18 +471,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if(termStartSdGameBtn) {
             termStartSdGameBtn.addEventListener('click', () => {
-                if(!activeDeviceId) { alert("Nessun terminale attivo selezionato!"); return; }
+                // Questo controllo ora funzionerà
+                if(!activeDeviceId) { alert("Nessun terminale attivo selezionato!"); return; } 
                 socket.emit('send_command', { command: 'CMD:START_SD_GAME;', target_id: activeDeviceId });
                 console.log(`[CMD SENT] Inviato START_SD_GAME a ${activeDeviceId}. In attesa di mode_enter...`);
-                // --- RIMUOVI QUESTE RIGHE ---
-                // activeMode = 'sd';          // Non impostare activeMode qui
-                // resetSdView(false);       // Non resettare/mostrare la vista qui
-               // showView('sd');           // Aspetta mode_enter
-               // if (gameDurationInput && gameDurationInput.value) { // Logica timer spostata se necessario
-               //     startGameTimer(gameDurationInput.value);
-               // }
-                 // --- FINE RIMOZIONE ---
-               // Opzionale: mostra messaggio "Avvio in corso..."
             });
         }
         
