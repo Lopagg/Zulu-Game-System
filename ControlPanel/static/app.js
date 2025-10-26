@@ -143,37 +143,49 @@ document.addEventListener('DOMContentLoaded', () => {
         // --- Listener SocketIO ---
 
         socket.on('devices_update', (devices) => {
-            console.log('[DEBUG] Game Control: Ricevuta lista dispositivi:', devices);
-            allDevices = devices; 
+            console.log(`[UI State] Ricevuto devices_update. Stato attuale UI: ${activeMode}`);
+            allDevices = devices;
             const anyDeviceOnline = findOnlineDevice(devices);
 
             if (anyDeviceOnline) {
                 statusIndicator.classList.remove('status-offline');
                 statusIndicator.classList.add('status-online');
                 statusText.textContent = `DISPOSITIVI ONLINE: ${devices.filter(d => d.status === 'ONLINE').length}`;
-                
-                // **CORREZIONE**: Se eravamo in attesa ('none' o 'waiting') e ora c'è un disp. online,
-                // passa alla selezione modalità. Non fare nulla se siamo già in un altro stato.
+
+                // Se eravamo in attesa o appena connessi, vai alla selezione modalità
                 if (activeMode === 'none' || activeMode === 'waiting') {
                     activeMode = 'mode-selection';
                     showView('mode-selection');
+                    console.log(`[UI State] Passato a: ${activeMode}`);
                 }
-                
-                // Aggiorna la lista se siamo nella schermata di selezione terminale
+
+                // Se siamo nella selezione terminale, aggiorna la lista
                 if (activeMode === 'terminal-selection') {
                     populateTerminalList();
                 }
+                // Se siamo in configurazione o in gioco, NON fare nulla che cambi activeMode o activeDeviceId
+                // Questo previene reset indesiderati se arriva un update mentre si configura/gioca.
 
             } else {
-                // Nessun dispositivo online
-                activeDeviceId = null;
-                activeMode = 'waiting'; // Imposta lo stato su 'waiting'
-                selectedGameMode = null;
+                // NESSUN dispositivo online
                 statusIndicator.classList.remove('status-online');
                 statusIndicator.classList.add('status-offline');
                 statusText.textContent = 'NESSUN DISPOSITIVO ONLINE';
-                showView('waiting'); 
-                stopAllTimers();
+
+                // --- MODIFICA CHIAVE ---
+                // Azzera l'ID e torna in attesa SOLO se NON siamo in una partita attiva
+                // (preserviamo l'ID se siamo in 'config', 'domination', 'sd'
+                // perché il dispositivo potrebbe tornare online a breve)
+                if (activeMode !== 'config' && activeMode !== 'domination' && activeMode !== 'sd') {
+                    activeDeviceId = null; // Azzera solo se eravamo nei menu iniziali
+                }
+                // Riporta sempre allo stato 'waiting' e mostra la vista corrispondente
+                activeMode = 'waiting';
+                showView('waiting');
+                console.log(`[UI State] Passato a: ${activeMode} (Nessun dispositivo online). activeDeviceId: ${activeDeviceId}`);
+                // Potrebbe essere utile fermare i timer qui se si disconnette tutto
+                // stopAllTimers(); // Decommenta se necessario
+                // --- FINE MODIFICA CHIAVE ---
             }
         });
 
