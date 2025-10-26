@@ -143,51 +143,62 @@ document.addEventListener('DOMContentLoaded', () => {
         // --- Listener SocketIO ---
 
         socket.on('devices_update', (devices) => {
-            console.log(`[UI State] Ricevuto devices_update. Stato attuale UI: ${activeMode}`);
-            allDevices = devices;
-            const anyDeviceOnline = findOnlineDevice(devices);
+                console.log(`[UI State] Ricevuto devices_update. Stato attuale UI: ${activeMode}`);
+                allDevices = devices; 
+                const anyDeviceOnline = findOnlineDevice(devices);
 
-            if (anyDeviceOnline) {
-                statusIndicator.classList.remove('status-offline');
-                statusIndicator.classList.add('status-online');
-                statusText.textContent = `DISPOSITIVI ONLINE: ${devices.filter(d => d.status === 'ONLINE').length}`;
+                if (anyDeviceOnline) {
+                    statusIndicator.classList.remove('status-offline');
+                    statusIndicator.classList.add('status-online');
+                    statusText.textContent = `DISPOSITIVI ONLINE: ${devices.filter(d => d.status === 'ONLINE').length}`;
+                    
+                    if (activeMode === 'none' || activeMode === 'waiting') {
+                        activeMode = 'mode-selection'; 
+                        showView('mode-selection');
+                    }
+                    
+                    if (activeMode === 'terminal-selection') {
+                        populateTerminalList(); 
+                    }
+                    // Aggiunta: Se siamo in config/gioco E il device attivo VA offline, torna indietro
+                    if ((activeMode === 'config' || activeMode === 'domination' || activeMode === 'sd') && activeDeviceId) {
+                        const currentDevice = devices.find(d => d.id === activeDeviceId);
+                        if (!currentDevice || currentDevice.status !== 'ONLINE') {
+                            console.warn(`[UI State] Il terminale attivo ${activeDeviceId} è andato offline! Torno alla selezione modalità.`);
+                            alert(`Il terminale ${activeDeviceId} si è disconnesso.`);
+                            resetToMainMenu(); // Funzione che riporta a 'mode-selection'
+                        }
+                    }
 
-                // Se eravamo in attesa o appena connessi, vai alla selezione modalità
-                if (activeMode === 'none' || activeMode === 'waiting') {
-                    activeMode = 'mode-selection';
-                    showView('mode-selection');
-                    console.log(`[UI State] Passato a: ${activeMode}`);
+
+                } else {
+                    // NESSUN dispositivo online
+                    
+                    // --- MODIFICA: Azzera solo se non siamo già in partita o config ---
+                    // Se eravamo in una fase avanzata, non tornare a 'waiting' subito,
+                    // l'utente potrebbe voler vedere l'ultimo stato. La disconnessione
+                    // del device attivo è gestita sopra. Qui gestiamo solo il caso
+                    // in cui TUTTI i device sono offline all'improvviso.
+                    if (activeMode !== 'config' && activeMode !== 'domination' && activeMode !== 'sd') {
+                        activeDeviceId = null; 
+                        activeMode = 'waiting'; 
+                        statusIndicator.classList.remove('status-online');
+                        statusIndicator.classList.add('status-offline');
+                        statusText.textContent = 'NESSUN DISPOSITIVO ONLINE';
+                        showView('waiting'); 
+                        console.log('[UI State] Nessun dispositivo online rilevato. Mostro vista Waiting.');
+                    } else {
+                        // Se siamo in config/gioco e TUTTI vanno offline, aggiorna solo lo status text
+                        // ma non cambiare la vista o azzerare activeDeviceId (ci pensa il controllo sopra
+                        // se QUELLO specifico va offline).
+                        statusIndicator.classList.remove('status-online');
+                        statusIndicator.classList.add('status-offline');
+                        statusText.textContent = 'TUTTI I DISPOSITIVI OFFLINE';
+                        console.warn('[UI State] Tutti i dispositivi sono andati offline, ma mantengo la vista attuale.');
+                    }
+                    // --- FINE MODIFICA ---
                 }
-
-                // Se siamo nella selezione terminale, aggiorna la lista
-                if (activeMode === 'terminal-selection') {
-                    populateTerminalList();
-                }
-                // Se siamo in configurazione o in gioco, NON fare nulla che cambi activeMode o activeDeviceId
-                // Questo previene reset indesiderati se arriva un update mentre si configura/gioca.
-
-            } else {
-                // NESSUN dispositivo online
-                statusIndicator.classList.remove('status-online');
-                statusIndicator.classList.add('status-offline');
-                statusText.textContent = 'NESSUN DISPOSITIVO ONLINE';
-
-                // --- MODIFICA CHIAVE ---
-                // Azzera l'ID e torna in attesa SOLO se NON siamo in una partita attiva
-                // (preserviamo l'ID se siamo in 'config', 'domination', 'sd'
-                // perché il dispositivo potrebbe tornare online a breve)
-                if (activeMode !== 'config' && activeMode !== 'domination' && activeMode !== 'sd') {
-                    activeDeviceId = null; // Azzera solo se eravamo nei menu iniziali
-                }
-                // Riporta sempre allo stato 'waiting' e mostra la vista corrispondente
-                activeMode = 'waiting';
-                showView('waiting');
-                console.log(`[UI State] Passato a: ${activeMode} (Nessun dispositivo online). activeDeviceId: ${activeDeviceId}`);
-                // Potrebbe essere utile fermare i timer qui se si disconnette tutto
-                // stopAllTimers(); // Decommenta se necessario
-                // --- FINE MODIFICA CHIAVE ---
-            }
-        });
+            });
 
         socket.on('game_update', (data) => {
             // Log grezzo
@@ -348,17 +359,15 @@ document.addEventListener('DOMContentLoaded', () => {
         // ** CORREZIONE PULSANTI "ANNULLA" dalla Configurazione **
         if(backToTerminalSelectDomBtn) {
             backToTerminalSelectDomBtn.addEventListener('click', () => {
-                // activeDeviceId = null; // NON AZZERARE L'ID! L'utente potrebbe voler solo cambiare terminale o riguardare la lista.
-                activeMode = 'terminal-selection'; // Imposta lo stato UI corretto (vista selezione terminale)
-                populateTerminalList(); // Aggiorna la lista, lo stato dei terminali potrebbe essere cambiato
-                showView('terminal-selection'); // Mostra la vista corretta
+                activeMode = 'terminal-selection'; 
+                populateTerminalList(); 
+                showView('terminal-selection'); 
                 console.log('[UI State] Tornato a selezione terminale (da config DOM). activeDeviceId:', activeDeviceId);
             });
         }
         if(backToTerminalSelectSdBtn) {
             backToTerminalSelectSdBtn.addEventListener('click', () => {
-                // activeDeviceId = null; // NON AZZERARE L'ID!
-                activeMode = 'terminal-selection'; // Imposta lo stato UI corretto
+                activeMode = 'terminal-selection'; 
                 populateTerminalList();
                 showView('terminal-selection');
                 console.log('[UI State] Tornato a selezione terminale (da config SD). activeDeviceId:', activeDeviceId);
@@ -720,11 +729,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         function resetToMainMenu() {
-            activeMode = 'none';
-            activeDeviceId = null;
+            activeMode = 'mode-selection'; // Stato corretto per tornare alla selezione modalità
+            activeDeviceId = null;         // Qui è corretto azzerarlo perché usciamo dal flusso di gioco/config
             selectedGameMode = null;
             showView('mode-selection'); 
             stopAllTimers();
+            console.log('[UI State] Reset a Selezione Modalità.');
         }
         
         function resetDominationView() {
