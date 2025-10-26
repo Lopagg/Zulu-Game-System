@@ -336,18 +336,20 @@ document.addEventListener('DOMContentLoaded', () => {
         // ** CORREZIONE PULSANTI "ANNULLA" dalla Configurazione **
         if(backToTerminalSelectDomBtn) {
             backToTerminalSelectDomBtn.addEventListener('click', () => {
-                // Non azzerare activeDeviceId, l'utente potrebbe voler solo cambiare terminale
-                activeMode = 'terminal-selection'; // Torna allo stato UI di selezione terminale
-                populateTerminalList(); // Ricarica la lista (lo stato potrebbe essere cambiato)
-                showView('terminal-selection'); // Mostra la vista di selezione terminale
+                // activeDeviceId = null; // NON AZZERARE L'ID! L'utente potrebbe voler solo cambiare terminale o riguardare la lista.
+                activeMode = 'terminal-selection'; // Imposta lo stato UI corretto (vista selezione terminale)
+                populateTerminalList(); // Aggiorna la lista, lo stato dei terminali potrebbe essere cambiato
+                showView('terminal-selection'); // Mostra la vista corretta
+                console.log('[UI State] Tornato a selezione terminale (da config DOM). activeDeviceId:', activeDeviceId);
             });
         }
         if(backToTerminalSelectSdBtn) {
             backToTerminalSelectSdBtn.addEventListener('click', () => {
-                // Non azzerare activeDeviceId
-                activeMode = 'terminal-selection'; // Torna allo stato UI di selezione terminale
+                // activeDeviceId = null; // NON AZZERARE L'ID!
+                activeMode = 'terminal-selection'; // Imposta lo stato UI corretto
                 populateTerminalList();
                 showView('terminal-selection');
+                console.log('[UI State] Tornato a selezione terminale (da config SD). activeDeviceId:', activeDeviceId);
             });
         }
 
