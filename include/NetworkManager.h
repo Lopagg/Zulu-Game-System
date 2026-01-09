@@ -14,6 +14,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WiFiUdp.h>
+#include <ArduinoJson.h>
 #include "HardwareManager.h"
 
 /**
@@ -44,29 +45,29 @@ public:
      * elaborazione.
      */
     void update();
-    /**
-     * @brief Invia un messaggio di stato in broadcast sulla rete.
-     * @param status Una stringa di caratteri (C-style string) contenente il messaggio da inviare.
-     * @details Il messaggio viene inviato a tutti i dispositivi sulla stessa rete locale
-     * che sono in ascolto sulla porta UDP corretta.
-     */
-    void sendStatus(const char* status);
+    // Metodo generico per inviare QUALSIASI evento in formato JSON
+    void sendEvent(const String& eventType, const JsonDocument& data);
+    // Metodo semplificato per eventi senza dati extra (solo tipo)
+    void sendEvent(const String& eventType);
+    // Verifica se siamo connessi
+    bool isConnected();
 
+    // Getter per i messaggi ricevuti (ora ritorna un oggetto JSON, non stringa grezza)
+    // Nota: Per semplicità per ora restituiamo ancora String, ma predisponiamoci.
     String getReceivedMessage();
 
 private:
-    // Credenziali per la rete WiFi.
-    const char* _ssid;
-    const char* _password;
     // Oggetto per la gestione del protocollo UDP.
     WiFiUDP _udp;
     // Porta UDP su cui il dispositivo invia e riceve i dati.
-    const int _udpPort;
+    unsigned int _udpPort;
     // Indirizzo IP di broadcast calcolato dopo la connessione.
-    IPAddress _broadcastIP;
-
-    IPAddress _lastSenderIP;
+    IPAddress _serverIP; // Cache dell'IP del server
+    bool _ipResolved;
     String _lastMessage;
+    IPAddress _lastSenderIP;
+
+    void resolveServerIP(); // Funzione interna per trovare l'IP
 };
 
 #endif // NETWORK_MANAGER_H

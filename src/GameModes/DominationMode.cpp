@@ -1,6 +1,7 @@
 // src/GameModes/DominationMode.cpp
 
 #include "DominationMode.h"
+#include <ArduinoJson.h>
 
 // Costruttore
 DominationMode::DominationMode(HardwareManager* hardware, NetworkManager* network, DominationSettings* settings, AppState* appState, MainMenuDisplayFunction displayFunc)
@@ -21,7 +22,11 @@ void DominationMode::enter() {
     _subMenuIndex = 0;
     displaySubMenu();
     _hardware->setStripColor(0, 255, 255);
-    _network->sendStatus("event:mode_enter;mode:domination;");
+    
+    JsonDocument doc;
+    doc["mode"] = "DOMINATION";
+    _network->sendEvent("MODE_ENTER", doc);
+    
     sendSettingsStatus();
 }
 
@@ -31,7 +36,11 @@ void DominationMode::enter() {
  */
 void DominationMode::enterInGame() {
     Serial.println("Entrato in modalita' Dominio (remoto)");
-    _network->sendStatus("event:mode_enter;mode:domination;");
+    
+    JsonDocument doc;
+    doc["mode"] = "DOMINATION";
+    _network->sendEvent("MODE_ENTER", doc);
+
     // Salta direttamente allo stato di gioco attivo
     _currentState = ModeState::IN_GAME_NEUTRAL;
     _lastZoneState = ModeState::IN_GAME_NEUTRAL;
@@ -57,9 +66,10 @@ void DominationMode::enterInGame() {
     _hardware->printOled2("CONQUISTA", 2, 8, 25);
 
     // Invia il messaggio di inizio partita
-    char message[50];
-    sprintf(message, "event:game_start;mode:domination;duration:%d", _settings->getGameDuration());
-    _network->sendStatus(message);
+    JsonDocument startDoc;
+    startDoc["mode"] = "DOMINATION";
+    startDoc["duration_min"] = _settings->getGameDuration();
+    _network->sendEvent("GAME_START", startDoc);
 }
 
 void DominationMode::loop() {
@@ -70,7 +80,7 @@ void DominationMode::loop() {
     bool btn2_was_pressed = _hardware->wasButton2Pressed();
 
     String command = _network->getReceivedMessage();
-    if (command == "CMD:FORCE_END_GAME") {
+    if (command.indexOf("FORCE_END_GAME") >= 0) { // Check lasco per compatibilità
         forceEndGame();
     }
 
@@ -113,7 +123,11 @@ void DominationMode::loop() {
 
 void DominationMode::exit() {
     Serial.println("Uscito da modalita' Dominio");
-    _network->sendStatus("event:mode_exit;mode:domination;");
+    
+    JsonDocument doc;
+    doc["mode"] = "DOMINATION";
+    _network->sendEvent("MODE_EXIT", doc);
+
     _settings->saveParameters();
     _hardware->turnOffStrip();
     _hardware->clearOled1();
@@ -310,9 +324,9 @@ void DominationMode::handleConfirmInput(bool btn1, bool btn2) {
         _countdownStartTime = millis();
         _lastCountdownSecond = -1;
 
-        char message[50];
-        sprintf(message, "event:countdown_start;duration:%d;", _settings->getCountdownDuration());
-        _network->sendStatus(message);
+        JsonDocument doc;
+        doc["duration"] = _settings->getCountdownDuration();
+        _network->sendEvent("COUNTDOWN_START", doc);
 
         _hardware->clearLcd();
         _hardware->printLcd(4, 1, "LA PARTITA");
@@ -349,9 +363,10 @@ void DominationMode::handleCountdown() {
         _hardware->printOled1("CONQUISTA", 2, 8, 25);
         _hardware->printOled2("CONQUISTA", 2, 8, 25);
 
-        char message[50];
-        sprintf(message, "event:game_start;mode:domination;duration:%d", _settings->getGameDuration());
-        _network->sendStatus(message);
+        JsonDocument doc;
+        doc["mode"] = "DOMINATION";
+        doc["duration"] = _settings->getGameDuration();
+        _network->sendEvent("GAME_START", doc);
 
         return;
     }
@@ -364,9 +379,9 @@ void DominationMode::handleCountdown() {
         }
         _hardware->printLcd(9, 3, secStr);
 
-        char message[50];
-        sprintf(message, "event:countdown_update;time:%d;", remainingSeconds);
-        _network->sendStatus(message);
+        JsonDocument doc;
+        doc["time"] = remainingSeconds;
+        _network->sendEvent("COUNTDOWN_UPDATE", doc);
         
         if (remainingSeconds > 3) {
             _hardware->playTone(800, 100);
@@ -403,9 +418,11 @@ void DominationMode::updateGameTimerOnRow(int row) {
         else if (_team2PossessionTime > _team1PossessionTime) _winner = 2;
         else _winner = 0;
 
-        char message[50];
-        sprintf(message, "event:game_end;winner:%d", _winner);
-        _network->sendStatus(message);
+        JsonDocument doc;
+        doc["winner"] = _winner;
+        doc["t1_score"] = _team1PossessionTime;
+        doc["t2_score"] = _team2PossessionTime;
+        _network->sendEvent("GAME_END", doc);
 
         _hardware->clearLcd();
         if (_winner == 1) _hardware->printLcd(2, 1, "VINCE SQUADRA 1!");
@@ -430,9 +447,11 @@ void DominationMode::updateGameTimerOnRow(int row) {
         sprintf(timeBuffer, "%02d : %02d", minutes, seconds);
         _hardware->printLcd(6, row, timeBuffer);
 
-        char message[50];
-        sprintf(message, "event:time_update;time:%ld", remainingSeconds);
-        _network->sendStatus(message);
+        JsonDocument doc;
+        doc["time_left"] = remainingSeconds;
+        doc["t1_poss"] = _team1PossessionTime / 1000;
+        doc["t2_poss"] = _team2PossessionTime / 1000;
+        _network->sendEvent("TIME_UPDATE", doc);
 
         if (remainingSeconds > 0 && remainingSeconds < totalSeconds && remainingSeconds % 60 == 0) {
             _hardware->playTone(1500, 150);
@@ -460,14 +479,18 @@ void DominationMode::handleNeutralState(bool btn1_is_pressed, bool btn2_is_press
         _captureStartTime = millis();
         _captureSoundLastUpdate = 0;
         displayCapturingScreen(1);
-        _network->sendStatus("event:capture_start;team:1;");
+        
+        JsonDocument doc; doc["team"] = 1;
+        _network->sendEvent("CAPTURE_START", doc);
     }
     if (btn2_is_pressed) {
         _currentState = ModeState::CAPTURING_TEAM2;
         _captureStartTime = millis();
         _captureSoundLastUpdate = 0;
         displayCapturingScreen(2);
-        _network->sendStatus("event:capture_start;team:2;");
+        
+        JsonDocument doc; doc["team"] = 2;
+        _network->sendEvent("CAPTURE_START", doc);
     }
 }
 
@@ -491,9 +514,8 @@ void DominationMode::handleCapturingState(bool btn1_is_pressed, bool btn2_is_pre
 
     if (!isStillPressed) {
         
-        char message[50];
-        sprintf(message, "event:capture_cancel;team:%d;", teamCapturing);
-        _network->sendStatus(message);
+        JsonDocument doc; doc["team"] = teamCapturing;
+        _network->sendEvent("CAPTURE_CANCEL", doc);
 
         _currentState = _lastZoneState;
         if (_lastZoneState == ModeState::IN_GAME_NEUTRAL) {
@@ -525,9 +547,8 @@ void DominationMode::handleCapturingState(bool btn1_is_pressed, bool btn2_is_pre
         delay(100);
         _hardware->playTone(1500, 80);
 
-        char message[50];
-        sprintf(message, "event:zone_captured;team:%d;", teamCapturing);
-        _network->sendStatus(message);
+        JsonDocument doc; doc["team"] = teamCapturing;
+        _network->sendEvent("ZONE_CAPTURED", doc);
 
         _lastPossessionUpdateTime = millis();
         if (teamCapturing == 1) {
@@ -600,10 +621,6 @@ void DominationMode::handleCapturedState(int team, bool btn1_is_pressed, bool bt
     }
     _lastPossessionUpdateTime = now;
 
-    char message[50];
-    sprintf(message, "event:score_update;team1_score:%lu;team2_score:%lu;", _team1PossessionTime, _team2PossessionTime);
-    _network->sendStatus(message);
-
     bool enemyButtonPressed = (team == 1) ? btn2_is_pressed : btn1_is_pressed;
     if (enemyButtonPressed) {
         _currentState = (team == 1) ? ModeState::CAPTURING_TEAM2 : ModeState::CAPTURING_TEAM1;
@@ -611,9 +628,8 @@ void DominationMode::handleCapturedState(int team, bool btn1_is_pressed, bool bt
         _captureSoundLastUpdate = 0;
         displayCapturingScreen((team == 1) ? 2 : 1);
 
-        char startMsg[50];
-        sprintf(startMsg, "event:capture_start;team:%d;", (team == 1) ? 2 : 1);
-        _network->sendStatus(startMsg);
+        JsonDocument doc; doc["team"] = (team == 1) ? 2 : 1;
+        _network->sendEvent("CAPTURE_START", doc);
 
         return;
     }
@@ -662,9 +678,11 @@ void DominationMode::forceEndGame() {
     else if (_team2PossessionTime > _team1PossessionTime) _winner = 2;
     else _winner = 0; // Pareggio
 
-    char message[50];
-    sprintf(message, "event:game_end;winner:%d", _winner);
-    _network->sendStatus(message);
+    JsonDocument doc;
+    doc["winner"] = _winner;
+    doc["t1_score"] = _team1PossessionTime;
+    doc["t2_score"] = _team2PossessionTime;
+    _network->sendEvent("GAME_END", doc);
 
     _hardware->clearLcd();
     _hardware->printLcd(3, 0, "PARTITA TERMINATA");
@@ -683,10 +701,9 @@ void DominationMode::forceEndGame() {
 }
 
 void DominationMode::sendSettingsStatus() {
-    char message[100];
-    sprintf(message, "event:settings_update;duration:%d;capture:%d;countdown:%d;",
-            _settings->getGameDuration(),
-            _settings->getCaptureTime(),
-            _settings->getCountdownDuration());
-    _network->sendStatus(message);
+    JsonDocument doc;
+    doc["duration"] = _settings->getGameDuration();
+    doc["capture_time"] = _settings->getCaptureTime();
+    doc["countdown"] = _settings->getCountdownDuration();
+    _network->sendEvent("SETTINGS_UPDATE", doc);
 }

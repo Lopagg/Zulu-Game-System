@@ -11,6 +11,7 @@
 #include "GameModes/DominationMode.h"
 #include "GameModes/SearchDestroySettings.h"
 #include "GameModes/SearchDestroyMode.h"
+#include <ArduinoJson.h>
 
 class TerminalMode : public GameMode {
 public:
@@ -32,7 +33,7 @@ private:
     SearchDestroySettings* _sdSettings;
     SearchDestroyMode* _sdMode;
 
-    void parseCommand(String command);
+    void parseCommand(JsonDocument& doc);
 };
 
 #endif // TERMINAL_MODE_H

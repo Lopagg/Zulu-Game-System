@@ -12,6 +12,7 @@
 #include <Arduino.h>
 #include <SPI.h> 
 #include "nvs_flash.h"
+#include <ArduinoJson.h>
 
 // Inclusione di tutti i file di intestazione necessari
 #include "app_common.h"
@@ -112,17 +113,17 @@ void setup() {
     networkManager.initialize(&hardware); 
     Serial.println("Avvio del sistema completato.");
 
-    // Invia un messaggio di avvio sulla rete.
-    char startupMessage[100];
-    sprintf(startupMessage, "event:device_online;status:ready;version:%s;", FIRMWARE_VERSION);
-    networkManager.sendStatus(startupMessage);
+    JsonDocument doc;
+    doc["status"] = "ready";
+    doc["version"] = FIRMWARE_VERSION;
+    networkManager.sendEvent("DEVICE_ONLINE", doc);
 
 }
 
 // --- LOOP ---
 
 unsigned long lastHeartbeatTime = 0;
-const unsigned long heartbeatInterval = 10000; // 10 secondi
+const unsigned long heartbeatInterval = 5000; // 5 secondi
 
 /**
  * @brief Funzione di loop, eseguita continuamente dopo il setup().
@@ -137,7 +138,10 @@ void loop() {
 
     if (millis() - lastHeartbeatTime > heartbeatInterval) {
         lastHeartbeatTime = millis();
-        networkManager.sendStatus("event:heartbeat;");
+        JsonDocument doc;
+        doc["uptime"] = millis() / 1000; // Uptime in secondi
+        // Qui potremmo aggiungere livello batteria, wifi signal, ecc.
+        networkManager.sendEvent("HEARTBEAT", doc);
     }
 
     // Esegue l'animazione arcobaleno solo quando si è nei menu.
@@ -205,7 +209,10 @@ void handleWelcomeState() {
         firstEntry = true;
         currentAppState = APP_STATE_MAIN_MENU;
         displayMainMenu();
-        networkManager.sendStatus("event:mode_enter;mode:main_menu;");
+        
+        JsonDocument doc;
+        doc["new_mode"] = "MAIN_MENU";
+        networkManager.sendEvent("MODE_CHANGE", doc);
     }
 }
 
@@ -277,31 +284,53 @@ void handleMainMenuState() {
     if (btn2_pressed) {
         Serial.println("INPUT: Pulsante 2 (Conferma) premuto");
         hardware.playTone(1200, 100);
+
+        JsonDocument doc;
+
         switch (mainMenuIndex) {
             case 0:
                 Serial.println("TRANSIZIONE: Main Menu -> Cerca & Distruggi");
                 currentAppState = APP_STATE_SEARCH_DESTROY_MODE;
+
+                doc["new_mode"] = "SEARCH_AND_DESTROY";
+                networkManager.sendEvent("MODE_CHANGE", doc);
+
                 sdMode->enter();
                 break;
             case 1:
                 Serial.println("TRANSIZIONE: Main Menu -> Dominio");
                 currentAppState = APP_STATE_DOMINATION_MODE;
+
+                doc["new_mode"] = "DOMINATION";
+                networkManager.sendEvent("MODE_CHANGE", doc);
+
                 domMode->enter();
                 break;
             case 2:
                 Serial.println("TRANSIZIONE: Main Menu -> Stanza dei Suoni");
                 currentAppState = APP_STATE_MUSIC_ROOM;
+
+                doc["new_mode"] = "MUSIC_ROOM";
+                networkManager.sendEvent("MODE_CHANGE", doc);
+
                 musicRoomMode->enter();
                 break;
             case 3:
                 Serial.println("TRANSIZIONE: Main Menu -> Modalita' Terminale");
                 currentAppState = APP_STATE_TERMINAL_MODE;
+
+                doc["new_mode"] = "TERMINAL";
+                networkManager.sendEvent("MODE_CHANGE", doc);
+
                 terminalMode->enter();
                 break;
             case 4:
                 Serial.println("TRANSIZIONE: Main Menu -> Test Hardware");
-                networkManager.sendStatus("event:mode_enter;mode:testhw;");
                 currentAppState = APP_STATE_TEST_HARDWARE;
+
+                doc["new_mode"] = "TEST_HARDWARE";
+                networkManager.sendEvent("MODE_CHANGE", doc);
+
                 currentTestSubState = TEST_MAIN; // Imposta il sottomenu iniziale
                 displayTestHardwareMainMenu(); // Disegna il menu del test
                 break;
@@ -356,6 +385,11 @@ void handleTestHardwareState() {
                 displayTestHardwareMainMenu(); // Ridisegna il menu dopo il test
                 hardware.printLcd(0, 2, "UID:");
                 hardware.printLcd(0, 3, uid);
+
+                JsonDocument doc;
+                doc["uid"] = uid;
+                networkManager.sendEvent("TEST_RFID_READ", doc);
+
             } else if (key == 'B') {
                 // Passa al sottomenu di test delle chiavi
                 currentTestSubState = TEST_KEYS;
@@ -385,7 +419,11 @@ void handleTestHardwareState() {
             Serial.println("INPUT: Pulsante 1 (Indietro) premuto");
             hardware.playTone(300, 70);
             hardware.turnOffStrip();
-            networkManager.sendStatus("event:mode_exit;mode:testhw;");
+            
+            JsonDocument doc;
+            doc["new_mode"] = "MAIN_MENU";
+            networkManager.sendEvent("MODE_CHANGE", doc);
+
             Serial.println("TRANSIZIONE: Test Hardware -> Main Menu");
             currentAppState = APP_STATE_MAIN_MENU;
             displayMainMenu();

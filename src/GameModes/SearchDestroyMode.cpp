@@ -6,6 +6,7 @@
  */
 
 #include "SearchDestroyMode.h"
+#include <ArduinoJson.h>
 
 /**
  * @brief Costruttore.
@@ -43,7 +44,11 @@ void SearchDestroyMode::enter() {
     _gameIsActive = false;
     displaySubMenu();
     _hardware->setStripColor(255, 100, 0);  // Colore arancione tipico della modalità
-    _network->sendStatus("event:mode_enter;mode:sd;");
+    
+    JsonDocument doc;
+    doc["mode"] = "SEARCH_AND_DESTROY";
+    _network->sendEvent("MODE_ENTER", doc);
+
     sendSettingsStatus();
 }
 
@@ -51,10 +56,16 @@ void SearchDestroyMode::enter() {
  * @brief Funzione di ingresso diretto in partita, saltando i menu.
  */
 void SearchDestroyMode::enterInGame() {
-    _network->sendStatus("event:mode_enter;mode:sd;");
+    JsonDocument doc;
+    doc["mode"] = "SEARCH_AND_DESTROY";
+    _network->sendEvent("MODE_ENTER", doc);
+    
     sendSettingsStatus();
     Serial.println("Entrato in Cerca & Distruggi (remoto)");
-    // _network->sendStatus("event:game_start;");
+    
+    // Opzionale: notifica avvio gioco immediato
+    // _network->sendEvent("GAME_START");
+
     _hardware->playTone(1500, 150);
     _currentState = ModeState::IN_GAME_AWAIT_ARM; 
     displayAwaitArmScreen();
@@ -73,16 +84,16 @@ void SearchDestroyMode::loop() {
     bool btn2_is_pressed = _hardware->isButton2Pressed();
     bool btn2_was_pressed = _hardware->wasButton2Pressed();
 
+    // Gestione comandi remoti
     String command = _network->getReceivedMessage();
-    if (command == "CMD:FORCE_END_GAME") {
+    // Usiamo indexOf per essere tolleranti verso eventuali spazi o caratteri extra
+    if (command.indexOf("FORCE_END_GAME") >= 0) {
         forceEndGame();
     }
 
-    // La logica è divisa in due macrogruppi: gestione dei menu e gestione del gioco vero e proprio.
     if (_currentState >= ModeState::IN_GAME_CONFIRM) {
         handleInGame(key, btn1_is_pressed, btn1_was_pressed, btn2_is_pressed, btn2_was_pressed);
     } else {
-        // Gestisce la logica dei vari sottomenu
         switch (_currentState) {
             case ModeState::MODE_SUB_MENU:
                 handleSubMenuInput(key, btn1_was_pressed, btn2_was_pressed);
@@ -116,7 +127,11 @@ void SearchDestroyMode::loop() {
  */
 void SearchDestroyMode::exit() {
     Serial.println("Uscito da modalita' Cerca & Distruggi");
-    _network->sendStatus("event:mode_exit;mode:sd;");
+    
+    JsonDocument doc;
+    doc["mode"] = "SEARCH_AND_DESTROY";
+    _network->sendEvent("MODE_EXIT", doc);
+
     _settings->saveParameters();
     _hardware->turnOffStrip();
     _hardware->clearOled1();
@@ -278,9 +293,9 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
 
         if (remainingSeconds != _lastDisplayedSeconds) {
 
-            char message[50];
-            sprintf(message, "event:time_update;time:%ld;", remainingSeconds);
-            _network->sendStatus(message);
+            JsonDocument doc;
+            doc["time"] = remainingSeconds;
+            _network->sendEvent("TIME_UPDATE", doc);;
 
             if (_currentState == ModeState::IN_GAME_COUNTDOWN) {
                 updateCountdownDisplay(remainingSeconds);
@@ -318,13 +333,20 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
 
         if (remainingSeconds <= 0) {
             _currentState = ModeState::IN_GAME_ENDED; _gameIsActive = false;
-            _network->sendStatus("event:game_end;winner:terrorists;");
+            
+            JsonDocument doc;
+            doc["winner"] = "TERRORISTS";
+            doc["reason"] = "TIME_EXPIRED";
+            _network->sendEvent("GAME_END", doc);
+
             _hardware->noTone();
             _hardware->clearLcd();
             _hardware->printLcd(3, 1, "BOMBA ESPLOSA!");
             _hardware->printLcd(0, 2, "Vince la squadra T!");
             _hardware->printOled1("ESCI", 2, 35, 25);
             _hardware->printOled2("ESCI", 2, 35, 25);
+
+            // Animazione esplosione
             for(int i=0; i<3; i++) {
                 _hardware->setBrightness(255);
                 _hardware->setStripColor(255, 255, 255); _hardware->playTone(2000, 50);
@@ -338,18 +360,21 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
     // Seconda parte: macchina a stati per le azioni del giocatore
     switch (_currentState) {
         case ModeState::IN_GAME_CONFIRM:    // case IN_GAME_CONFIRM: gestisce la schermata "Iniziare la partita?"
-            if (btn1_was_pressed) { _currentState = ModeState::MODE_SUB_MENU; displaySubMenu();_network->sendStatus("event:round_reset;");}
+            if (btn1_was_pressed) { 
+                _currentState = ModeState::MODE_SUB_MENU; displaySubMenu();
+                //_network->sendEvent("ROUND_RESET"); 
+            }
             if (btn2_was_pressed) { 
-                _network->sendStatus("event:game_start;");
+                _network->sendEvent("GAME_START");
                 _hardware->playTone(1500, 150);
                 _currentState = ModeState::IN_GAME_AWAIT_ARM; 
-                displayAwaitArmScreen(); 
+                displayAwaitArmScreen();
             }
             break;
         case ModeState::IN_GAME_AWAIT_ARM:  // case IN_GAME_AWAIT_ARM: la partita è iniziata, il dispositivo attende che la squadra T inneschi la bomba.
             _hardware->updateBreathingEffect(120, 120, 120);
             if (btn1_is_pressed) {
-                _network->sendStatus("event:arm_start;");
+                _network->sendEvent("ARM_START");
                 _currentState = ModeState::IN_GAME_IS_ARMING; 
                 _armingStartTime = millis(); 
                 _armingSoundLastUpdate = 0;
@@ -361,7 +386,7 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
             unsigned long armTime = _settings->getArmingTime() * 1000;
             unsigned long elapsed = millis() - _armingStartTime;
             if (!btn1_is_pressed) {
-                _network->sendStatus("event:arm_cancel;");
+                _network->sendEvent("ARM_CANCEL");
                 _currentState = ModeState::IN_GAME_AWAIT_ARM; 
                 displayAwaitArmScreen(); 
                 _hardware->noTone();
@@ -425,7 +450,7 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
                     _hardware->playTone(1500, 100);
                     _stateChangeTime = millis();
                 } else {
-                    _network->sendStatus("event:arm_pin_wrong;");
+                    _network->sendEvent("ARM_PIN_WRONG");
                     _hardware->clearLcd(); 
                     _hardware->printLcd(5, 1, "PIN ERRATO"); 
                     _hardware->printLcd(5, 2, "Riprovare"); 
@@ -439,7 +464,7 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
         }
         case ModeState::IN_GAME_ARMED:
             if (millis() - _stateChangeTime > 1000) {
-                _network->sendStatus("event:bomb_armed;");
+                _network->sendEvent("BOMB_ARMED");
                 _currentState = ModeState::IN_GAME_COUNTDOWN; 
                 _roundStartTime = _hardware->getRTCTime();
                 _lastDisplayedSeconds = -1; 
@@ -449,7 +474,7 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
             break;
         case ModeState::IN_GAME_COUNTDOWN:  // case IN_GAME_COUNTDOWN: la bomba è innescata, il timer scorre e si attende un disinnesco.
             if (btn2_is_pressed && btn2_was_pressed) {
-                _network->sendStatus("event:defuse_start;");
+                _network->sendEvent("DEFUSE_START");
                 _currentState = ModeState::IN_GAME_IS_DEFUSING; 
                 _defusingStartTime = millis(); 
                 _armingSoundLastUpdate = 0;
@@ -462,7 +487,7 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
             unsigned long defuseTime = _settings->getDefuseTime() * 1000;
             unsigned long elapsed = millis() - _defusingStartTime;
             if (!btn2_is_pressed) {
-                _network->sendStatus("event:defuse_cancel;");
+                _network->sendEvent("DEFUSE_CANCEL");
                 _currentState = ModeState::IN_GAME_COUNTDOWN; 
                 _hardware->noTone(); 
                 displayCountdownLayout(); 
@@ -475,7 +500,12 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
                     _currentInputBuffer = "";
                     displayEnterPinScreen("INSERIRE PIN");
                 } else {
-                    _network->sendStatus("event:game_end;winner:counter-terrorists;");
+                    // Game End: CT Win
+                    JsonDocument doc;
+                    doc["winner"] = "COUNTER_TERRORISTS";
+                    doc["reason"] = "BOMB_DEFUSED";
+                    _network->sendEvent("GAME_END", doc);
+
                     _currentState = ModeState::IN_GAME_DEFUSED; // case IN_GAME_DEFUSED: la partita è finita, i CT hanno vinto.
                     _gameIsActive = false; 
                     _hardware->clearLcd();
@@ -522,7 +552,12 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
                 _hardware->turnOffStrip();
             if (_currentInputBuffer.length() >= _settings->getDisarmingPin().length()) {
                 if (_currentInputBuffer == _settings->getDisarmingPin()) {
-                    _network->sendStatus("event:game_end;winner:counter-terrorists;");
+                    // Game End: CT Win
+                    JsonDocument doc;
+                    doc["winner"] = "COUNTER_TERRORISTS";
+                    doc["reason"] = "BOMB_DEFUSED";
+                    _network->sendEvent("GAME_END", doc);
+
                     _currentState = ModeState::IN_GAME_DEFUSED; 
                     _gameIsActive = false;
                     _hardware->clearLcd(); 
@@ -532,7 +567,7 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
                     _hardware->playTone(1800, 80); 
                     _hardware->playTone(2200, 100);
                 } else {
-                    _network->sendStatus("event:defuse_pin_wrong;");
+                    _network->sendEvent("DEFUSE_PIN_WRONG");
                     _hardware->clearLcd(); 
                     _hardware->printLcd(5, 1, "PIN ERRATO");
                     _hardware->printLcd(5, 2, "Riprovare"); 
@@ -719,20 +754,19 @@ void SearchDestroyMode::displayDefusingScreen(unsigned long progress) {
 }
 
 /**
- * @brief Costruisce e invia un messaggio UDP con tutte le impostazioni correnti.
- * @details Chiamata all'ingresso della modalità e all'uscita dal menu impostazioni.
+ * @brief Costruisce e invia un messaggio UDP JSON con tutte le impostazioni correnti.
  */
 void SearchDestroyMode::sendSettingsStatus() {
-    char message[200];
-    sprintf(message, "event:settings_update;bomb_time:%d;arm_pin:%s;disarm_pin:%s;arm_time:%d;defuse_time:%d;use_arm_pin:%d;use_disarm_pin:%d;",
-            _settings->getBombTime(),
-            _settings->getArmingPin().c_str(),
-            _settings->getDisarmingPin().c_str(),
-            _settings->getArmingTime(),
-            _settings->getDefuseTime(),
-            _settings->getUseArmingPin(),
-            _settings->getUseDisarmingPin());
-    _network->sendStatus(message);
+    JsonDocument doc;
+    doc["bomb_time"] = _settings->getBombTime();
+    doc["arm_pin"] = _settings->getArmingPin();
+    doc["disarm_pin"] = _settings->getDisarmingPin();
+    doc["arm_time"] = _settings->getArmingTime();
+    doc["defuse_time"] = _settings->getDefuseTime();
+    doc["use_arm_pin"] = _settings->getUseArmingPin();
+    doc["use_disarm_pin"] = _settings->getUseDisarmingPin();
+    
+    _network->sendEvent("SETTINGS_UPDATE", doc);
 }
 
 /**
@@ -747,7 +781,11 @@ void SearchDestroyMode::forceEndGame() {
         return;
     }
 
-    _network->sendStatus("event:game_end;winner:counter-terrorists;");
+    JsonDocument doc;
+    doc["winner"] = "COUNTER_TERRORISTS";
+    doc["reason"] = "FORCED_BY_ADMIN";
+    _network->sendEvent("GAME_END", doc);
+    
     _currentState = ModeState::IN_GAME_DEFUSED; 
     _gameIsActive = false; 
     _hardware->noTone();

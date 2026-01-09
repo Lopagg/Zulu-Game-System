@@ -1,21 +1,7 @@
 // src/GameModes/TerminalMode.cpp
 
 #include "GameModes/TerminalMode.h"
-#include <vector>
-
-// Funzione helper per dividere la stringa dei comandi
-std::vector<String> splitString(String str, char delimiter) {
-    std::vector<String> result;
-    int last = 0;
-    for (int i = 0; i < str.length(); i++) {
-        if (str.charAt(i) == delimiter) {
-            result.push_back(str.substring(last, i));
-            last = i + 1;
-        }
-    }
-    result.push_back(str.substring(last));
-    return result;
-}
+#include <ArduinoJson.h>
 
 // Costruttore
 TerminalMode::TerminalMode(HardwareManager* hardware, NetworkManager* network, AppState* appState, MainMenuDisplayFunction displayFunc, 
@@ -33,7 +19,10 @@ TerminalMode::TerminalMode(HardwareManager* hardware, NetworkManager* network, A
 
 void TerminalMode::enter() {
     Serial.println("Entrato in Modalita' Terminale");
-    _network->sendStatus("event:mode_enter;mode:terminal;");
+    
+    JsonDocument doc;
+    doc["mode"] = "TERMINAL";
+    _network->sendEvent("MODE_ENTER", doc);
     
     _hardware->clearLcd();
     _hardware->printLcd(0, 1, "MODALITA' TERMINALE");
@@ -44,9 +33,19 @@ void TerminalMode::enter() {
 }
 
 void TerminalMode::loop() {
-    String command = _network->getReceivedMessage();
-    if (command != "") {
-        parseCommand(command);
+    String message = _network->getReceivedMessage();
+    
+    if (message != "") {
+        // Tentiamo di decodificare il messaggio come JSON
+        JsonDocument doc;
+        DeserializationError error = deserializeJson(doc, message);
+
+        if (!error) {
+            parseCommand(doc);
+        } else {
+            Serial.print("Errore parsing JSON in TerminalMode: ");
+            Serial.println(error.c_str());
+        }
     }
     
     if (_hardware->wasButton1Pressed()) {
@@ -58,72 +57,81 @@ void TerminalMode::loop() {
 
 void TerminalMode::exit() {
     Serial.println("Uscito da Modalita' Terminale");
-    _network->sendStatus("event:mode_exit;mode:terminal;");
+    
+    JsonDocument doc;
+    doc["mode"] = "TERMINAL";
+    _network->sendEvent("MODE_EXIT", doc);
+    
     _hardware->turnOffStrip();
 }
 
-void TerminalMode::parseCommand(String command) {
-    Serial.print("Comando ricevuto in TerminalMode: ");
-    Serial.println(command);
+/**
+ * @brief Interpreta i comandi JSON ricevuti dal server.
+ * @param doc Il documento JSON contenente il comando e i parametri.
+ */
+void TerminalMode::parseCommand(JsonDocument& doc) {
+    const char* cmd = doc["cmd"]; 
+    
+    if (!cmd) return;
 
-    std::vector<String> parts = splitString(command, ';');
-    String cmd_event = "";
+    Serial.print("Comando JSON ricevuto: ");
+    Serial.println(cmd);
 
-    for (const auto& part : parts) {
-        if (part.startsWith("CMD:")) {
-            cmd_event = part.substring(4);
-            break;
+    if (strcmp(cmd, "SET_DOM_SETTINGS") == 0) {
+        // CORREZIONE: Usiamo doc["key"].is<T>() invece di containsKey
+        
+        if (doc["duration"].is<int>()) {
+            _domSettings->setGameDuration(doc["duration"]);
         }
-    }
-
-    if (cmd_event == "SET_DOM_SETTINGS") {
-        for (const auto& part : parts) {
-            if (part.startsWith("DURATION:")) {
-                _domSettings->setGameDuration(part.substring(9).toInt());
-            } else if (part.startsWith("CAPTURE:")) {
-                _domSettings->setCaptureTime(part.substring(8).toInt());
-            }
+        if (doc["capture_time"].is<int>()) {
+            _domSettings->setCaptureTime(doc["capture_time"]);
         }
+        
         _domSettings->saveParameters();
         Serial.println("Impostazioni Dominio aggiornate da remoto.");
         _domMode->sendSettingsStatus();
 
-    } else if (cmd_event == "START_DOM_GAME") {
+    } else if (strcmp(cmd, "START_DOM_GAME") == 0) {
         Serial.println("Avvio partita Dominio da remoto...");
         
-        _network->sendStatus("event:remote_start;mode:domination;");
+        JsonDocument resp;
+        resp["target_mode"] = "DOMINATION";
+        _network->sendEvent("REMOTE_START_ACK", resp);
         
         *_appStatePtr = APP_STATE_DOMINATION_MODE;
         _domMode->enterInGame();
 
-    } else if (cmd_event == "SET_SD_SETTINGS") {
-        // --- INIZIO MODIFICA ---
-        for (const auto& part : parts) {
-            if (part.startsWith("BOMB_TIME:")) {
-                _sdSettings->setBombTime(part.substring(10).toInt());
-            } else if (part.startsWith("ARM_TIME:")) {
-                _sdSettings->setArmingTime(part.substring(9).toInt());
-            } else if (part.startsWith("DEFUSE_TIME:")) {
-                _sdSettings->setDefuseTime(part.substring(12).toInt());
-            } else if (part.startsWith("USE_ARM_PIN:")) {
-                _sdSettings->setUseArmingPin(part.substring(12).toInt() == 1);
-            } else if (part.startsWith("ARM_PIN:")) {
-                _sdSettings->setArmingPin(part.substring(8));
-            } else if (part.startsWith("USE_DEFUSE_PIN:")) {
-                _sdSettings->setUseDisarmingPin(part.substring(15).toInt() == 1);
-            } else if (part.startsWith("DEFUSE_PIN:")) {
-                _sdSettings->setDisarmingPin(part.substring(11));
-            }
+    } else if (strcmp(cmd, "SET_SD_SETTINGS") == 0) {
+        
+        // CORREZIONE: Aggiornato sintassi per ArduinoJson 7
+        if (doc["bomb_time"].is<int>()) _sdSettings->setBombTime(doc["bomb_time"]);
+        if (doc["arm_time"].is<int>()) _sdSettings->setArmingTime(doc["arm_time"]);
+        if (doc["defuse_time"].is<int>()) _sdSettings->setDefuseTime(doc["defuse_time"]);
+        
+        if (doc["use_arm_pin"].is<bool>()) _sdSettings->setUseArmingPin(doc["use_arm_pin"]);
+        if (doc["use_defuse_pin"].is<bool>()) _sdSettings->setUseDisarmingPin(doc["use_defuse_pin"]);
+        
+        // Per le stringhe, controlliamo se è una stringa valida (const char*)
+        if (doc["arm_pin"].is<const char*>()) {
+            String pin = doc["arm_pin"].as<String>();
+            _sdSettings->setArmingPin(pin);
         }
-        // --- FINE MODIFICA ---
+        if (doc["defuse_pin"].is<const char*>()) {
+            String pin = doc["defuse_pin"].as<String>();
+            _sdSettings->setDisarmingPin(pin);
+        }
         
         _sdSettings->saveParameters();
         Serial.println("Impostazioni C&D aggiornate da remoto.");
-        _sdMode->sendSettingsStatus(); // Notifica il pannello delle nuove impostazioni
+        _sdMode->sendSettingsStatus();
 
-    } else if (cmd_event == "START_SD_GAME") {
+    } else if (strcmp(cmd, "START_SD_GAME") == 0) {
         Serial.println("Avvio partita C&D da remoto...");
-        _network->sendStatus("event:remote_start;mode:sd;");
+        
+        JsonDocument resp;
+        resp["target_mode"] = "SEARCH_AND_DESTROY";
+        _network->sendEvent("REMOTE_START_ACK", resp);
+
         *_appStatePtr = APP_STATE_SEARCH_DESTROY_MODE;
         _sdMode->enterInGame();
     }
