@@ -109,6 +109,7 @@ public:
     // Funzione RTC
     /** @brief Ritorna l'ora corrente dall'RTC. */
     DateTime getRTCTime();
+    void syncWithNTP();
 
     // Funzioni Buzzer
     /** @brief Riproduce un suono semplice per una data durata. Usato per i feedback dei menu. */

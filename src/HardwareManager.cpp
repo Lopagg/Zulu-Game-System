@@ -310,6 +310,23 @@ void HardwareManager::updateWinnerWaveEffect(uint8_t r, uint8_t g, uint8_t b, fl
 // --- GESTIONE RTC ---
 DateTime HardwareManager::getRTCTime() { return _rtc.now(); }
 
+/**
+ * @brief Sincronizza il modulo RTC fisico con l'ora di sistema ottenuta via NTP.
+ */
+void HardwareManager::syncWithNTP() {
+    struct tm timeinfo;
+    // getLocalTime restituisce true se l'ora è stata sincronizzata
+    if (getLocalTime(&timeinfo)) {
+        // Aggiorna l'RTC DS3231 con l'ora appena ricevuta da Internet
+        _rtc.adjust(DateTime(timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday, 
+                             timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec));
+        Serial.println("SUCCESSO: RTC Sincronizzato con server NTP!");
+        printLcd(0, 3, "Orario Aggiornato!");
+    } else {
+        Serial.println("ERRORE: Impossibile sincronizzare l'ora locale (NTP fallito?)");
+    }
+}
+
 // --- GESTIONE LCD ---
 void HardwareManager::printLcd(int col, int row, const String& text) { _lcd.setCursor(col, row); _lcd.print(text); }
 void HardwareManager::clearLcd() { _lcd.clear(); }

@@ -71,6 +71,18 @@ connection_success:
         hardware->printLcd(0, 0, "WiFi OK!");
         hardware->printLcd(0, 1, WiFi.localIP().toString());
         Serial.printf("\nConnesso! IP: %s, MAC: %s\n", WiFi.localIP().toString().c_str(), deviceId.c_str());
+
+        // --- SEZIONE NTP ---
+        hardware->printLcd(0, 1, "Sync Orario...");
+        // Configura l'ora: GMT+1 (3600 sec) e Ora Legale (+3600 sec)
+        configTime(3600, 3600, "pool.ntp.org", "time.nist.gov");
+        
+        // Diamo tempo al sistema di ricevere il pacchetto NTP
+        delay(2000); 
+        
+        // Chiediamo all'hardware manager di aggiornare l'RTC
+        hardware->syncWithNTP();
+        // -------------------
         
         _udp.begin(_udpPort);
         
