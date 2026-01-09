@@ -4,35 +4,42 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Zulu Dashboard</title>
-
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
 </head>
 <body>
-    <div class="main-container">
-        <div class="user-bar">
-            <span>Benvenuto, {{ username }}!</span>
-            <form action="{{ url_for('logout') }}" method="get" style="display: inline; margin-left: 15px;">
-                <button type="submit">Logout</button>
-            </form>
-        </div>
-        
-        <h1>Dashboard</h1>
-        
-        <div class="panel">
-            <h2>Dispositivi Connessi</h2>
-            <ul id="device-list" class="device-list-ul">
-                <li>In attesa di dispositivi...</li>
-            </ul>
-        </div>
+    <div class="container">
+        <header>
+            <h1>ZULU LIVE DASHBOARD</h1>
+            <div id="connection-status" class="status-indicator offline">OFFLINE</div>
+        </header>
 
-        <div class="panel">
-            <h2>Menu Principale</h2>
-            <div class="timer-controls">
-                <button id="start-game-btn">Avvia Partita</button>
+        <main>
+            <div class="card timer-card">
+                <h2>Tempo Rimanente</h2>
+                <div id="main-timer" class="big-text">--:--</div>
+                <div id="game-status" class="status-text">In attesa...</div>
             </div>
-        </div>
+
+            <div class="card domination-card" id="domination-panel" style="display:none;">
+                <h3>Dominio</h3>
+                <div class="scores">
+                    <div class="team team-1">
+                        <h4>Squadra 1</h4>
+                        <span id="score-t1">0s</span>
+                    </div>
+                    <div class="team team-2">
+                        <h4>Squadra 2</h4>
+                        <span id="score-t2">0s</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card controls-card">
+                <h3>Comandi</h3>
+                <button onclick="sendCommand('FORCE_END_GAME')">TERMINA PARTITA</button>
+            </div>
+        </main>
     </div>
 
     <script src="{{ url_for('static', filename='dashboard.js') }}"></script>
