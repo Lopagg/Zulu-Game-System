@@ -352,12 +352,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const type = raw.type;
         const payload = raw.payload || {};
 
-        // --- LOGGING DEI MESSAGGI ---
-        // Filtriamo gli eventi ad alta frequenza per non intasare il log
-        if (type && type !== 'TIME_UPDATE' && type !== 'SD_UPDATE' && type !== 'HEARTBEAT') {
-            // Mostra ID abbreviato e tipo messaggio
-            const shortId = senderId ? senderId.slice(-4) : 'SYS';
-            logSystem(`[${shortId}] ${type}`);
+        // --- LOGGING ---
+        // Nascondiamo SOLO gli eventi ad altissima frequenza (Timer e Barre)
+        // HEARTBEAT ora è visibile per confermare la connessione
+        if (type !== 'TIME_UPDATE' && type !== 'SD_UPDATE') {
+            // Per Heartbeat, magari mostriamo solo se non è troppo frequente? 
+            // Per ora lasciamolo visibile come richiesto.
+            if(type === 'HEARTBEAT') {
+               // Opzionale: decommenta se vuoi nascondere anche heartbeat
+               // return; 
+               logSystem(`[${shortId}] HEARTBEAT OK`);
+            } else {
+               logSystem(`[${shortId}] ${type}`);
+            }
         }
         
         // --- 1. DATI GLOBALI (Timer Partita e Giocatori) ---

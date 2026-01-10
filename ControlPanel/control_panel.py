@@ -6,6 +6,7 @@ import json
 import socket
 import time
 import threading
+from threading import Lock
 
 # --- CONFIGURAZIONE ---
 logging.basicConfig(level=logging.INFO)
@@ -15,12 +16,10 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'zulu_secret_key_change_in_prod'
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# Inizializzazione Flask-Login
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-# --- GESTIONE UTENTI ---
 USERS = { "admin": {"password": "zulu", "name": "Operatore"} }
 
 class User(UserMixin):
@@ -36,92 +35,91 @@ class User(UserMixin):
 def load_user(user_id):
     return User.get(user_id)
 
-# --- DEVICE REGISTRY ---
+# --- DEVICE REGISTRY (Thread-Safe) ---
 class DeviceRegistry:
     def __init__(self):
         self.devices = {}
-        self.timeout_seconds = 15 # Dopo 15s senza segnale, il device è considerato OFFLINE
+        self.timeout_seconds = 15 
+        self.lock = Lock() # Fondamentale per evitare conflitti
 
     def update_device(self, device_id, ip_info, msg_type, mode=None, version=None):
         now = time.time()
-        changed = False # Traccia se ci sono cambiamenti visibili per la UI
+        changed = False
         
-        # 1. Nuovo Dispositivo
-        if device_id not in self.devices:
-            self.devices[device_id] = {
-                "id": device_id,
-                "name": device_id,
-                "type": "ZGT",
-                "mode": "BOOTING...",
-                "version": "Unknown"
-            }
-            changed = True 
-        
-        self.devices[device_id]["last_seen"] = now
-        
-        # 2. Cambio IP
-        new_ip = ip_info[0] if isinstance(ip_info, list) else ip_info
-        if self.devices[device_id].get("ip") != new_ip:
-            self.devices[device_id]["ip"] = new_ip
-            # changed = True # Opzionale: decommenta se vuoi refresh su cambio IP
-        
-        self.devices[device_id]["status"] = "ONLINE"
-        
-        if version and self.devices[device_id].get("version") != version:
-            self.devices[device_id]["version"] = version
-            changed = True
+        with self.lock: # Blocca la lista mentre scriviamo
+            if device_id not in self.devices:
+                self.devices[device_id] = {
+                    "id": device_id,
+                    "name": device_id,
+                    "type": "ZGT",
+                    "mode": "BOOTING...",
+                    "version": "Unknown"
+                }
+                changed = True 
+            
+            self.devices[device_id]["last_seen"] = now
+            
+            new_ip = ip_info[0] if isinstance(ip_info, list) else ip_info
+            if self.devices[device_id].get("ip") != new_ip:
+                self.devices[device_id]["ip"] = new_ip
+            
+            self.devices[device_id]["status"] = "ONLINE"
+            
+            if version and self.devices[device_id].get("version") != version:
+                self.devices[device_id]["version"] = version
+                changed = True
 
-        # 3. Cambio Modalità (Cruciale per la tua richiesta)
-        if mode and self.devices[device_id].get("mode") != mode:
-             self.devices[device_id]["mode"] = mode
-             changed = True
-        elif msg_type == "MODE_EXIT" and self.devices[device_id].get("mode") != "MAIN MENU":
-            self.devices[device_id]["mode"] = "MAIN MENU"
-            changed = True
+            if mode and self.devices[device_id].get("mode") != mode:
+                 self.devices[device_id]["mode"] = mode
+                 changed = True
+            elif msg_type == "MODE_EXIT" and self.devices[device_id].get("mode") != "MAIN MENU":
+                self.devices[device_id]["mode"] = "MAIN MENU"
+                changed = True
             
         return changed
 
     def rename_device(self, device_id, new_name):
-        if device_id in self.devices:
-            self.devices[device_id]["name"] = new_name
-            return True
+        with self.lock:
+            if device_id in self.devices:
+                self.devices[device_id]["name"] = new_name
+                return True
         return False
 
     def get_active_devices(self):
         now = time.time()
         to_remove = []
         active_list = []
-
-        # Controlla chi è scaduto
-        for d_id, data in self.devices.items():
-            if now - data["last_seen"] > self.timeout_seconds:
-                to_remove.append(d_id)
-            else:
-                active_list.append(data)
-        
-        # Rimuovi i morti
         needs_update = False
-        for d_id in to_remove:
-            del self.devices[d_id]
-            needs_update = True
+
+        with self.lock: # Blocca la lista mentre leggiamo/puliamo
+            # 1. Identifica i morti
+            for d_id, data in self.devices.items():
+                if now - data["last_seen"] > self.timeout_seconds:
+                    to_remove.append(d_id)
+                else:
+                    active_list.append(data)
+            
+            # 2. Rimuovi i morti
+            for d_id in to_remove:
+                del self.devices[d_id]
+                needs_update = True
             
         return active_list, needs_update
 
 registry = DeviceRegistry()
 
-# --- TASK DI PULIZIA AUTOMATICA ---
-def background_cleanup_task():
-    """Controlla periodicamente i dispositivi offline e pulisce la lista."""
-    print("[SYSTEM] Background Cleanup Task Started")
+# --- TASK PULIZIA (Separato e Robusto) ---
+def background_cleanup():
+    """Gira in un thread separato e pulisce la lista ogni 2 secondi."""
     while True:
-        socketio.sleep(2)
+        time.sleep(2) # Usa time.sleep, non socketio.sleep qui
         try:
             active_devs, removed_something = registry.get_active_devices()
-            # Invia aggiornamento solo se abbiamo rimosso qualcuno (evita traffico inutile)
             if removed_something:
+                print("[SYSTEM] Rimuovendo dispositivi inattivi...")
                 socketio.emit('devices_update', active_devs)
         except Exception as e:
-            print(f"[ERROR] Cleanup Task: {e}")
+            print(f"[ERROR] Cleanup Thread: {e}")
 
 # --- ROUTES ---
 
@@ -140,7 +138,7 @@ def login():
             login_user(user)
             return redirect(url_for('index'))
         else:
-            flash('ACCESSO NEGATO: Credenziali Errate', 'error')
+            flash('ACCESSO NEGATO', 'error')
     return render_template('login.html')
 
 @app.route('/logout')
@@ -166,13 +164,13 @@ def receive_data_from_bridge():
             mode = payload.get('mode')
             version = payload.get('version')
             
-            # Aggiorna registro e controlla se ci sono cambiamenti visivi (es. cambio modalità)
+            # Aggiorna registro
             has_changed = registry.update_device(device_id, ip_info, msg_type, mode, version)
             
-            # 1. Invia SEMPRE l'evento di gioco (per timer, log, ecc.)
+            # Invia evento al frontend
             socketio.emit('esp_event', data)
             
-            # 2. Invia aggiornamento lista SOLO se necessario (risolve il lag modaltà SENZA spam)
+            # Se ci sono modifiche visive (es. cambio modalità), aggiorna la lista
             if has_changed:
                 active_devs, _ = registry.get_active_devices()
                 socketio.emit('devices_update', active_devs)
@@ -192,8 +190,6 @@ def send_command():
         target_id = req.get('target_id')
         command_obj = req.get('command')
         
-        print(f"\n[DEBUG] WEB -> BRIDGE: Inviando comando a {target_id}")
-        
         cmd_str = json.dumps(command_obj) if isinstance(command_obj, dict) else command_obj
         payload = { "target_id": target_id, "command": cmd_str }
         
@@ -202,7 +198,6 @@ def send_command():
         
         return jsonify({"status": "sent"}), 200
     except Exception as e:
-        print(f"[ERROR] Invio fallito: {e}")
         return jsonify({"error": str(e)}), 500
 
 @socketio.on('rename_device')
@@ -211,7 +206,6 @@ def handle_rename(data):
     new_name = data.get('name')
     if device_id and new_name:
         registry.rename_device(device_id, new_name)
-        # Forza aggiornamento immediato
         active_devs, _ = registry.get_active_devices()
         socketio.emit('devices_update', active_devs)
 
@@ -222,23 +216,20 @@ def handle_manual_scan():
 
 @socketio.on('send_command')
 def handle_socket_command(data):
-    with app.test_request_context():
-        BRIDGE_IP, BRIDGE_PORT = '127.0.0.1', 1234
-        try:
-            target_id = data.get('target_id')
-            command_obj = data.get('command')
-            
-            print(f"\n[DEBUG SOCKET] WEB -> BRIDGE: Comando per {target_id}")
-            
-            cmd_str = json.dumps(command_obj) if isinstance(command_obj, dict) else command_obj
-            payload = {"target_id": target_id, "command": cmd_str}
-            
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            sock.sendto(json.dumps(payload).encode('utf-8'), (BRIDGE_IP, BRIDGE_PORT))
-        except Exception as e:
-            print(f"[ERROR SOCKET] {e}")
+    BRIDGE_IP, BRIDGE_PORT = '127.0.0.1', 1234
+    try:
+        target_id = data.get('target_id')
+        command_obj = data.get('command')
+        cmd_str = json.dumps(command_obj) if isinstance(command_obj, dict) else command_obj
+        payload = {"target_id": target_id, "command": cmd_str}
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.sendto(json.dumps(payload).encode('utf-8'), (BRIDGE_IP, BRIDGE_PORT))
+    except Exception as e:
+        print(f"[ERROR SOCKET] {e}")
 
 if __name__ == '__main__':
-    # Avvio del task di pulizia background
-    socketio.start_background_task(target=background_cleanup_task)
+    # Avvia thread di pulizia
+    cleanup_thread = threading.Thread(target=background_cleanup, daemon=True)
+    cleanup_thread.start()
+    
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
