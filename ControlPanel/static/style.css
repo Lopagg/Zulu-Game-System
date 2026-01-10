@@ -302,3 +302,40 @@ body {
 
 /* --- UTILS --- */
 .hidden { display: none !important; }
+
+/* Barra generale */
+::-webkit-scrollbar {
+    width: 6px;       /* Molto sottile */
+    height: 6px;      /* Per scroll orizzontale */
+    background: var(--sop-bg);
+}
+
+/* Binario (Track) */
+::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.3);
+    border-left: 1px solid var(--sop-dim);
+}
+
+/* Cursore (Thumb) */
+::-webkit-scrollbar-thumb {
+    background: var(--sop-dim);
+    border-radius: 0; /* Squadrato */
+    border: 1px solid var(--sop-bg);
+}
+
+/* Cursore al passaggio del mouse */
+::-webkit-scrollbar-thumb:hover {
+    background: var(--sop-primary); /* Si accende in ciano */
+    border-color: var(--sop-primary);
+    box-shadow: 0 0 5px var(--sop-primary);
+}
+
+/* Angolo incrocio scrollbar */
+::-webkit-scrollbar-corner {
+    background: var(--sop-bg);
+}
+
+/* Specifico per il mini-log (ancora più discreto) */
+.console-log::-webkit-scrollbar {
+    width: 4px;
+}
