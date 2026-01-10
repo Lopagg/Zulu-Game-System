@@ -69,7 +69,48 @@
 
         <main class="main-stage">
             
-            <div id="view-global" class="view-panel active">
+            <div id="view-hub" class="view-panel active">
+                <div class="hub-grid">
+                    
+                    <div class="hub-card" id="btn-mode-setup">
+                        <div class="card-icon">⚡</div>
+                        <div class="card-content">
+                            <h3>INITIATE OPERATION</h3>
+                            <p>Configura parametri di missione e invia comando di avvio alla rete ZGT.</p>
+                            <span class="card-action">[ EXECUTE ]</span>
+                        </div>
+                    </div>
+
+                    <div class="hub-card" id="btn-mode-observe">
+                        <div class="card-icon">👁️</div>
+                        <div class="card-content">
+                            <h3>PASSIVE SURVEILLANCE</h3>
+                            <p>Monitora telemetria, timer e punteggi di una partita gestita autonomamente.</p>
+                            <span class="card-action">[ MONITOR ]</span>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <div id="view-setup" class="view-panel hidden">
+                <div class="sop-card setup-panel">
+                    <div class="panel-header">
+                        <h2>MISSION CONFIGURATION</h2>
+                        <button class="back-btn deck-btn">[ CANCEL ]</button>
+                    </div>
+                    <div class="panel-body">
+                        <p class="placeholder-text">>> WAITING FOR MODULE CONFIGURATION...</p>
+                        </div>
+                </div>
+            </div>
+
+            <div id="view-monitor" class="view-panel hidden">
+                
+                <div class="monitor-controls">
+                    <button class="back-btn deck-btn" style="margin-bottom: 10px;">[ < RETURN TO HUB ]</button>
+                </div>
+
                 <div class="grid-dashboard">
                     <div class="widget sop-card widget-timer">
                         <div class="widget-header">MISSION TIMER</div>
@@ -109,7 +150,6 @@
                 </div>
                 
                 <div class="inspector-grid">
-                    
                     <div class="sop-card profile-panel">
                         <h3>ASSET PROFILE</h3>
                         <div class="profile-content">
@@ -120,8 +160,6 @@
                                 <h4>ZULU GAME TERMINAL (MK-I)</h4>
                                 <p class="desc-text">
                                     Terminale tattico multi-ruolo basato su architettura ESP32. 
-                                    Dotato di modulo NFC, Display OLED e interfaccia LED RGB.
-                                    Progettato per operare come nodo indipendente o controllato dalla rete SOP.
                                 </p>
                                 <div class="specs">
                                     <span>HW_VER: 1.0</span>
@@ -133,40 +171,29 @@
 
                     <div class="sop-card config-panel">
                         <h3>CONFIGURATION & MAINTENANCE</h3>
-                        
                         <div class="data-row">
-                            <span class="label">STATUS:</span> 
-                            <span id="insp-state" class="value">--</span>
-                        </div>
-
-                        <div class="data-row">
-                            <span class="label">CURRENT IP:</span> 
-                            <span id="insp-ip" class="value">--</span>
+                            <span class="label">STATUS:</span> <span id="insp-state" class="value">--</span>
                         </div>
                         <div class="data-row">
-                            <span class="label">CURRENT MODE:</span> 
-                            <span id="insp-mode" class="value">--</span>
+                            <span class="label">CURRENT IP:</span> <span id="insp-ip" class="value">--</span>
                         </div>
-
+                        <div class="data-row">
+                            <span class="label">CURRENT MODE:</span> <span id="insp-mode" class="value">--</span>
+                        </div>
                         <hr class="separator">
-
                         <div class="input-group-tactical">
-                            <label>ASSET ALIAS (ID TATTICO)</label>
+                            <label>ASSET ALIAS</label>
                             <div class="row-inputs">
                                 <input type="text" id="insp-alias-input" placeholder="Es. ZGT-ALPHA">
                                 <button id="save-alias-btn" class="deck-btn">[SAVE]</button>
                             </div>
                         </div>
-
                         <hr class="separator">
-
                         <div class="danger-zone">
                             <label class="danger-label">HARDWARE OVERRIDE</label>
-                            <p class="warning-text">⚠️ ATTENZIONE: Il riavvio remoto disconnetterà l'asset dalla rete per alcuni secondi.</p>
                             <button id="hard-reset-btn" class="deck-btn btn-danger">[ HARDWARE RESET ]</button>
                         </div>
                     </div>
-
                 </div>
             </div>
 
