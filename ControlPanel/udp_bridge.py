@@ -1,97 +1,82 @@
 import socket
-import threading
 import json
-import sys
-import requests
+import logging
 
-# --- Variabili Globali Condivise ---
-main_socket = None
-last_known_device_addrs = {} 
-addr_lock = threading.Lock()
+# Configurazione
+UDP_IP = "0.0.0.0"
+UDP_PORT = 12345
+WEB_SERVER_URL = "http://127.0.0.1:5000/internal/forward_data"
 
-def esp_listener():
-    """Thread che ascolta i pacchetti JSON dagli ESP32."""
-    global main_socket
+# Dizionario per mappare ID Dispositivo -> (IP, Porta)
+device_map = {}
 
-    UDP_PORT = 1234
-    HOST_IP = '0.0.0.0'
-    FORWARD_URL = 'http://127.0.0.1:5000/internal/forward_data'
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("UDP_BRIDGE")
+
+def start_bridge():
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind((UDP_IP, UDP_PORT))
     
-    print(f"[LISTENER ESP] Avvio su {HOST_IP}:{UDP_PORT} (Mode: JSON)...")
-    main_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    logger.info(f"Zulu UDP Bridge avviato su {UDP_IP}:{UDP_PORT}")
     
-    try:
-        main_socket.bind((HOST_IP, UDP_PORT))
-        
-        while True:
-            data, addr = main_socket.recvfrom(2048) # Buffer aumentato per JSON
-            message_str = data.decode('utf-8', errors='ignore')
+    import requests # Importiamo qui per evitare errori se manca all'inizio
+
+    while True:
+        try:
+            data, addr = sock.recvfrom(4096)
             
             try:
-                # 1. Tenta di decodificare il JSON ricevuto dall'ESP32
-                parsed_data = json.loads(message_str)
-                device_id = parsed_data.get('id')
+                # Tentiamo di decodificare il JSON
+                json_data = json.loads(data.decode('utf-8'))
+                
+                # CASO 1: Messaggio dal WEB SERVER (da inviare a un ESP32)
+                if "target_id" in json_data and "command" in json_data:
+                    target_id = json_data["target_id"]
+                    command = json_data["command"]
+                    
+                    logger.info(f"[WEB->ESP] Comando per {target_id}")
 
-                if device_id:
-                    with addr_lock:
-                        last_known_device_addrs[device_id] = addr
+                    if target_id in device_map:
+                        target_ip, target_port = device_map[target_id]
+                        
+                        # FIX CRITICO: Se command è un dizionario, convertilo in stringa JSON
+                        if isinstance(command, dict):
+                            command_to_send = json.dumps(command)
+                        else:
+                            command_to_send = str(command)
+                            
+                        # Invia all'ESP32
+                        sock.sendto(command_to_send.encode('utf-8'), (target_ip, target_port))
+                        logger.info(f"Inviato a {target_ip}: {command_to_send}")
+                    else:
+                        logger.warning(f"Target {target_id} non trovato nella mappa dispositivi.")
+                
+                # CASO 2: Messaggio dall'ESP32 (da inviare al Web Server)
+                else:
+                    # È un messaggio da un dispositivo
+                    # Salviamo/Aggiorniamo l'indirizzo IP del dispositivo
+                    # Il formato atteso dall'ESP è: {"id": "...", "type": "...", "payload": ...}
                     
-                    # Log pulito (mostra solo il tipo di evento per non intasare la console)
-                    event_type = parsed_data.get('type', 'UNKNOWN')
-                    print(f"[RX] {device_id} -> {event_type}")
-                    
-                    # 2. Inoltra al Web Server (Flask)
-                    payload = { "parsed_data": parsed_data, "device_ip_info": addr }
+                    device_id = json_data.get('id')
+                    if device_id:
+                        device_map[device_id] = addr # Salva IP e Porta
+                        # logger.info(f"Aggiornato indirizzo per {device_id}: {addr}")
+
+                    # Inoltra al Web Server via HTTP POST
                     try:
-                        requests.post(FORWARD_URL, json=payload, timeout=0.5)
-                    except requests.exceptions.RequestException:
-                        pass # Ignora errori di timeout del server locale
+                        payload = {
+                            "parsed_data": json_data,
+                            "device_ip_info": addr
+                        }
+                        requests.post(WEB_SERVER_URL, json=payload, timeout=1)
+                    except Exception as e:
+                        logger.error(f"Errore inoltro a Web Server: {e}")
 
             except json.JSONDecodeError:
-                print(f"[!] Errore: Ricevuto pacchetto non JSON da {addr}: {message_str[:20]}...")
-
-    except Exception as e:
-        print(f"[!!!] ERRORE CRITICO in esp_listener: {e}")
-        sys.exit(1)
-    finally:
-        if main_socket:
-            main_socket.close()
-
-def command_sender():
-    """Thread invio comandi (Invariato nella logica, ma pulito)"""
-    global main_socket
-    CMD_PORT = 12345
-    CMD_HOST = '127.0.0.1'
-    
-    print(f"[*] Listener comandi attivo su {CMD_HOST}:{CMD_PORT}")
-    
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as cmd_sock:
-        cmd_sock.bind((CMD_HOST, CMD_PORT))
-        
-        while True:
-            data, _ = cmd_sock.recvfrom(1024)
-            try:
-                payload = json.loads(data.decode('utf-8'))
-                command = payload.get('command') # Stringa grezza o JSON da inviare
-                target_id = payload.get('target_id')
+                logger.error(f"Pacchetto non JSON ricevuto da {addr}")
                 
-                target_addr = None
-                with addr_lock:
-                    target_addr = last_known_device_addrs.get(target_id)
+        except Exception as e:
+            logger.error(f"Errore loop bridge: {e}")
 
-                if target_addr and main_socket:
-                    print(f"[TX] {target_id} <- {command}")
-                    main_socket.sendto(command.encode('utf-8'), target_addr)
-                else:
-                    print(f"[!] Impossibile inviare a {target_id}: indirizzo sconosciuto.")
-            except Exception as e:
-                print(f"[!] Errore sender: {e}")
-
-if __name__ == '__main__':
-    threading.Thread(target=esp_listener, daemon=True).start()
-    threading.Thread(target=command_sender, daemon=True).start()
-    
-    # Loop vuoto per mantenere vivo il main thread
-    while True: 
-        import time
-        time.sleep(1)
+if __name__ == "__main__":
+    start_bridge()

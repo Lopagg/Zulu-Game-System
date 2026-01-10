@@ -5,7 +5,7 @@ import logging
 import json
 import socket
 import time
-import threading # Necessario per il background task
+import threading
 
 # --- CONFIGURAZIONE ---
 logging.basicConfig(level=logging.INFO)
@@ -20,11 +20,8 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-# --- GESTIONE UTENTI (Simulata) ---
-# In un sistema reale useresti un database cifrato.
-USERS = {
-    "admin": {"password": "zulu", "name": "Operatore"} # Password cambiata
-}
+# --- GESTIONE UTENTI ---
+USERS = { "admin": {"password": "zulu", "name": "Operatore"} }
 
 class User(UserMixin):
     def __init__(self, id):
@@ -39,11 +36,11 @@ class User(UserMixin):
 def load_user(user_id):
     return User.get(user_id)
 
-# --- DEVICE REGISTRY (Modificato per eliminare i morti) ---
+# --- DEVICE REGISTRY ---
 class DeviceRegistry:
     def __init__(self):
         self.devices = {}
-        self.timeout_seconds = 15 
+        self.timeout_seconds = 15
 
     def update_device(self, device_id, ip_info, msg_type, mode=None):
         now = time.time()
@@ -51,27 +48,29 @@ class DeviceRegistry:
         if device_id not in self.devices:
             self.devices[device_id] = {
                 "id": device_id,
-                "name": device_id, # Default: il nome è l'ID (MAC)
+                "name": device_id,
                 "type": "ZGT",
                 "mode": "BOOTING..."
             }
         
-        # Aggiorna heartbeat
         self.devices[device_id]["last_seen"] = now
         self.devices[device_id]["ip"] = ip_info[0] if isinstance(ip_info, list) else ip_info
         self.devices[device_id]["status"] = "ONLINE"
         
-        # Se il messaggio contiene info sulla modalità, aggiorna
         if msg_type == "MODE_ENTER" and mode:
             self.devices[device_id]["mode"] = mode
         elif msg_type == "MODE_EXIT":
-            # Se usciamo da una modalità, torniamo al menu principale
             self.devices[device_id]["mode"] = "MAIN MENU"
         elif msg_type == "BOOT_COMPLETE":
              self.devices[device_id]["mode"] = "MAIN MENU"
 
+    def rename_device(self, device_id, new_name):
+        if device_id in self.devices:
+            self.devices[device_id]["name"] = new_name
+            return True
+        return False
+
     def get_active_devices(self):
-        """Restituisce solo i device vivi e rimuove quelli morti dal dizionario"""
         now = time.time()
         to_remove = []
         active_list = []
@@ -82,30 +81,21 @@ class DeviceRegistry:
             else:
                 active_list.append(data)
         
-        # Pulizia
         for d_id in to_remove:
             del self.devices[d_id]
             
         return active_list
-    
-    def rename_device(self, device_id, new_name):
-        if device_id in self.devices:
-            self.devices[device_id]["name"] = new_name
-            return True
-        return False
 
 registry = DeviceRegistry()
 
-# --- THREAD DI BACKGROUND ---
-# Questo thread invia la lista aggiornata al browser ogni 2 secondi.
-# Così se un dispositivo muore, sparisce dalla lista anche se non arrivano altri pacchetti.
+# --- BACKGROUND TASK ---
 def background_cleanup_task():
     while True:
-        socketio.sleep(2) # Usa sleep di socketio per non bloccare
+        socketio.sleep(2)
         active_devs = registry.get_active_devices()
         socketio.emit('devices_update', active_devs)
 
-# --- ROUTE ---
+# --- ROUTES ---
 
 @app.route('/')
 @login_required
@@ -122,7 +112,7 @@ def login():
             login_user(user)
             return redirect(url_for('index'))
         else:
-            flash('Credenziali errate', 'error')
+            flash('ACCESSO NEGATO: Credenziali Errate', 'error')
     return render_template('login.html')
 
 @app.route('/logout')
@@ -145,15 +135,9 @@ def receive_data_from_bridge():
         payload = parsed.get('payload', {})
         
         if device_id:
-            # 1. Aggiorna il registro (segna come ONLINE)
             mode = payload.get('mode')
             registry.update_device(device_id, ip_info, msg_type, mode)
-            
-            # 2. Inoltra l'evento raw al frontend (Log, Timer, ecc.)
             socketio.emit('esp_event', data)
-            
-            # 3. AGGIUNTA FONDAMENTALE: Invia SUBITO la lista aggiornata
-            # Non aspettiamo il thread di background. Se arriva un dato, il device deve apparire.
             socketio.emit('devices_update', registry.get_active_devices())
 
         return jsonify({"status": "ok"}), 200
@@ -168,23 +152,60 @@ def send_command():
     BRIDGE_IP, BRIDGE_PORT = '127.0.0.1', 12345
     try:
         req = request.json
-        payload = {"target_id": req.get('target_id'), "command": req.get('command')}
+        target_id = req.get('target_id')
+        command_obj = req.get('command')
+        
+        # DEBUG: Stampa cosa stiamo per inviare
+        print(f"\n[DEBUG] WEB -> BRIDGE: Inviando comando a {target_id}")
+        print(f"[DEBUG] Contenuto Comando: {command_obj}")
+
+        # Assicuriamoci che il comando sia una stringa JSON valida
+        cmd_str = json.dumps(command_obj) if isinstance(command_obj, dict) else command_obj
+        
+        payload = {
+            "target_id": target_id,
+            "command": cmd_str
+        }
+        
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.sendto(json.dumps(payload).encode('utf-8'), (BRIDGE_IP, BRIDGE_PORT))
+        
         return jsonify({"status": "sent"}), 200
     except Exception as e:
+        print(f"[ERROR] Invio fallito: {e}")
         return jsonify({"error": str(e)}), 500
-    
+
+# Evento Socket per Rinomina
 @socketio.on('rename_device')
 def handle_rename(data):
     device_id = data.get('id')
     new_name = data.get('name')
     if device_id and new_name:
         registry.rename_device(device_id, new_name)
-        # Invia subito aggiornamento a tutti
         socketio.emit('devices_update', registry.get_active_devices())
 
+# Evento Socket per invio comandi (dal JS)
+@socketio.on('send_command')
+def handle_socket_command(data):
+    # Chiama internamente la logica di invio
+    with app.test_request_context():
+        # Simuliamo una request per riutilizzare la logica (o chiamiamo direttamente il bridge)
+        BRIDGE_IP, BRIDGE_PORT = '127.0.0.1', 12345
+        try:
+            target_id = data.get('target_id')
+            command_obj = data.get('command')
+            
+            print(f"\n[DEBUG SOCKET] WEB -> BRIDGE: Comando per {target_id}")
+            print(f"[DEBUG SOCKET] Payload: {command_obj}")
+            
+            cmd_str = json.dumps(command_obj) if isinstance(command_obj, dict) else command_obj
+            payload = {"target_id": target_id, "command": cmd_str}
+            
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.sendto(json.dumps(payload).encode('utf-8'), (BRIDGE_IP, BRIDGE_PORT))
+        except Exception as e:
+            print(f"[ERROR SOCKET] {e}")
+
 if __name__ == '__main__':
-    # Avvia il thread di cleanup in background
     socketio.start_background_task(target=background_cleanup_task)
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
