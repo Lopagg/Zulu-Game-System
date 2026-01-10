@@ -149,7 +149,7 @@ def receive_data_from_bridge():
 @app.route('/api/send_command', methods=['POST'])
 @login_required
 def send_command():
-    BRIDGE_IP, BRIDGE_PORT = '127.0.0.1', 12345
+    BRIDGE_IP, BRIDGE_PORT = '127.0.0.1', 1234
     try:
         req = request.json
         target_id = req.get('target_id')
@@ -190,7 +190,7 @@ def handle_socket_command(data):
     # Chiama internamente la logica di invio
     with app.test_request_context():
         # Simuliamo una request per riutilizzare la logica (o chiamiamo direttamente il bridge)
-        BRIDGE_IP, BRIDGE_PORT = '127.0.0.1', 12345
+        BRIDGE_IP, BRIDGE_PORT = '127.0.0.1', 1234
         try:
             target_id = data.get('target_id')
             command_obj = data.get('command')

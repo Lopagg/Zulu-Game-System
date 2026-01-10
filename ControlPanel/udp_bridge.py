@@ -4,7 +4,7 @@ import logging
 
 # Configurazione
 UDP_IP = "0.0.0.0"
-UDP_PORT = 12345
+UDP_PORT = 1234
 WEB_SERVER_URL = "http://127.0.0.1:5000/internal/forward_data"
 
 # Dizionario per mappare ID Dispositivo -> (IP, Porta)

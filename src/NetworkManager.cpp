@@ -20,7 +20,7 @@ const int numKnownNetworks = sizeof(knownNetworks) / sizeof(knownNetworks[0]);
 const char* SERVER_HOSTNAME = "zuluserver.ddns.net";
 
 // Costruttore
-NetworkManager::NetworkManager() : _udpPort(12345), _ipResolved(false), _hardware(nullptr) {}
+NetworkManager::NetworkManager() : _udpPort(1234), _ipResolved(false), _hardware(nullptr) {}
 
 void NetworkManager::initialize(HardwareManager* hardware) {
     // Salviamo il riferimento all'hardware per usarlo anche in update() (es. per il Reset)
