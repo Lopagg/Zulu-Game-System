@@ -88,6 +88,12 @@ connection_success:
         
         // Risolvi l'IP del server ORA, non durante il gioco
         resolveServerIP();
+
+        JsonDocument bootDoc;
+        bootDoc["mode"] = "MAIN MENU"; // Diciamo subito che siamo nel menu
+        bootDoc["version"] = "1.0";
+        sendEvent("BOOT_COMPLETE", bootDoc);
+        
     } else {
         hardware->printLcd(0, 0, "WiFi Fallita!");
     }

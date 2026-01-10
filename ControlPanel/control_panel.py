@@ -5,7 +5,7 @@ import logging
 import json
 import socket
 import time
-from datetime import datetime
+import threading # Necessario per il background task
 
 # --- CONFIGURAZIONE ---
 logging.basicConfig(level=logging.INFO)
@@ -20,73 +20,80 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-# --- GESTIONE UTENTI (Simulata) ---
-USERS = {
-    "admin": {"password": "password", "name": "Operatore"}
-}
+# --- GESTIONE UTENTI ---
+USERS = { "admin": {"password": "password", "name": "Operatore"} }
 
 class User(UserMixin):
     def __init__(self, id):
         self.id = id
         self.name = USERS[id]['name']
-
     @staticmethod
     def get(user_id):
-        if user_id in USERS:
-            return User(user_id)
+        if user_id in USERS: return User(user_id)
         return None
 
 @login_manager.user_loader
 def load_user(user_id):
     return User.get(user_id)
 
-# --- DEVICE REGISTRY (Il cuore della lista ASSET) ---
+# --- DEVICE REGISTRY (Modificato per eliminare i morti) ---
 class DeviceRegistry:
     def __init__(self):
-        self.devices = {}  # Dizionario {device_id: {data...}}
+        self.devices = {}
+        self.timeout_seconds = 10 # Dopo quanti secondi rimuovere il device
 
     def update_device(self, device_id, ip_info, msg_type, mode=None):
         now = time.time()
         
-        # Se è nuovo, lo creiamo
         if device_id not in self.devices:
+            # Nuovo dispositivo rilevato
             self.devices[device_id] = {
                 "id": device_id,
-                "first_seen": now,
-                "type": "ZGT", # Default, in futuro potrebbe arrivare dal pacchetto
+                "type": "ZGT",
+                "mode": "BOOTING..." # Stato iniziale temporaneo
             }
         
-        # Aggiorniamo i dati dinamici
+        # Aggiorna heartbeat
         self.devices[device_id]["last_seen"] = now
         self.devices[device_id]["ip"] = ip_info[0] if isinstance(ip_info, list) else ip_info
         self.devices[device_id]["status"] = "ONLINE"
         
-        # Aggiorniamo la modalità se presente nel messaggio
+        # Se il messaggio contiene info sulla modalità, aggiorna
         if mode:
             self.devices[device_id]["mode"] = mode
-        
-        # Se il dispositivo invia MODE_ENTER, aggiorniamo la modalità
-        if msg_type == "MODE_ENTER" and mode:
-            self.devices[device_id]["mode"] = mode
+        elif msg_type == "BOOT_COMPLETE":
+             self.devices[device_id]["mode"] = "MAIN MENU"
 
     def get_active_devices(self):
-        # Ritorna la lista pulita, segnando OFFLINE chi non parla da 30s
-        active_list = []
+        """Restituisce solo i device vivi e rimuove quelli morti dal dizionario"""
         now = time.time()
-        timeout = 30 # Secondi prima di considerare offline
-        
+        to_remove = []
+        active_list = []
+
         for d_id, data in self.devices.items():
-            if now - data["last_seen"] > timeout:
-                data["status"] = "OFFLINE"
+            if now - data["last_seen"] > self.timeout_seconds:
+                to_remove.append(d_id)
             else:
-                data["status"] = "ONLINE"
-            active_list.append(data)
+                active_list.append(data)
         
+        # Pulizia
+        for d_id in to_remove:
+            del self.devices[d_id]
+            
         return active_list
 
 registry = DeviceRegistry()
 
-# --- ROUTE PAGINE WEB ---
+# --- THREAD DI BACKGROUND ---
+# Questo thread invia la lista aggiornata al browser ogni 2 secondi.
+# Così se un dispositivo muore, sparisce dalla lista anche se non arrivano altri pacchetti.
+def background_cleanup_task():
+    while True:
+        socketio.sleep(2) # Usa sleep di socketio per non bloccare
+        active_devs = registry.get_active_devices()
+        socketio.emit('devices_update', active_devs)
+
+# --- ROUTE ---
 
 @app.route('/')
 @login_required
@@ -103,7 +110,7 @@ def login():
             login_user(user)
             return redirect(url_for('index'))
         else:
-            flash('Credenziali invalidi', 'error')
+            flash('Credenziali errate', 'error')
     return render_template('login.html')
 
 @app.route('/logout')
@@ -112,15 +119,12 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
-# --- API INTERNE (Ricezione dati da UDP Bridge) ---
-
 @app.route('/internal/forward_data', methods=['POST'])
 def receive_data_from_bridge():
     try:
         data = request.json
         if not data: return jsonify({"status": "error"}), 400
         
-        # Estrai dati
         parsed = data.get('parsed_data', {})
         ip_info = data.get('device_ip_info', [])
         
@@ -129,16 +133,14 @@ def receive_data_from_bridge():
         payload = parsed.get('payload', {})
         
         if device_id:
-            # 1. Aggiorna il registro dispositivi
-            mode = payload.get('mode') # Se presente (es. in MODE_ENTER)
+            # Aggiorna registro
+            mode = payload.get('mode')
             registry.update_device(device_id, ip_info, msg_type, mode)
             
-            # 2. Inoltra l'evento specifico (es. TIME_UPDATE) al frontend
+            # Inoltra evento raw al frontend
             socketio.emit('esp_event', data)
             
-            # 3. Invia la lista aggiornata dei dispositivi (sidebar)
-            # Nota: In un sistema grande non lo faresti a ogni pacchetto, ma qui va bene per reattività
-            socketio.emit('devices_update', registry.get_active_devices())
+            # Nota: Non serve più emettere 'devices_update' qui, ci pensa il thread di background
 
         return jsonify({"status": "ok"}), 200
 
@@ -153,16 +155,13 @@ def send_command():
     try:
         req = request.json
         payload = {"target_id": req.get('target_id'), "command": req.get('command')}
-        
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.sendto(json.dumps(payload).encode('utf-8'), (BRIDGE_IP, BRIDGE_PORT))
         return jsonify({"status": "sent"}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# --- THREAD DI BACKGROUND (Opzionale) ---
-# Se volessi pulire i dispositivi offline periodicamente anche senza traffico
-# potresti aggiungere un thread qui che chiama registry.get_active_devices() ogni 10s.
-
 if __name__ == '__main__':
+    # Avvia il thread di cleanup in background
+    socketio.start_background_task(target=background_cleanup_task)
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
