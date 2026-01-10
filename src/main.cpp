@@ -84,7 +84,7 @@ String getCurrentModeString() {
         case APP_STATE_WELCOME: return "BOOTING...";
         case APP_STATE_MAIN_MENU: return "MAIN MENU";
         case APP_STATE_DOMINATION_MODE: return "DOMINATION";
-        case APP_STATE_SEARCH_DESTROY_MODE: return "SEARCH_DESTROY";
+        case APP_STATE_SEARCH_DESTROY_MODE: return "SEARCH_AND_DESTROY";
         case APP_STATE_MUSIC_ROOM: return "MUSIC ROOM";
         case APP_STATE_TERMINAL_MODE: return "TERMINAL";
         case APP_STATE_TEST_HARDWARE: return "HARDWARE TEST";
