@@ -47,6 +47,8 @@ void SearchDestroyMode::enter() {
     
     JsonDocument doc;
     doc["mode"] = "SEARCH_AND_DESTROY";
+    // Inviamo parametri utili
+    doc["bomb_time"] = _settings->getBombTime();
     _network->sendEvent("MODE_ENTER", doc);
 
     sendSettingsStatus();

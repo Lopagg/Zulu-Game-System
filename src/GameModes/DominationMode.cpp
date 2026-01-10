@@ -25,6 +25,9 @@ void DominationMode::enter() {
     
     JsonDocument doc;
     doc["mode"] = "DOMINATION";
+    // Inviamo anche le impostazioni attuali per aggiornare la dashboard
+    doc["duration"] = _settings->getGameDuration();
+    doc["capture_time"] = _settings->getCaptureTime();
     _network->sendEvent("MODE_ENTER", doc);
     
     sendSettingsStatus();

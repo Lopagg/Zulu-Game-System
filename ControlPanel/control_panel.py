@@ -62,8 +62,11 @@ class DeviceRegistry:
         self.devices[device_id]["status"] = "ONLINE"
         
         # Se il messaggio contiene info sulla modalità, aggiorna
-        if mode:
+        if msg_type == "MODE_ENTER" and mode:
             self.devices[device_id]["mode"] = mode
+        elif msg_type == "MODE_EXIT":
+            # Se usciamo da una modalità, torniamo al menu principale
+            self.devices[device_id]["mode"] = "MAIN MENU"
         elif msg_type == "BOOT_COMPLETE":
              self.devices[device_id]["mode"] = "MAIN MENU"
 
