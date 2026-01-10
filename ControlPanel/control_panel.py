@@ -43,17 +43,17 @@ def load_user(user_id):
 class DeviceRegistry:
     def __init__(self):
         self.devices = {}
-        self.timeout_seconds = 10 # Dopo quanti secondi rimuovere il device
+        self.timeout_seconds = 15 
 
     def update_device(self, device_id, ip_info, msg_type, mode=None):
         now = time.time()
         
         if device_id not in self.devices:
-            # Nuovo dispositivo rilevato
             self.devices[device_id] = {
                 "id": device_id,
+                "name": device_id, # Default: il nome è l'ID (MAC)
                 "type": "ZGT",
-                "mode": "BOOTING..." # Stato iniziale temporaneo
+                "mode": "BOOTING..."
             }
         
         # Aggiorna heartbeat
@@ -87,6 +87,12 @@ class DeviceRegistry:
             del self.devices[d_id]
             
         return active_list
+    
+    def rename_device(self, device_id, new_name):
+        if device_id in self.devices:
+            self.devices[device_id]["name"] = new_name
+            return True
+        return False
 
 registry = DeviceRegistry()
 
@@ -168,6 +174,15 @@ def send_command():
         return jsonify({"status": "sent"}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+@socketio.on('rename_device')
+def handle_rename(data):
+    device_id = data.get('id')
+    new_name = data.get('name')
+    if device_id and new_name:
+        registry.rename_device(device_id, new_name)
+        # Invia subito aggiornamento a tutti
+        socketio.emit('devices_update', registry.get_active_devices())
 
 if __name__ == '__main__':
     # Avvia il thread di cleanup in background

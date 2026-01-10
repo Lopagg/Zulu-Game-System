@@ -109,27 +109,59 @@
                 </div>
                 
                 <div class="inspector-grid">
-                    <div class="sop-card control-panel">
-                        <h3>COMMAND INJECTION</h3>
-                        <div class="btn-group">
-                            <button class="tactical-btn" data-cmd="START_DOM">INIT DOMINATION</button>
-                            <button class="tactical-btn" data-cmd="START_SD">INIT S&D</button>
-                            <button class="tactical-btn btn-danger" data-cmd="FORCE_END">TERMINATE</button>
+                    
+                    <div class="sop-card profile-panel">
+                        <h3>ASSET PROFILE</h3>
+                        <div class="profile-content">
+                            <div class="asset-illustration">
+                                <div class="tech-circle">ZGT</div>
+                            </div>
+                            <div class="asset-desc">
+                                <h4>ZULU GAME TERMINAL (MK-I)</h4>
+                                <p class="desc-text">
+                                    Terminale tattico multi-ruolo basato su architettura ESP32. 
+                                    Dotato di modulo NFC, Display OLED e interfaccia LED RGB.
+                                    Progettato per operare come nodo indipendente o controllato dalla rete SOP.
+                                </p>
+                                <div class="specs">
+                                    <span>HW_VER: 1.0</span>
+                                    <span>FW_VER: 1.2</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="sop-card telemetry-panel">
-                        <h3>LIVE FEED</h3>
+                    <div class="sop-card config-panel">
+                        <h3>CONFIGURATION & MAINTENANCE</h3>
+                        
                         <div class="data-row">
-                            <span>MODE:</span> <span id="insp-mode">--</span>
+                            <span class="label">CURRENT IP:</span> 
+                            <span id="insp-ip" class="value">--</span>
                         </div>
                         <div class="data-row">
-                            <span>STATE:</span> <span id="insp-state">IDLE</span>
+                            <span class="label">CURRENT MODE:</span> 
+                            <span id="insp-mode" class="value">--</span>
                         </div>
-                        <div class="data-row">
-                            <span>IP ADDR:</span> <span id="insp-ip">--</span>
+
+                        <hr class="separator">
+
+                        <div class="input-group-tactical">
+                            <label>ASSET ALIAS (ID TATTICO)</label>
+                            <div class="row-inputs">
+                                <input type="text" id="insp-alias-input" placeholder="Es. ZGT-ALPHA">
+                                <button id="save-alias-btn" class="deck-btn">[SAVE]</button>
+                            </div>
+                        </div>
+
+                        <hr class="separator">
+
+                        <div class="danger-zone">
+                            <label class="danger-label">HARDWARE OVERRIDE</label>
+                            <p class="warning-text">⚠️ ATTENZIONE: Il riavvio remoto disconnetterà l'asset dalla rete per alcuni secondi.</p>
+                            <button id="hard-reset-btn" class="deck-btn btn-danger">[ HARDWARE RESET ]</button>
                         </div>
                     </div>
+
                 </div>
             </div>
 

@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- FUNZIONI UI ---
 
     function updateDeviceList(devices) {
-        elDeviceList.innerHTML = ''; // Pulisci lista
+        elDeviceList.innerHTML = '';
         elAssetCount.textContent = devices.length;
 
         if (devices.length === 0) {
@@ -72,33 +72,29 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         devices.forEach(device => {
-            // Determina stato per CSS
             const isOnline = device.status === 'ONLINE';
             const cssClass = isOnline ? 'status-online' : 'status-offline';
             
+            // Usiamo il nome personalizzato se c'è, altrimenti l'ID
+            const displayName = device.name || device.id;
+
             const li = document.createElement('li');
             li.className = `device-item ${cssClass}`;
-            if (device.id === activeInspectorId) li.classList.add('active'); // Mantieni highlight
+            if (device.id === activeInspectorId) li.classList.add('active'); 
             
             li.innerHTML = `
                 <div class="device-icon">ZGT</div>
                 <div class="device-info">
-                    <span class="device-id">${device.id}</span>
+                    <span class="device-id">${displayName}</span>
                     <span class="device-mode">${device.mode || 'UNKNOWN'}</span>
                 </div>
             `;
             
-            // Click su ZGT apre l'inspector
             li.addEventListener('click', () => {
                 openInspector(device);
             });
 
             elDeviceList.appendChild(li);
-            
-            // Se stiamo ispezionando QUESTO device, aggiorniamo anche i dati live dell'inspector
-            if (device.id === activeInspectorId) {
-                updateInspectorData(device);
-            }
         });
     }
 
@@ -106,24 +102,37 @@ document.addEventListener('DOMContentLoaded', () => {
         activeInspectorId = device.id;
         
         // Aggiorna UI Inspector
-        elInspTitle.textContent = `${device.id} // CONFIG`;
+        const displayName = device.name || device.id;
+        document.getElementById('inspector-title').textContent = `${displayName} // CONFIG`;
+        document.getElementById('insp-alias-input').value = device.name === device.id ? "" : device.name;
+        
         updateInspectorData(device);
         
-        // Cambio Vista: Nascondi Global, Mostra Inspector
-        elViewGlobal.classList.remove('active');
         elViewGlobal.classList.add('hidden');
-        
         elViewInspector.classList.remove('hidden');
-        elViewInspector.classList.add('active');
-        
-        logSystem(`ACCESSING ZGT NODE: ${device.id}`);
     }
+    
+    // GESTIONE NUOVI PULSANTI
+    
+    // Salva Alias
+    document.getElementById('save-alias-btn').addEventListener('click', () => {
+        if(!activeInspectorId) return;
+        const newName = document.getElementById('insp-alias-input').value;
+        if(newName) {
+            socket.emit('rename_device', { id: activeInspectorId, name: newName });
+            logSystem(`ALIAS UPDATED: ${newName}`);
+        }
+    });
 
-    function updateInspectorData(device) {
-        elInspMode.textContent = device.mode || 'N/A';
-        elInspState.textContent = device.status;
-        elInspIp.textContent = device.ip || 'UNKNOWN';
-    }
+    // Reset Hardware
+    document.getElementById('hard-reset-btn').addEventListener('click', () => {
+        if(!activeInspectorId) return;
+        if(confirm("CONFERMI RESET HARDWARE? L'asset andrà offline.")) {
+            // Inviamo il comando CMD:RESET
+            window.sendCommand("RESET"); 
+            logSystem(`SENDING KILL SIGNAL TO ${activeInspectorId}...`);
+        }
+    });
 
     // Tasto "CLOSE LINK" nell'inspector
     document.querySelector('.close-inspector-btn').addEventListener('click', () => {
