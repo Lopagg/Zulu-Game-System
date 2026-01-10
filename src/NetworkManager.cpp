@@ -93,7 +93,7 @@ connection_success:
         bootDoc["mode"] = "MAIN MENU"; // Diciamo subito che siamo nel menu
         bootDoc["version"] = "1.0";
         sendEvent("BOOT_COMPLETE", bootDoc);
-        
+
     } else {
         hardware->printLcd(0, 0, "WiFi Fallita!");
     }
@@ -115,15 +115,35 @@ void NetworkManager::resolveServerIP() {
 void NetworkManager::update() {
     int packetSize = _udp.parsePacket();
     if (packetSize) {
-        char incomingPacket[512]; // Buffer aumentato per JSON
+        char incomingPacket[512];
         int len = _udp.read(incomingPacket, 512);
         if (len > 0) incomingPacket[len] = 0;
         
         _lastMessage = String(incomingPacket);
         _lastSenderIP = _udp.remoteIP();
         
-        // Qui in futuro aggiungeremo il parsing del JSON in arrivo
         Serial.printf("RX [%s]: %s\n", _lastSenderIP.toString().c_str(), _lastMessage.c_str());
+
+        // --- INTERCETTAZIONE COMANDI GLOBALI (SYSTEM LEVEL) ---
+        // Controlliamo subito se è un comando di reset, indipendentemente dalla modalità attuale.
+        
+        JsonDocument doc;
+        DeserializationError error = deserializeJson(doc, _lastMessage);
+
+        if (!error) {
+            // Verifichiamo se c'è un campo "cmd" uguale a "RESET"
+            const char* cmd = doc["cmd"];
+            if (cmd && strcmp(cmd, "RESET") == 0) {
+                Serial.println("!!! GLOBAL SYSTEM RESET RECEIVED !!!");
+                
+                // Opzionale: Se hai accesso all'hardware manager qui (dovresti passarlo nel costruttore o update)
+                // Altrimenti stampi solo su seriale e riavvii.
+                
+                delay(500); // Piccolo delay per assicurarsi che il log seriale esca
+                ESP.restart();
+            }
+        }
+        // ------------------------------------------------------
     }
 }
 

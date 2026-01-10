@@ -127,9 +127,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // Reset Hardware
     document.getElementById('hard-reset-btn').addEventListener('click', () => {
         if(!activeInspectorId) return;
+        
         if(confirm("CONFERMI RESET HARDWARE? L'asset andrà offline.")) {
-            // Inviamo il comando CMD:RESET
-            window.sendCommand("RESET"); 
+            // Invece di usare window.sendCommand che aggiunge "CMD:", inviamo un oggetto JSON puro
+            const resetPayload = { cmd: "RESET" };
+            
+            socket.emit('send_command', { 
+                target_id: activeInspectorId, 
+                command: resetPayload // Il bridge Python lo trasformerà in stringa JSON
+            });
+            
             logSystem(`SENDING KILL SIGNAL TO ${activeInspectorId}...`);
         }
     });
