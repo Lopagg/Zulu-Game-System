@@ -139,8 +139,43 @@ body {
     background: rgba(0, 255, 204, 0.05);
     border-bottom: 1px solid var(--sop-dim);
     display: flex;
-    justify-content: space-between;
+    justify-content: space-between; /* Spinge il titolo a sx e il bottone a dx */
     align-items: center;
+}
+
+.sidebar-header h3 {
+    font-size: 16px;
+    margin: 0;
+    letter-spacing: 2px;
+    color: var(--sop-text);
+}
+
+/* Il bottone SCAN */
+#scan-btn {
+    background: transparent;
+    border: 1px solid var(--sop-dim);
+    color: var(--sop-dim); /* Spento di default */
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    padding: 4px 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* Effetto Hover (Si illumina) */
+#scan-btn:hover {
+    border-color: var(--sop-primary);
+    color: var(--sop-primary);
+    box-shadow: 0 0 8px rgba(0, 255, 204, 0.2);
+    text-shadow: 0 0 5px var(--sop-primary);
+}
+
+/* Effetto Click (Attivo) */
+#scan-btn:active {
+    background: var(--sop-primary);
+    color: #000;
 }
 
 .device-list {

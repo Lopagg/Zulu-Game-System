@@ -191,6 +191,32 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // 4. Bottone SCAN (Network Refresh)
+    const btnScan = document.getElementById('scan-btn');
+    if(btnScan) {
+        btnScan.addEventListener('click', () => {
+            logSystem("INITIATING NETWORK SCAN...");
+            
+            // Effetto visivo: Pulisce la lista temporaneamente
+            elDeviceList.innerHTML = '<li class="placeholder-msg blink">SCANNING FREQUENCIES...</li>';
+            
+            // Disabilita il bottone per evitare spam
+            btnScan.disabled = true;
+            btnScan.style.opacity = "0.5";
+
+            // Simula un ritardo di scansione (500ms) per effetto drammatico
+            setTimeout(() => {
+                // Chiede al server la lista vera
+                socket.emit('request_manual_scan');
+                
+                // Riabilita il bottone
+                btnScan.disabled = false;
+                btnScan.style.opacity = "1";
+                logSystem("SCAN COMPLETE.");
+            }, 800); 
+        });
+    }
+
     // --- GESTIONE EVENTI DI GIOCO (Timer ecc.) ---
     function handleGameEvent(msg) {
         const raw = msg.parsed_data || {};

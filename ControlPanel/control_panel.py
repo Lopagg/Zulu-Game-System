@@ -191,6 +191,14 @@ def handle_rename(data):
         registry.rename_device(device_id, new_name)
         socketio.emit('devices_update', registry.get_active_devices())
 
+@socketio.on('request_manual_scan')
+def handle_manual_scan():
+    # 1. Chiediamo al registro di darci la lista pulita (rimuovendo i morti)
+    active_devs = registry.get_active_devices()
+    
+    # 2. Inviamo la lista aggiornata al frontend
+    socketio.emit('devices_update', active_devs)
+
 # Evento Socket per invio comandi (dal JS)
 @socketio.on('send_command')
 def handle_socket_command(data):
