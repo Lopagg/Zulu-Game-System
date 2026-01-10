@@ -28,6 +28,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const elInspIp = document.getElementById('insp-ip');
     const elInspAliasInput = document.getElementById('insp-alias-input');
     
+    const elInspFwVer = document.getElementById('insp-fw-ver');
+    
     // Stato Locale dell'applicazione
     let activeInspectorId = null; // ID del dispositivo che stiamo guardando
 
@@ -136,6 +138,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if(elInspMode) elInspMode.textContent = device.mode || 'N/A';
         if(elInspState) elInspState.textContent = device.status || 'UNKNOWN';
         if(elInspIp) elInspIp.textContent = device.ip || 'UNKNOWN';
+        if(elInspFwVer) elInspFwVer.textContent = `FW_VER: ${device.version || '--'}`;
     }
 
     // --- GESTIONE PULSANTI ---

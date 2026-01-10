@@ -1,4 +1,5 @@
 #include "NetworkManager.h"
+#include "app_common.h"
 #include <ArduinoJson.h>
 
 String deviceId = "";   // Variabile globale per il MAC Address
@@ -26,7 +27,10 @@ void NetworkManager::initialize(HardwareManager* hardware) {
     // Salviamo il riferimento all'hardware per usarlo anche in update() (es. per il Reset)
     _hardware = hardware;
 
-    Serial.println("--- Inizializzazione Rete (JSON Edition) ---");
+    Serial.println("--- Inizializzazione Rete ---");
+    Serial.print("Firmware Version: ");
+    Serial.println(FIRMWARE_VERSION);
+
     hardware->clearLcd();
     hardware->printLcd(0, 0, "Scansione WiFi...");
 
@@ -84,11 +88,12 @@ connection_success:
         // Risoluzione IP Server
         resolveServerIP();
 
-        // Invia evento di BOOT (Presentazione al sistema)
+        // Invia evento di BOOT con la VERSIONE REALE
         JsonDocument bootDoc;
         bootDoc["mode"] = "MAIN MENU"; 
-        bootDoc["version"] = "1.0";
-        sendEvent("BOOT_COMPLETE", bootDoc);
+        
+        // Qui usiamo la macro definita in app_common.h
+        bootDoc["version"] = FIRMWARE_VERSION;
 
     } else {
         hardware->printLcd(0, 0, "WiFi Fallita!");

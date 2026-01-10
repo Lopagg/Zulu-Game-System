@@ -42,7 +42,7 @@ class DeviceRegistry:
         self.devices = {}
         self.timeout_seconds = 15
 
-    def update_device(self, device_id, ip_info, msg_type, mode=None):
+    def update_device(self, device_id, ip_info, msg_type, mode=None, version=None):
         now = time.time()
         
         if device_id not in self.devices:
@@ -50,12 +50,16 @@ class DeviceRegistry:
                 "id": device_id,
                 "name": device_id,
                 "type": "ZGT",
-                "mode": "BOOTING..."
+                "mode": "BOOTING...",
+                "version": "Unknown" # Default
             }
         
         self.devices[device_id]["last_seen"] = now
         self.devices[device_id]["ip"] = ip_info[0] if isinstance(ip_info, list) else ip_info
         self.devices[device_id]["status"] = "ONLINE"
+
+        if version:
+            self.devices[device_id]["version"] = version
         
         if msg_type == "MODE_ENTER" and mode:
             self.devices[device_id]["mode"] = mode
@@ -136,7 +140,10 @@ def receive_data_from_bridge():
         
         if device_id:
             mode = payload.get('mode')
-            registry.update_device(device_id, ip_info, msg_type, mode)
+            version = payload.get('version') # <--- Estrarre la versione dal payload
+        
+            # Passiamo la versione al registro
+            registry.update_device(device_id, ip_info, msg_type, mode, version)
             socketio.emit('esp_event', data)
             socketio.emit('devices_update', registry.get_active_devices())
 
