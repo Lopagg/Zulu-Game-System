@@ -1,37 +1,32 @@
 document.addEventListener('DOMContentLoaded', () => {
     const socket = io();
     
-    // --- RIFERIMENTI DOM (Elementi dell'interfaccia) ---
-    
-    // Liste e Log
+    // --- RIFERIMENTI DOM ---
     const elDeviceList = document.getElementById('device-list');
     const elMiniLog = document.getElementById('mini-log');
     
-    // --- GESTIONE VISTE (Pannelli principali) ---
+    // Viste
     const elViewHub = document.getElementById('view-hub');
     const elViewSetup = document.getElementById('view-setup');
-    const elViewMonitor = document.getElementById('view-monitor'); // ex view-global
+    const elViewSelectTarget = document.getElementById('view-select-target'); // NUOVA VISTA
+    const elViewMonitor = document.getElementById('view-monitor'); 
     const elViewInspector = document.getElementById('view-inspector');
 
-    // Mappa delle viste per switching facile
     const views = {
         'hub': elViewHub,
         'setup': elViewSetup,
+        'select-target': elViewSelectTarget,
         'monitor': elViewMonitor,
         'inspector': elViewInspector
     };
     
-    // Header Stats
-    const elAssetCount = document.getElementById('asset-count');
-    const elGlobalStatus = document.getElementById('global-status');
-    const elMissionClock = document.getElementById('mission-clock');
-
-    // Dashboard Widgets (Vista Monitor)
+    // Elementi Monitor
     const elGlobalTimer = document.getElementById('global-timer-display');
     const elScoreA = document.getElementById('score-a');
     const elScoreB = document.getElementById('score-b');
+    const elMonitorTargetId = document.getElementById('monitoring-target-id');
 
-    // Inspector Elements (Vista Dettaglio Asset)
+    // Elementi Inspector
     const elInspTitle = document.getElementById('inspector-title');
     const elInspMode = document.getElementById('insp-mode');
     const elInspState = document.getElementById('insp-state');
@@ -39,64 +34,65 @@ document.addEventListener('DOMContentLoaded', () => {
     const elInspAliasInput = document.getElementById('insp-alias-input');
     const elInspFwVer = document.getElementById('insp-fw-ver');
     
-    // Stato Locale dell'applicazione
-    let activeInspectorId = null; // ID del dispositivo che stiamo guardando
+    // Header Stats
+    const elAssetCount = document.getElementById('asset-count');
+    const elGlobalStatus = document.getElementById('global-status');
+    const elMissionClock = document.getElementById('mission-clock');
+
+    // --- STATO LOCALE ---
+    let activeInspectorId = null; 
+    let monitoredDeviceId = null; // ID del dispositivo che stiamo sorvegliando nel Monitor
+    let currentDevices = [];      // Cache locale dei dispositivi attivi
 
     // --- FUNZIONE SWITCH VISTE ---
     function showView(viewName) {
-        // Nascondi tutte le viste
         Object.values(views).forEach(el => {
-            if(el) {
-                el.classList.remove('active');
-                el.classList.add('hidden');
-            }
+            if(el) { el.classList.remove('active'); el.classList.add('hidden'); }
         });
-        
-        // Mostra quella richiesta
         const target = views[viewName];
-        if(target) {
-            target.classList.remove('hidden');
-            target.classList.add('active');
-        }
+        if(target) { target.classList.remove('hidden'); target.classList.add('active'); }
         
-        // Se torniamo all'Hub, deselezioniamo la sidebar
         if(viewName === 'hub') {
             activeInspectorId = null;
+            monitoredDeviceId = null; // Reset sorveglianza quando si torna alla Home
             document.querySelectorAll('.device-item').forEach(el => el.classList.remove('active'));
         }
     }
 
-    // --- OROLOGIO TATTICO ---
+    // --- OROLOGIO ---
     setInterval(() => {
         const now = new Date();
         elMissionClock.textContent = now.toLocaleTimeString('it-IT', { hour12: false });
     }, 1000);
 
-    // --- SOCKET.IO EVENTS ---
-
+    // --- SOCKET EVENTS ---
     socket.on('connect', () => {
-        logSystem("LINK ESTABLISHED WITH SOP SERVER.");
+        logSystem("LINK ESTABLISHED.");
         elGlobalStatus.textContent = "ONLINE";
-        elGlobalStatus.classList.remove('status-alert');
-        elGlobalStatus.classList.add('status-normal');
+        elGlobalStatus.className = "status-value status-normal";
     });
 
     socket.on('disconnect', () => {
-        logSystem("CONNECTION LOST - RETRYING...");
+        logSystem("CONNECTION LOST.");
         elGlobalStatus.textContent = "OFFLINE";
-        elGlobalStatus.classList.remove('status-normal');
-        elGlobalStatus.classList.add('status-alert');
+        elGlobalStatus.className = "status-value status-alert";
     });
 
     socket.on('devices_update', (devices) => {
+        currentDevices = devices; // Salviamo la lista per usarla nella selezione target
         updateDeviceList(devices);
+        
+        // Se siamo nella schermata di selezione target, aggiorniamola in tempo reale
+        if (!elViewSelectTarget.classList.contains('hidden')) {
+            renderTargetSelection();
+        }
     });
 
     socket.on('esp_event', (msg) => {
         handleGameEvent(msg);
     });
 
-    // --- FUNZIONI UI ---
+    // --- LOGICA UI ---
 
     function updateDeviceList(devices) {
         elDeviceList.innerHTML = ''; 
@@ -123,33 +119,74 @@ document.addEventListener('DOMContentLoaded', () => {
                     <span class="device-mode">${device.mode || 'UNKNOWN'}</span>
                 </div>
             `;
-            
-            li.addEventListener('click', () => {
-                openInspector(device);
-            });
-
+            li.addEventListener('click', () => { openInspector(device); });
             elDeviceList.appendChild(li);
             
-            if (device.id === activeInspectorId) {
-                updateInspectorData(device);
-            }
+            if (device.id === activeInspectorId) updateInspectorData(device);
         });
     }
 
+    // --- NUOVA LOGICA SELEZIONE TARGET ---
+    function renderTargetSelection() {
+        const grid = document.getElementById('target-grid');
+        grid.innerHTML = '';
+
+        if (currentDevices.length === 0) {
+            grid.innerHTML = '<p class="placeholder-text blink">NO ACTIVE SIGNALS DETECTED.</p>';
+            return;
+        }
+
+        currentDevices.forEach(device => {
+            const displayName = device.name || device.id;
+            
+            const card = document.createElement('div');
+            card.className = 'target-card';
+            card.innerHTML = `
+                <div class="target-icon">🎯</div>
+                <div class="target-name">${displayName}</div>
+                <div class="target-ip">${device.ip}</div>
+                <div class="target-status">${device.mode || 'IDLE'}</div>
+            `;
+            
+            card.addEventListener('click', () => {
+                // AVVIA SORVEGLIANZA SU QUESTO ID
+                monitoredDeviceId = device.id;
+                elMonitorTargetId.textContent = displayName;
+                
+                showView('monitor');
+                logSystem(`LINKING TELEMETRY TO: ${displayName}`);
+            });
+
+            grid.appendChild(card);
+        });
+    }
+
+    // --- GESTIONE VISTE E BOTTONI ---
+
+    // 1. Hub -> Setup
+    document.getElementById('btn-mode-setup').addEventListener('click', () => {
+        showView('setup');
+    });
+
+    // 2. Hub -> Selezione Target (MODIFICATO)
+    document.getElementById('btn-mode-observe').addEventListener('click', () => {
+        renderTargetSelection(); // Genera la griglia
+        showView('select-target');
+    });
+
+    // 3. Back Buttons
+    document.querySelectorAll('.back-btn').forEach(btn => {
+        btn.addEventListener('click', () => { showView('hub'); });
+    });
+
+    // 4. Inspector Logic
     function openInspector(device) {
         activeInspectorId = device.id;
-        
         const displayName = device.name || device.id;
         elInspTitle.textContent = `${displayName} // CONFIG`;
-        
         elInspAliasInput.value = (device.name === device.id) ? "" : device.name;
-        
         updateInspectorData(device);
-        
-        // Passa alla vista Inspector usando la funzione centralizzata
         showView('inspector');
-        
-        logSystem(`ACCESSING ZGT NODE: ${device.id}`);
     }
 
     function updateInspectorData(device) {
@@ -159,39 +196,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if(elInspFwVer) elInspFwVer.textContent = `FW_VER: ${device.version || '--'}`;
     }
 
-    // --- GESTIONE PULSANTI ---
-
-    // 1. NAVIGAZIONE HUB -> SETUP / MONITOR
-    const btnModeSetup = document.getElementById('btn-mode-setup');
-    if(btnModeSetup) {
-        btnModeSetup.addEventListener('click', () => {
-            showView('setup');
-            // logSystem("ACCESSING MISSION CONFIGURATION...");
-        });
-    }
-
-    const btnModeObserve = document.getElementById('btn-mode-observe');
-    if(btnModeObserve) {
-        btnModeObserve.addEventListener('click', () => {
-            showView('monitor');
-            // logSystem("INITIALIZING TELEMETRY MONITOR...");
-        });
-    }
-
-    // 2. Bottoni "Indietro" (Back) - Usati in Setup e Monitor
-    document.querySelectorAll('.back-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            showView('hub');
-        });
-    });
-
-    // 3. Chiudi Inspector
     document.querySelector('.close-inspector-btn').addEventListener('click', () => {
-        showView('hub'); // Torna all'Hub
-        logSystem("RETURNING TO HUB.");
+        showView('hub');
     });
 
-    // 4. Salva Alias
+    // 5. Utility Buttons (Rename, Reset, Scan) - (Codice invariato)
     const btnSaveAlias = document.getElementById('save-alias-btn');
     if(btnSaveAlias) {
         btnSaveAlias.addEventListener('click', () => {
@@ -199,51 +208,43 @@ document.addEventListener('DOMContentLoaded', () => {
             const newName = elInspAliasInput.value.trim();
             if(newName) {
                 socket.emit('rename_device', { id: activeInspectorId, name: newName });
-                logSystem(`ALIAS UPDATE REQUEST: ${newName}`);
             }
         });
     }
 
-    // 5. Reset Hardware
     const btnHardReset = document.getElementById('hard-reset-btn');
     if(btnHardReset) {
         btnHardReset.addEventListener('click', () => {
             if(!activeInspectorId) return;
-            if(confirm("CONFERMI RESET HARDWARE? L'asset andrà offline.")) {
-                const resetPayload = { cmd: "RESET" };
-                socket.emit('send_command', { 
-                    target_id: activeInspectorId, 
-                    command: resetPayload 
-                });
-                logSystem(`SENDING KILL SIGNAL TO ${activeInspectorId}...`);
+            if(confirm("CONFERMI RESET HARDWARE?")) {
+                socket.emit('send_command', { target_id: activeInspectorId, command: { cmd: "RESET" } });
+                logSystem(`SENDING KILL SIGNAL...`);
             }
         });
     }
 
-    // 6. Bottone SCAN
     const btnScan = document.getElementById('scan-btn');
     if(btnScan) {
         btnScan.addEventListener('click', () => {
-            logSystem("INITIATING NETWORK SCAN...");
-            elDeviceList.innerHTML = '<li class="placeholder-msg blink">SCANNING FREQUENCIES...</li>';
-            btnScan.disabled = true;
-            btnScan.style.opacity = "0.5";
-
-            setTimeout(() => {
-                socket.emit('request_manual_scan');
-                btnScan.disabled = false;
-                btnScan.style.opacity = "1";
-                logSystem("SCAN COMPLETE.");
-            }, 800); 
+            logSystem("SCANNING...");
+            elDeviceList.innerHTML = '<li class="placeholder-msg blink">SCANNING...</li>';
+            socket.emit('request_manual_scan');
         });
     }
 
-    // --- EVENTI GIOCO ---
+    // --- HANDLING EVENTI DI GIOCO ---
     function handleGameEvent(msg) {
         const raw = msg.parsed_data || {};
+        const senderId = raw.id;
         const type = raw.type;
         const payload = raw.payload || {};
         
+        // FILTRO CRITICO: Aggiorna la dashboard SOLO se l'evento arriva dal dispositivo sorvegliato
+        if (monitoredDeviceId && senderId !== monitoredDeviceId) {
+            return; // Ignora eventi di altri dispositivi
+        }
+
+        // Se siamo nel monitor, aggiorniamo i widget
         if (type === 'TIME_UPDATE') {
             if (payload.time_left !== undefined) {
                 const m = Math.floor(payload.time_left / 60);
@@ -260,9 +261,4 @@ document.addEventListener('DOMContentLoaded', () => {
         div.textContent = `> ${text}`;
         elMiniLog.prepend(div);
     }
-    
-    window.sendCommand = function(cmdObj) {
-        if (!activeInspectorId) return console.warn("No active inspector");
-        socket.emit('send_command', { target_id: activeInspectorId, command: cmdObj });
-    };
 });

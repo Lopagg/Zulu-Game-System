@@ -51,7 +51,8 @@
 
         <aside class="asset-sidebar sop-panel">
             <div class="sidebar-header">
-                <h3>ASSET LIST</h3> <div class="sidebar-tools">
+                <h3>ASSET LIST</h3> 
+                <div class="sidebar-tools">
                     <button id="scan-btn" class="icon-btn" title="Scansione Rete">[SCAN]</button>
                 </div>
             </div>
@@ -93,6 +94,20 @@
                 </div>
             </div>
 
+            <div id="view-select-target" class="view-panel hidden">
+                <div class="sop-card setup-panel">
+                    <div class="panel-header">
+                        <h2>SELECT TELEMETRY SOURCE</h2>
+                        <button class="back-btn deck-btn">[ CANCEL ]</button>
+                    </div>
+                    <div class="panel-body">
+                        <div id="target-grid" class="target-grid">
+                            <p class="placeholder-text blink">SCANNING FOR ACTIVE SIGNALS...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div id="view-setup" class="view-panel hidden">
                 <div class="sop-card setup-panel">
                     <div class="panel-header">
@@ -101,7 +116,7 @@
                     </div>
                     <div class="panel-body">
                         <p class="placeholder-text">>> WAITING FOR MODULE CONFIGURATION...</p>
-                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -109,6 +124,7 @@
                 
                 <div class="monitor-controls">
                     <button class="back-btn deck-btn" style="margin-bottom: 10px;">[ < RETURN TO HUB ]</button>
+                    <span class="monitor-label">LINKED TO: <span id="monitoring-target-id" style="color:var(--sop-primary)">--</span></span>
                 </div>
 
                 <div class="grid-dashboard">
