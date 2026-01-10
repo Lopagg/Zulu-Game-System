@@ -339,3 +339,125 @@ body {
 .console-log::-webkit-scrollbar {
     width: 4px;
 }
+
+/* --- STILI LOGIN PAGE --- */
+
+.login-body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+.login-wrapper {
+    width: 100%;
+    max-width: 450px;
+    padding: 20px;
+    z-index: 2; /* Sopra lo sfondo */
+}
+
+.login-box {
+    padding: 40px;
+    border: 2px solid var(--sop-primary); /* Bordo più spesso per il login */
+    background: rgba(10, 10, 10, 0.95);
+}
+
+.login-header {
+    text-align: center;
+    margin-bottom: 30px;
+    border-bottom: 1px solid var(--sop-dim);
+    padding-bottom: 20px;
+}
+
+.login-header h1 {
+    font-size: 36px;
+    color: var(--sop-primary);
+    letter-spacing: 4px;
+    margin-bottom: 5px;
+    text-shadow: 0 0 10px rgba(0, 255, 204, 0.3);
+}
+
+.login-header .sub {
+    color: var(--sop-alert);
+    font-size: 12px;
+    letter-spacing: 2px;
+}
+
+.login-status {
+    color: var(--sop-secondary);
+    font-size: 12px;
+    margin-bottom: 20px;
+    font-family: 'Courier New', monospace;
+}
+
+/* Campi di Input Tattici */
+.input-group {
+    margin-bottom: 20px;
+}
+
+.input-group label {
+    display: block;
+    color: var(--sop-text);
+    font-size: 12px;
+    margin-bottom: 8px;
+    letter-spacing: 1px;
+}
+
+.input-group input {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid var(--sop-dim);
+    color: var(--sop-primary);
+    padding: 12px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 16px;
+    outline: none;
+    transition: all 0.3s;
+}
+
+.input-group input:focus {
+    border-color: var(--sop-primary);
+    box-shadow: 0 0 10px rgba(0, 255, 204, 0.2);
+    background: rgba(0, 255, 204, 0.05);
+}
+
+/* Errori */
+.error-console {
+    background: rgba(255, 0, 0, 0.1);
+    border-left: 3px solid var(--sop-alert);
+    padding: 10px;
+    margin-bottom: 20px;
+}
+.error-line {
+    color: var(--sop-alert);
+    font-size: 12px;
+}
+
+/* Bottone Login */
+.login-btn {
+    width: 100%;
+    padding: 15px;
+    font-size: 18px;
+    font-weight: bold;
+    border-color: var(--sop-primary);
+    color: var(--sop-primary);
+    background: rgba(0, 255, 204, 0.1);
+    margin: 0;
+}
+.login-btn:hover {
+    background: var(--sop-primary);
+    color: #000;
+    box-shadow: 0 0 20px var(--sop-primary);
+}
+
+.login-footer {
+    margin-top: 30px;
+    text-align: center;
+    font-size: 10px;
+    color: #555;
+    line-height: 1.5;
+}
+
+/* Utility: Blink */
+.blink { animation: blinker 1s linear infinite; }
+@keyframes blinker { 50% { opacity: 0; } }

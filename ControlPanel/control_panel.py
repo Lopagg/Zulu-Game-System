@@ -20,8 +20,11 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-# --- GESTIONE UTENTI ---
-USERS = { "admin": {"password": "password", "name": "Operatore"} }
+# --- GESTIONE UTENTI (Simulata) ---
+# In un sistema reale useresti un database cifrato.
+USERS = {
+    "admin": {"password": "zulu", "name": "Operatore"} # Password cambiata
+}
 
 class User(UserMixin):
     def __init__(self, id):
