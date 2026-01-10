@@ -133,14 +133,16 @@ def receive_data_from_bridge():
         payload = parsed.get('payload', {})
         
         if device_id:
-            # Aggiorna registro
+            # 1. Aggiorna il registro (segna come ONLINE)
             mode = payload.get('mode')
             registry.update_device(device_id, ip_info, msg_type, mode)
             
-            # Inoltra evento raw al frontend
+            # 2. Inoltra l'evento raw al frontend (Log, Timer, ecc.)
             socketio.emit('esp_event', data)
             
-            # Nota: Non serve più emettere 'devices_update' qui, ci pensa il thread di background
+            # 3. AGGIUNTA FONDAMENTALE: Invia SUBITO la lista aggiornata
+            # Non aspettiamo il thread di background. Se arriva un dato, il device deve apparire.
+            socketio.emit('devices_update', registry.get_active_devices())
 
         return jsonify({"status": "ok"}), 200
 
