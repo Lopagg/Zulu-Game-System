@@ -43,6 +43,8 @@ DominationSettings* domSettings = nullptr;
 DominationMode* domMode = nullptr;
 MusicRoomMode* musicRoomMode = nullptr;
 TerminalMode* terminalMode = nullptr;
+AppState currentAppState = APP_STATE_WELCOME;
+AppState* appState = &currentAppState;
 
 /** --- Dichiarazioni Anticipate ---
  * Prototipo di funzione per displayMainMenu(). Permette di usare la funzione
@@ -76,6 +78,19 @@ void handleMainMenuState();
 void handleTestHardwareState();
 void displayTestHardwareMainMenu();
 void displayKeyTestMenu();
+
+String getCurrentModeString() {
+    switch (*appState) {
+        case APP_STATE_WELCOME: return "BOOTING...";
+        case APP_STATE_MAIN_MENU: return "MAIN MENU";
+        case APP_STATE_DOMINATION_MODE: return "DOMINATION";
+        case APP_STATE_SEARCH_DESTROY_MODE: return "SEARCH_DESTROY";
+        case APP_STATE_MUSIC_ROOM: return "MUSIC ROOM";
+        case APP_STATE_TERMINAL_MODE: return "TERMINAL";
+        case APP_STATE_TEST_HARDWARE: return "HARDWARE TEST";
+        default: return "UNKNOWN";
+    }
+}
 
 // --- SETUP ---
 /**
@@ -123,7 +138,7 @@ void setup() {
 // --- LOOP ---
 
 unsigned long lastHeartbeatTime = 0;
-const unsigned long heartbeatInterval = 5000; // 5 secondi
+const unsigned long heartbeatInterval = 2000; // 2 secondi
 
 /**
  * @brief Funzione di loop, eseguita continuamente dopo il setup().
@@ -138,9 +153,17 @@ void loop() {
 
     if (millis() - lastHeartbeatTime > heartbeatInterval) {
         lastHeartbeatTime = millis();
+        
         JsonDocument doc;
-        doc["uptime"] = millis() / 1000; // Uptime in secondi
-        // Qui potremmo aggiungere livello batteria, wifi signal, ecc.
+        
+        // 1. LE TUE INFO ESISTENTI (Non rimosse)
+        doc["uptime"] = millis() / 1000; 
+
+        // 2. LE NUOVE INFO NECESSARIE (Per fixare il menu)
+        doc["mode"] = getCurrentModeString(); // <--- FONDAMENTALE
+        doc["version"] = FIRMWARE_VERSION;    // Utile per la dashboard
+        
+        // 3. Invio
         networkManager.sendEvent("HEARTBEAT", doc);
     }
 

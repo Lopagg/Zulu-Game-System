@@ -51,22 +51,25 @@ class DeviceRegistry:
                 "name": device_id,
                 "type": "ZGT",
                 "mode": "BOOTING...",
-                "version": "Unknown" # Default
+                "version": "Unknown"
             }
         
         self.devices[device_id]["last_seen"] = now
         self.devices[device_id]["ip"] = ip_info[0] if isinstance(ip_info, list) else ip_info
         self.devices[device_id]["status"] = "ONLINE"
-
+        
         if version:
             self.devices[device_id]["version"] = version
+
+        # --- MODIFICA CRITICA QUI ---
+        # Se il pacchetto contiene una modalità, usala SEMPRE.
+        # Questo permette all'Heartbeat di correggere lo stato "BOOTING".
+        if mode:
+             self.devices[device_id]["mode"] = mode
         
-        if msg_type == "MODE_ENTER" and mode:
-            self.devices[device_id]["mode"] = mode
+        # Gestione fallback per l'uscita
         elif msg_type == "MODE_EXIT":
             self.devices[device_id]["mode"] = "MAIN MENU"
-        elif msg_type == "BOOT_COMPLETE":
-             self.devices[device_id]["mode"] = "MAIN MENU"
 
     def rename_device(self, device_id, new_name):
         if device_id in self.devices:
