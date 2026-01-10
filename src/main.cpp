@@ -43,8 +43,7 @@ DominationSettings* domSettings = nullptr;
 DominationMode* domMode = nullptr;
 MusicRoomMode* musicRoomMode = nullptr;
 TerminalMode* terminalMode = nullptr;
-AppState currentAppState = APP_STATE_WELCOME;
-AppState* appState = &currentAppState;
+
 
 /** --- Dichiarazioni Anticipate ---
  * Prototipo di funzione per displayMainMenu(). Permette di usare la funzione
@@ -56,6 +55,7 @@ void displayMainMenu();
  * All'avvio, viene impostata sulla schermata di benvenuto.
 */
 AppState currentAppState = APP_STATE_WELCOME;
+AppState* appState = &currentAppState;
 
 // --- Stato e Menu Globale ---
 // Variabili per la gestione del menu principale.

@@ -129,6 +129,9 @@ private:
     // Funzione di utilità per aggiornare le schermate di modifica
     void updateDisplayForCurrentState();
 
+    unsigned long _lastTelemetryTime;
+    void sendTelemetry();
+
 };
 
 #endif // SEARCH_DESTROY_MODE_H

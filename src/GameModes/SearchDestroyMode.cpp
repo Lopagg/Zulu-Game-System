@@ -28,7 +28,8 @@ SearchDestroyMode::SearchDestroyMode(HardwareManager* hardware, NetworkManager* 
       _defusingStartTime(0),
       _stateChangeTime(0),
       _lastDisplayedSeconds(-1),
-      _gameIsActive(false) {
+      _gameIsActive(false),
+      _lastTelemetryTime(0) {
 }
 
 /**
@@ -47,8 +48,11 @@ void SearchDestroyMode::enter() {
     
     JsonDocument doc;
     doc["mode"] = "SEARCH_AND_DESTROY";
-    // Inviamo parametri utili
     doc["bomb_time"] = _settings->getBombTime();
+    // Inviamo anche i tempi di innesco/disinnesco per le regole lato web
+    doc["arm_time"] = _settings->getArmingTime();
+    doc["defuse_time"] = _settings->getDefuseTime();
+    
     _network->sendEvent("MODE_ENTER", doc);
 
     sendSettingsStatus();
@@ -91,6 +95,16 @@ void SearchDestroyMode::loop() {
     // Usiamo indexOf per essere tolleranti verso eventuali spazi o caratteri extra
     if (command.indexOf("FORCE_END_GAME") >= 0) {
         forceEndGame();
+    }
+
+    // --- GESTIONE TELEMETRIA ---
+
+    bool isHighAction = (_currentState == ModeState::IN_GAME_IS_ARMING || _currentState == ModeState::IN_GAME_IS_DEFUSING || _gameIsActive);
+    unsigned long interval = isHighAction ? 250 : 1000;
+    
+    if (millis() - _lastTelemetryTime > interval) {
+        _lastTelemetryTime = millis();
+        sendTelemetry();
     }
 
     if (_currentState >= ModeState::IN_GAME_CONFIRM) {
@@ -297,7 +311,10 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
 
             JsonDocument doc;
             doc["time"] = remainingSeconds;
-            _network->sendEvent("TIME_UPDATE", doc);;
+            // doc["time_left"] è quello che il monitor si aspetta per il timer globale,
+            // ma qui stiamo mandando TIME_UPDATE. Per S&D usiamo SD_UPDATE nella funzione sendTelemetry.
+            // Lasciamo questo evento per compatibilità generica se necessario.
+            _network->sendEvent("TIME_UPDATE", doc);
 
             if (_currentState == ModeState::IN_GAME_COUNTDOWN) {
                 updateCountdownDisplay(remainingSeconds);
@@ -355,7 +372,10 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
                 _hardware->setStripColor(255, 100, 0); _hardware->playTone(1000, 80);
                 _hardware->setStripColor(255, 0, 0); _hardware->playTone(400, 100);
             }
-            _hardware->playTone(150, 3000); return;
+            _hardware->playTone(150, 3000);
+            
+            sendTelemetry();
+            return;
         }
     }
 
@@ -472,6 +492,7 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
                 _lastDisplayedSeconds = -1; 
                 _gameIsActive = true; 
                 displayCountdownLayout();
+                sendTelemetry();
             }
             break;
         case ModeState::IN_GAME_COUNTDOWN:  // case IN_GAME_COUNTDOWN: la bomba è innescata, il timer scorre e si attende un disinnesco.
@@ -516,6 +537,8 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
                     _hardware->playTone(1500, 80); 
                     _hardware->playTone(1800, 80); 
                     _hardware->playTone(2200, 100);
+
+                    sendTelemetry();
                 }
                 return;
             }
@@ -568,6 +591,8 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
                     _hardware->playTone(1500, 80); 
                     _hardware->playTone(1800, 80); 
                     _hardware->playTone(2200, 100);
+
+                    sendTelemetry();
                 } else {
                     _network->sendEvent("DEFUSE_PIN_WRONG");
                     _hardware->clearLcd(); 
@@ -801,4 +826,45 @@ void SearchDestroyMode::forceEndGame() {
     _hardware->playTone(1800, 80); 
     delay(100);
     _hardware->playTone(2200, 100);
+
+    sendTelemetry();
+}
+
+void SearchDestroyMode::sendTelemetry() {
+    JsonDocument doc;
+    
+    // 1. Stato Testuale
+    if (_currentState == ModeState::IN_GAME_ENDED) doc["state"] = "EXPLODED";
+    else if (_currentState == ModeState::IN_GAME_DEFUSED) doc["state"] = "DEFUSED";
+    else if (_currentState == ModeState::IN_GAME_COUNTDOWN || _currentState == ModeState::IN_GAME_ARMED) doc["state"] = "ARMED";
+    else if (_currentState == ModeState::IN_GAME_IS_ARMING) doc["state"] = "ARMING...";
+    else if (_currentState == ModeState::IN_GAME_IS_DEFUSING) doc["state"] = "DEFUSING...";
+    else doc["state"] = "SAFE";
+
+    // 2. Percentuali Barre (0-100)
+    if (_currentState == ModeState::IN_GAME_IS_ARMING) {
+        unsigned long total = _settings->getArmingTime() * 1000;
+        unsigned long elapsed = millis() - _armingStartTime;
+        doc["arm_prog"] = (total > 0) ? (elapsed * 100 / total) : 0;
+    } else {
+        doc["arm_prog"] = 0;
+    }
+    
+    if (_currentState == ModeState::IN_GAME_IS_DEFUSING) {
+        unsigned long total = _settings->getDefuseTime() * 1000;
+        unsigned long elapsed = millis() - _defusingStartTime;
+        doc["def_prog"] = (total > 0) ? (elapsed * 100 / total) : 0;
+    } else {
+        doc["def_prog"] = 0;
+    }
+    
+    // 3. Timer Bomba (se attiva)
+    if (_gameIsActive) {
+        long totalSeconds = _settings->getBombTime() * 60;
+        TimeSpan elapsed = _hardware->getRTCTime() - _roundStartTime;
+        long remainingSeconds = totalSeconds - elapsed.totalseconds();
+        doc["bomb_time"] = (remainingSeconds > 0) ? remainingSeconds : 0;
+    }
+
+    _network->sendEvent("SD_UPDATE", doc);
 }
