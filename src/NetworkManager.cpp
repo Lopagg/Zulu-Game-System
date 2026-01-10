@@ -1,12 +1,9 @@
-// src/NetworkManager.cpp
-
 #include "NetworkManager.h"
+#include <ArduinoJson.h>
 
 String deviceId = "";   // Variabile globale per il MAC Address
 
 // --- Lista delle reti Wi-Fi conosciute ---
-// Aggiungi qui tutte le reti a cui vuoi che il dispositivo si connetta.
-// Puoi aggiungerne quante ne vuoi.
 struct WifiCredential {
     const char* ssid;
     const char* password;
@@ -19,12 +16,16 @@ const WifiCredential knownNetworks[] = {
 };
 const int numKnownNetworks = sizeof(knownNetworks) / sizeof(knownNetworks[0]);
 
+// Il tuo server DDNS
 const char* SERVER_HOSTNAME = "zuluserver.ddns.net";
 
 // Costruttore
-NetworkManager::NetworkManager() : _udpPort(1234), _ipResolved(false) {}
+NetworkManager::NetworkManager() : _udpPort(12345), _ipResolved(false), _hardware(nullptr) {}
 
 void NetworkManager::initialize(HardwareManager* hardware) {
+    // Salviamo il riferimento all'hardware per usarlo anche in update() (es. per il Reset)
+    _hardware = hardware;
+
     Serial.println("--- Inizializzazione Rete (JSON Edition) ---");
     hardware->clearLcd();
     hardware->printLcd(0, 0, "Scansione WiFi...");
@@ -74,23 +75,18 @@ connection_success:
 
         // --- SEZIONE NTP ---
         hardware->printLcd(0, 1, "Sync Orario...");
-        // Configura l'ora: GMT+1 (3600 sec) e Ora Legale (+3600 sec)
         configTime(3600, 3600, "pool.ntp.org", "time.nist.gov");
-        
-        // Diamo tempo al sistema di ricevere il pacchetto NTP
         delay(2000); 
-        
-        // Chiediamo all'hardware manager di aggiornare l'RTC
         hardware->syncWithNTP();
-        // -------------------
         
         _udp.begin(_udpPort);
         
-        // Risolvi l'IP del server ORA, non durante il gioco
+        // Risoluzione IP Server
         resolveServerIP();
 
+        // Invia evento di BOOT (Presentazione al sistema)
         JsonDocument bootDoc;
-        bootDoc["mode"] = "MAIN MENU"; // Diciamo subito che siamo nel menu
+        bootDoc["mode"] = "MAIN MENU"; 
         bootDoc["version"] = "1.0";
         sendEvent("BOOT_COMPLETE", bootDoc);
 
@@ -102,6 +98,8 @@ connection_success:
 void NetworkManager::resolveServerIP() {
     Serial.print("Risoluzione DNS server: ");
     Serial.println(SERVER_HOSTNAME);
+    
+    // Prova a risolvere il nome a dominio
     if (WiFi.hostByName(SERVER_HOSTNAME, _serverIP)) {
         _ipResolved = true;
         Serial.print("Server IP trovato: ");
@@ -109,6 +107,7 @@ void NetworkManager::resolveServerIP() {
     } else {
         _ipResolved = false;
         Serial.println("Errore DNS! Impossibile trovare il server.");
+        if (_hardware) _hardware->printLcd(0, 1, "DNS Error!");
     }
 }
 
@@ -125,56 +124,56 @@ void NetworkManager::update() {
         Serial.printf("RX [%s]: %s\n", _lastSenderIP.toString().c_str(), _lastMessage.c_str());
 
         // --- INTERCETTAZIONE COMANDI GLOBALI (SYSTEM LEVEL) ---
-        // Controlliamo subito se è un comando di reset, indipendentemente dalla modalità attuale.
-        
         JsonDocument doc;
         DeserializationError error = deserializeJson(doc, _lastMessage);
 
         if (!error) {
-            // Verifichiamo se c'è un campo "cmd" uguale a "RESET"
+            // Cerca il comando RESET
             const char* cmd = doc["cmd"];
             if (cmd && strcmp(cmd, "RESET") == 0) {
                 Serial.println("!!! GLOBAL SYSTEM RESET RECEIVED !!!");
                 
-                // Opzionale: Se hai accesso all'hardware manager qui (dovresti passarlo nel costruttore o update)
-                // Altrimenti stampi solo su seriale e riavvii.
+                // Feedback visivo (ora funziona perché abbiamo salvato _hardware)
+                if (_hardware) {
+                    _hardware->clearLcd();
+                    _hardware->printLcd(0, 0, "SYSTEM RESET");
+                    _hardware->printLcd(0, 1, "Riavvio...");
+                }
                 
-                delay(500); // Piccolo delay per assicurarsi che il log seriale esca
+                delay(1000); 
                 ESP.restart();
             }
         }
-        // ------------------------------------------------------
     }
 }
 
-// Invia un evento con dati complessi
 void NetworkManager::sendEvent(const String& eventType, const JsonDocument& data) {
+    // Se il DNS non è risolto o la connessione è caduta, riprova
     if (!isConnected() || !_ipResolved) {
-        // Riprova a risolvere se avevamo fallito
-        if (isConnected() && !_ipResolved) resolveServerIP();
-        if (!_ipResolved) return;
+        if (isConnected()) resolveServerIP();
+        if (!_ipResolved) return; // Se fallisce ancora, non inviare nulla
     }
 
     // 1. Crea il pacchetto JSON
     JsonDocument doc;
-    doc["id"] = deviceId;      // Chi sono
-    doc["type"] = eventType;   // Cosa è successo (es. "GAME_START")
-    doc["payload"] = data;     // Dati extra (es. punteggi)
+    doc["id"] = deviceId;
+    doc["type"] = eventType;
+    // Copia i dati del payload (deep copy per sicurezza)
+    doc["payload"] = data;
 
-    // 2. Serializza in stringa
+    // 2. Serializza
     String jsonString;
     serializeJson(doc, jsonString);
 
-    // 3. Spedisci
+    // 3. Invia
     _udp.beginPacket(_serverIP, _udpPort);
     _udp.print(jsonString);
     _udp.endPacket();
-
-    // Debug
-    // Serial.print("TX: "); Serial.println(jsonString);
+    
+    // Serial.println("TX: " + jsonString); // Decommenta per debug intenso
 }
 
-// Override per eventi semplici (senza payload dati)
+// Override per eventi semplici
 void NetworkManager::sendEvent(const String& eventType) {
     JsonDocument emptyDoc;
     sendEvent(eventType, emptyDoc);
@@ -183,7 +182,7 @@ void NetworkManager::sendEvent(const String& eventType) {
 String NetworkManager::getReceivedMessage() {
     if (_lastMessage != "") {
         String msg = _lastMessage;
-        _lastMessage = "";
+        _lastMessage = ""; 
         return msg;
     }
     return "";

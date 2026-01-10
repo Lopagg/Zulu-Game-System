@@ -66,6 +66,7 @@ private:
     bool _ipResolved;
     String _lastMessage;
     IPAddress _lastSenderIP;
+    HardwareManager* _hardware;
 
     void resolveServerIP(); // Funzione interna per trovare l'IP
 };
