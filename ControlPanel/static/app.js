@@ -351,6 +351,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const senderId = raw.id;
         const type = raw.type;
         const payload = raw.payload || {};
+
+        // --- LOGGING DEI MESSAGGI ---
+        // Filtriamo gli eventi ad alta frequenza per non intasare il log
+        if (type && type !== 'TIME_UPDATE' && type !== 'SD_UPDATE' && type !== 'HEARTBEAT') {
+            // Mostra ID abbreviato e tipo messaggio
+            const shortId = senderId ? senderId.slice(-4) : 'SYS';
+            logSystem(`[${shortId}] ${type}`);
+        }
         
         // --- 1. DATI GLOBALI (Timer Partita e Giocatori) ---
         // Questi dati aggiornano sempre i widget in alto, indipendentemente dal target
