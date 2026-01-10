@@ -128,42 +128,40 @@
                 </div>
 
                 <div class="grid-dashboard">
+                    
                     <div class="widget sop-card widget-timer">
-                        <div class="widget-header">GAME TIMER</div>
+                        <div class="widget-header">MATCH TIMER</div>
                         <div class="widget-body">
                             <h1 id="global-timer-display">--:--</h1>
                         </div>
                     </div>
 
                     <div class="widget sop-card widget-factions">
-                        <div class="widget-header">OPERATOR STATUS</div>
+                        <div class="widget-header">OPERATOR COUNT</div>
                         <div class="widget-body faction-grid">
-                            <div class="faction">
-                                <span class="faction-score">--</span>
-                                <span class="faction-name">ALIVE</span>
+                            <div class="faction faction-a">
+                                <span class="faction-score" id="score-a">0</span>
+                                <span class="faction-name">TEAM ALPHA</span>
                             </div>
-                            <div class="vs-divider">/</div>
-                            <div class="faction">
-                                <span class="faction-score">--</span>
-                                <span class="faction-name">TOTAL</span>
+                            <div class="vs-divider">VS</div>
+                            <div class="faction faction-b">
+                                <span class="faction-score" id="score-b">0</span>
+                                <span class="faction-name">TEAM BRAVO</span>
                             </div>
                         </div>
                     </div>
 
-                    <div class="widget sop-card widget-tactical">
+                    <div id="widget-sd-tactical" class="widget sop-card widget-tactical hidden">
                         <div class="widget-header">TACTICAL FEED // BOMB STATUS</div>
                         <div class="widget-body tactical-body">
-                            
                             <div class="bomb-status-box">
                                 <span class="label">STATUS:</span>
                                 <span id="sd-bomb-status" class="status-value">SAFE</span>
                             </div>
-
                             <div class="bomb-timer-container">
                                 <span class="label">DETONATION SEQUENCE</span>
-                                <div id="sd-bomb-timer" class="digital-clock">00:00:00</div>
+                                <div id="sd-bomb-timer" class="digital-clock">00:00</div>
                             </div>
-
                             <div class="progress-section">
                                 <div class="prog-group">
                                     <span class="prog-label">ARMING SEQUENCE</span>
@@ -171,7 +169,6 @@
                                         <div id="sd-arm-bar" class="progress-fill fill-red" style="width: 0%"></div>
                                     </div>
                                 </div>
-                                
                                 <div class="prog-group">
                                     <span class="prog-label">DEFUSAL SEQUENCE</span>
                                     <div class="progress-track">
@@ -179,11 +176,17 @@
                                     </div>
                                 </div>
                             </div>
-
                         </div>
                     </div>
 
-                    <div class="widget sop-card widget-rules">
+                    <div id="widget-generic-map" class="widget sop-card widget-map">
+                        <div class="widget-header">TACTICAL MAP</div>
+                        <div class="widget-body">
+                            <p class="no-data">STANDARD TELEMETRY ACTIVE</p>
+                        </div>
+                    </div>
+
+                    <div id="widget-sd-rules" class="widget sop-card widget-rules hidden">
                         <div class="widget-header">MISSION INTEL // RULES</div>
                         <div class="widget-body rules-body">
                             <ul id="sd-rules-list" class="rules-list">

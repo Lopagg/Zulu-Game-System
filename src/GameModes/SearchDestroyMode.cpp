@@ -100,7 +100,7 @@ void SearchDestroyMode::loop() {
     // --- GESTIONE TELEMETRIA ---
 
     bool isHighAction = (_currentState == ModeState::IN_GAME_IS_ARMING || _currentState == ModeState::IN_GAME_IS_DEFUSING || _gameIsActive);
-    unsigned long interval = isHighAction ? 250 : 1000;
+    unsigned long interval = isHighAction ? 100 : 1000;
     
     if (millis() - _lastTelemetryTime > interval) {
         _lastTelemetryTime = millis();
@@ -845,7 +845,8 @@ void SearchDestroyMode::sendTelemetry() {
     if (_currentState == ModeState::IN_GAME_IS_ARMING) {
         unsigned long total = _settings->getArmingTime() * 1000;
         unsigned long elapsed = millis() - _armingStartTime;
-        doc["arm_prog"] = (total > 0) ? (elapsed * 100 / total) : 0;
+        if(total == 0) total = 1;
+        doc["arm_prog"] = (elapsed * 100) / total;
     } else {
         doc["arm_prog"] = 0;
     }
@@ -853,12 +854,13 @@ void SearchDestroyMode::sendTelemetry() {
     if (_currentState == ModeState::IN_GAME_IS_DEFUSING) {
         unsigned long total = _settings->getDefuseTime() * 1000;
         unsigned long elapsed = millis() - _defusingStartTime;
-        doc["def_prog"] = (total > 0) ? (elapsed * 100 / total) : 0;
+        if(total == 0) total = 1;
+        doc["def_prog"] = (elapsed * 100) / total;
     } else {
         doc["def_prog"] = 0;
     }
     
-    // 3. Timer Bomba (se attiva)
+    // 3. Timer Bomba
     if (_gameIsActive) {
         long totalSeconds = _settings->getBombTime() * 60;
         TimeSpan elapsed = _hardware->getRTCTime() - _roundStartTime;

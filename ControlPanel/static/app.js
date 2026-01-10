@@ -28,7 +28,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const elMissionClock = document.getElementById('mission-clock');
 
     // --- MONITOR WIDGETS (Vista Monitor) ---
-    // Generici
+    
+    // Widget Contenitori (Per nascondere/mostrare in base alla modalità)
+    const elWidgetSdTactical = document.getElementById('widget-sd-tactical');
+    const elWidgetSdRules = document.getElementById('widget-sd-rules');
+    const elWidgetGenericMap = document.getElementById('widget-generic-map');
+
+    // Generici (Timer Partita e Punteggi/Giocatori)
     const elGlobalTimer = document.getElementById('global-timer-display');
     const elScoreA = document.getElementById('score-a');
     const elScoreB = document.getElementById('score-b');
@@ -84,6 +90,14 @@ document.addEventListener('DOMContentLoaded', () => {
         // Se siamo nella vista di selezione target, aggiorniamo la griglia in tempo reale
         if (!elViewSelectTarget.classList.contains('hidden')) {
             renderTargetSelection();
+        }
+
+        // Se stiamo monitorando un dispositivo, controlliamo se ha cambiato modalità
+        if (monitoredDeviceId) {
+            const dev = devices.find(d => d.id === monitoredDeviceId);
+            if (dev && dev.mode) {
+                updateMonitorLayout(dev.mode);
+            }
         }
     });
 
@@ -182,28 +196,48 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
             
             card.addEventListener('click', () => {
-                // Imposta il target e vai al Monitor
+                // Imposta il target
                 monitoredDeviceId = device.id;
                 elMonitorTargetId.textContent = displayName;
                 
+                // Configura il layout in base alla modalità attuale del dispositivo
+                updateMonitorLayout(device.mode);
+                
+                // Resetta i dati visuali per evitare "fantasmi"
+                resetMonitorData();
+
                 showView('monitor');
                 logSystem(`LINKING TELEMETRY TO: ${displayName}`);
-                
-                // Pulisce la vecchia telemetria per evitare confusione
-                resetMonitorData();
             });
 
             grid.appendChild(card);
         });
     }
     
+    // Funzione per nascondere/mostrare widget in base alla modalità
+    function updateMonitorLayout(mode) {
+        if (!mode) return;
+
+        if (mode === 'SEARCH_AND_DESTROY') {
+            // Mostra Pannelli S&D, Nascondi Mappa Generica
+            elWidgetSdTactical.classList.remove('hidden');
+            elWidgetSdRules.classList.remove('hidden');
+            elWidgetGenericMap.classList.add('hidden');
+        } else {
+            // Modalità diverse: Nascondi S&D, Mostra Mappa Generica
+            elWidgetSdTactical.classList.add('hidden');
+            elWidgetSdRules.classList.add('hidden');
+            elWidgetGenericMap.classList.remove('hidden');
+        }
+    }
+
     function resetMonitorData() {
         if(elSdBombTimer) elSdBombTimer.textContent = "00:00";
         if(elSdBombStatus) elSdBombStatus.textContent = "WAITING...";
         if(elSdBombStatus) elSdBombStatus.style.color = "#fff";
         if(elSdArmBar) elSdArmBar.style.width = "0%";
         if(elSdDefuseBar) elSdDefuseBar.style.width = "0%";
-        if(elSdRulesList) elSdRulesList.innerHTML = '<li>WAITING FOR DATA...</li>';
+        if(elSdRulesList) elSdRulesList.innerHTML = '<li>WAITING FOR TELEMETRY...</li>';
     }
 
     // --- FUNZIONI UI INSPECTOR ---
@@ -318,79 +352,88 @@ document.addEventListener('DOMContentLoaded', () => {
         const type = raw.type;
         const payload = raw.payload || {};
         
-        // FILTRO: Se stiamo monitorando uno specifico target, ignoriamo gli altri
-        // Ma permettiamo l'aggiornamento se non stiamo monitorando nessuno (opzionale)
-        if (monitoredDeviceId && senderId !== monitoredDeviceId) {
-            return; 
-        }
-
-        // --- 1. CERCA E DISTRUGGI (SD_UPDATE) ---
-        if (type === 'SD_UPDATE') {
-            // Stato Bomba (Testo e Colore)
-            if (payload.state) {
-                elSdBombStatus.textContent = payload.state;
-                if(payload.state === 'ARMED') elSdBombStatus.style.color = 'var(--sop-alert)';
-                else if(payload.state === 'SAFE') elSdBombStatus.style.color = 'var(--sop-primary)';
-                else elSdBombStatus.style.color = '#fff';
-            }
-
-            // Timer Bomba
-            if (payload.bomb_time !== undefined) {
-                const m = Math.floor(payload.bomb_time / 60);
-                const s = payload.bomb_time % 60;
-                elSdBombTimer.textContent = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
-            } else if (payload.state === 'ARMED' || payload.state === 'ARMING...') {
-                 // Se non c'è tempo ma è armata, lasciamo il valore precedente o --
-            } else {
-                 elSdBombTimer.textContent = "00:00";
-            }
-
-            // Barre Progresso
-            if (payload.arm_prog !== undefined) elSdArmBar.style.width = `${payload.arm_prog}%`;
-            if (payload.def_prog !== undefined) elSdDefuseBar.style.width = `${payload.def_prog}%`;
-        }
-
-        // --- 2. REGOLE (MODE_ENTER) ---
-        if (type === 'MODE_ENTER') {
-            // Se entra in S&D, popola la lista regole
-            if (raw.payload.mode === 'SEARCH_AND_DESTROY') {
-                renderRules(payload);
-            }
-        }
-
-        // --- 3. TIMER GIOCO GLOBALE (Time Update) ---
+        // --- 1. DATI GLOBALI (Timer Partita e Giocatori) ---
+        // Questi dati aggiornano sempre i widget in alto, indipendentemente dal target
         if (type === 'TIME_UPDATE') {
             if (payload.time_left !== undefined) {
                 const m = Math.floor(payload.time_left / 60);
                 const s = payload.time_left % 60;
                 elGlobalTimer.textContent = `${m}:${s.toString().padStart(2, '0')}`;
             }
+            // Aggiornamento Fazioni (Giocatori)
             if (payload.t1_poss !== undefined) elScoreA.textContent = payload.t1_poss;
             if (payload.t2_poss !== undefined) elScoreB.textContent = payload.t2_poss;
         }
-        
-        // Log sistema (Debug opzionale)
-        // if (type) logSystem(`EVENT RX: ${type}`); 
+
+        // --- 2. DATI TARGET-SPECIFICI (Bomba e Regole) ---
+        // Filtraggio: Processiamo solo se arriva dal dispositivo che stiamo guardando
+        if (monitoredDeviceId && senderId === monitoredDeviceId) {
+            
+            // RILEVAMENTO CAMBIO MODALITÀ
+            // Se riceviamo un Heartbeat, Mode Enter o Update, controlliamo la modalità per aggiustare il layout
+            if (type === 'HEARTBEAT' || type === 'MODE_ENTER' || type === 'SD_UPDATE' || type === 'SETTINGS_UPDATE') {
+                const mode = payload.mode || (type === 'SD_UPDATE' ? 'SEARCH_AND_DESTROY' : null);
+                if (mode) updateMonitorLayout(mode);
+            }
+
+            // GESTIONE REGOLE (Pannello Destro)
+            if (type === 'SETTINGS_UPDATE' || (type === 'MODE_ENTER' && payload.bomb_time)) {
+                renderRules(payload);
+            }
+
+            // GESTIONE TELEMETRIA S&D (Pannello Sinistro)
+            if (type === 'SD_UPDATE') {
+                // Stato Testuale
+                if (payload.state) {
+                    elSdBombStatus.textContent = payload.state;
+                    if(payload.state === 'ARMED') elSdBombStatus.style.color = 'var(--sop-alert)';
+                    else if(payload.state === 'SAFE') elSdBombStatus.style.color = 'var(--sop-primary)';
+                    else elSdBombStatus.style.color = '#fff';
+                }
+
+                // Timer Bomba
+                if (payload.bomb_time !== undefined) {
+                    const m = Math.floor(payload.bomb_time / 60);
+                    const s = payload.bomb_time % 60;
+                    elSdBombTimer.textContent = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+                } else if (payload.state === 'ARMED' || payload.state === 'ARMING...') {
+                     // Mantieni visualizzazione o metti --
+                } else {
+                     elSdBombTimer.textContent = "00:00";
+                }
+
+                // Barre Progresso
+                if (payload.arm_prog !== undefined) elSdArmBar.style.width = `${payload.arm_prog}%`;
+                if (payload.def_prog !== undefined) elSdDefuseBar.style.width = `${payload.def_prog}%`;
+            }
+        }
     }
 
-    // Helper: Renderizza la lista regole
+    // Funzione per mostrare le regole nel pannello laterale
     function renderRules(payload) {
         if(!elSdRulesList) return;
         elSdRulesList.innerHTML = '';
         
         const keysMap = {
-            'bomb_time': 'TEMPO DETONAZIONE',
-            'arm_time': 'TEMPO INNESCO',
-            'defuse_time': 'TEMPO DISINNESCO',
-            'game_duration': 'DURATA ROUND'
+            'bomb_time': 'TIMER BOMBA (Min)',
+            'arm_time': 'TEMPO INNESCO (Sec)',
+            'defuse_time': 'TEMPO DISINNESCO (Sec)',
+            'game_duration': 'DURATA ROUND (Min)',
+            'arm_pin_req': 'PIN INNESCO?',
+            'defuse_pin_req': 'PIN DISINNESCO?'
         };
 
         for (const [key, val] of Object.entries(payload)) {
-            if (key === 'mode' || key === 'version') continue; 
-            const label = keysMap[key] || key.toUpperCase();
+            if (key === 'mode' || key === 'version' || key === 'type') continue; 
+            
+            let displayVal = val;
+            if(val === true || val === 'YES') displayVal = 'SÌ';
+            if(val === false || val === 'NO') displayVal = 'NO';
+
+            const label = keysMap[key] || key.toUpperCase().replace('_', ' ');
             
             const li = document.createElement('li');
-            li.innerHTML = `<span class="rule-key">${label}</span> <span class="rule-val">${val}s</span>`;
+            li.innerHTML = `<span class="rule-key">${label}</span> <span class="rule-val">${displayVal}</span>`;
             elSdRulesList.appendChild(li);
         }
     }
