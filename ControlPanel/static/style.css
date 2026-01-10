@@ -1,127 +1,304 @@
-body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #1e1e1e; color: #d4d4d4; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
-.main-container { width: 100%; max-width: 1200px; display: flex; flex-direction: column; gap: 20px; position: relative; }
-h1 { color: #4e94e2; border-bottom: 2px solid #4e94e2; padding-bottom: 10px; width: 100%; text-align: center; }
-h2 { color: #c586c0; text-align: center; font-size: 2em; margin-top: 0; }
-.hidden { display: none !important; }
-.panel { background-color: #252526; border: 1px solid #3c3c3c; border-radius: 8px; padding: 20px; }
-
-.user-bar { width: 100%; text-align: right; margin-top: 40px; margin-bottom: -10px; }
-
-.details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-.details-grid h3 { color: #61afef; border-bottom: 1px solid #61afef; padding-bottom: 5px; }
-.details-grid p { font-size: 1.2em; }
-.details-grid span.setting-value { font-weight: bold; color: #b5cea8; }
-
-.big-timer { font-size: 8em; font-weight: bold; color: #9cdcfe; text-align: center; margin: 20px 0; }
-
-/* Stili Comuni */
-.progress-bar-container { background-color: #3c3c3c; border-radius: 5px; padding: 3px; margin-top: 10px; }
-.progress-bar { height: 20px; border-radius: 3px; width: 0%; transition: width 0.1s linear; }
-#team1-progress, #arm-progress { background-color: #d16d6d; }
-#team2-progress, #defuse-progress { background-color: #6a9955; }
-.team-red { color: #d16d6d; font-weight: bold; }
-.team-green { color: #6a9955; font-weight: bold; }
-.timer-controls { text-align: center; margin-top: 10px; }
-.timer-controls input, .timer-controls select { width: 80px; padding: 5px; background-color: #3c3c3c; border: 1px solid #61afef; color: #d4d4d4; border-radius: 4px;}
-.timer-controls button { padding: 8px 15px; background-color: #4e94e2; border: none; color: white; border-radius: 4px; cursor: pointer; font-size: 1em; margin: 5px; }
-.timer-controls button:disabled { background-color: #3c3c3c; color: #6a6a6a; cursor: not-allowed; }
-.start-game-btn, .end-game-btn { background-color: #ce1e1e !important; font-weight: bold; padding: 12px 20px !important; font-size: 1.2em !important; }
-
-#sd-bomb-timer { 
-    font-family: "DSEG7 Classic", monospace;
-    font-size: 4em; 
-    font-weight: bold; 
-    color: #d16d6d; 
-}
-
-#simple-view, #terminal-view { text-align: center; font-size: 1.5em; }
-#simple-mode-name, #terminal-view p { font-weight: bold; color: #c586c0; }
-
-.log-container { display: block; }
-.log { height: 200px; overflow-y: scroll; border: 1px solid #3c3c3c; padding: 10px; background-color: #1e1e1e; border-radius: 4px; font-family: 'Courier New', Courier, monospace; font-size: 0.9em; }
-#log-list { list-style: none; padding: 0; margin: 0; }
-#log-list li { padding: 2px 5px; border-bottom: 1px solid #3a3f4b; }
-
-/* Stili per l'indicatore di stato */
-.connection-status {
-    position: absolute; top: 0px; right: 0px; display: flex; align-items: center;
-    padding: 5px 10px; border-radius: 5px; font-weight: bold;
-    font-size: 0.9em; transition: all 0.3s ease;
-}
-.status-dot { width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; transition: background-color 0.3s ease; }
-.connection-status.status-offline { background-color: rgba(209, 109, 109, 0.2); color: #d16d6d; }
-.connection-status.status-offline .status-dot { background-color: #d16d6d; }
-.connection-status.status-online { background-color: rgba(106, 153, 85, 0.2); color: #6a9955; }
-.connection-status.status-online .status-dot { background-color: #6a9955; }
-
-/* Stili per il pannello "In Attesa" */
-#waiting-view { text-align: center; padding: 50px 20px; }
-#waiting-view h2 { font-size: 1.8em; }
-#waiting-view p { font-size: 1.2em; color: #9cdcfe; }
-
-
-/* --- Media Query per Dispositivi Mobili --- */
-@media screen and (max-width: 768px) {
-    /* Imposta la griglia a colonna singola su schermi piccoli */
-    .details-grid {
-        grid-template-columns: 1fr; /* Una sola colonna */
-        gap: 30px; /* Aumenta un po' lo spazio verticale tra le sezioni */
-    }
-
-    /* Riduci la dimensione dei timer grandi per adattarli allo schermo */
-    .big-timer {
-        font-size: 5em; /* Riduci da 8em */
-    }
-
-    /* Riduci leggermente i titoli per un look più pulito */
-    h1 {
-        font-size: 1.8em;
-    }
-
-    h2 {
-        font-size: 1.5em;
-    }
+/* --- ZULU SOP THEME VARIABLES --- */
+:root {
+    --sop-bg: #050505;          /* Nero profondo */
+    --sop-panel: #0a0a0a;       /* Pannelli leggermente più chiari */
+    --sop-primary: #00ffcc;     /* Ciano Tattico */
+    --sop-secondary: #ff9900;   /* Ambra Militare */
+    --sop-alert: #ff3333;       /* Rosso Allarme */
+    --sop-dim: #333333;         /* Elementi disattivati */
+    --sop-text: #e0e0e0;        /* Testo principale */
     
-    /* Adatta la barra utente e lo stato connessione */
-    .user-bar {
-        margin-top: 50px; /* Abbassa la barra utente per non sovrapporsi */
-    }
-    .connection-status {
-        font-size: 0.8em; /* Riduci un po' il testo per schermi molto piccoli */
-    }
+    --grid-gap: 10px;
+    --scanline-color: rgba(0, 255, 204, 0.05);
 }
 
-.terminal-list-ul {
-    list-style: none;
+/* --- RESET & BASE --- */
+* {
+    box-sizing: border-box;
+    margin: 0;
     padding: 0;
-    margin: 10px 0;
 }
 
-.terminal-list-item {
-    background-color: #3c3c3c;
-    border: 1px solid #555;
-    border-radius: 5px;
+body {
+    background-color: var(--sop-bg);
+    color: var(--sop-text);
+    font-family: 'Share Tech Mono', monospace; /* Font tecnico */
+    height: 100vh;
+    overflow: hidden; /* Niente scrollbar, è un'app */
+    font-size: 16px;
+}
+
+/* --- SFONDO TATTICO --- */
+.tactical-background {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    z-index: -1;
+    background: 
+        linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
+        linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+    background-size: 100% 2px, 3px 100%;
+    pointer-events: none;
+}
+
+.grid-overlay {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background-image: 
+        linear-gradient(var(--sop-dim) 1px, transparent 1px),
+        linear-gradient(90deg, var(--sop-dim) 1px, transparent 1px);
+    background-size: 50px 50px;
+    opacity: 0.1;
+}
+
+/* Animazione Scanline */
+.scan-line {
+    width: 100%;
+    height: 100px;
+    z-index: 10;
+    background: linear-gradient(0deg, rgba(0,0,0,0) 0%, var(--scanline-color) 50%, rgba(0,0,0,0) 100%);
+    opacity: 0.1;
+    position: absolute;
+    bottom: 100%;
+    animation: scanline 10s linear infinite;
+    pointer-events: none;
+}
+
+@keyframes scanline {
+    0% { bottom: 100%; }
+    100% { bottom: -100px; }
+}
+
+/* --- LAYOUT GRID --- */
+.app-container {
+    display: grid;
+    height: 100vh;
+    grid-template-areas:
+        "header header"
+        "sidebar main"
+        "footer footer";
+    grid-template-rows: 60px 1fr 50px; /* Header, Main, Footer */
+    grid-template-columns: 300px 1fr;  /* Sidebar fissa, resto fluido */
+    gap: var(--grid-gap);
+    padding: var(--grid-gap);
+}
+
+/* --- PANNELLI COMUNI (SOP PANEL) --- */
+.sop-panel {
+    background: var(--sop-panel);
+    border: 1px solid var(--sop-dim);
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+    position: relative;
+}
+
+/* Angolo tagliato stile militare */
+.sop-panel::after {
+    content: '';
+    position: absolute;
+    top: 0; right: 0;
+    width: 0; height: 0;
+    border-style: solid;
+    border-width: 0 15px 15px 0;
+    border-color: transparent var(--sop-bg) transparent transparent;
+}
+
+/* --- A. HEADER --- */
+.system-header {
+    grid-area: header;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    border-bottom: 2px solid var(--sop-primary);
+}
+
+.logo-text { font-size: 24px; font-weight: bold; color: var(--sop-text); letter-spacing: 2px; }
+.logo-sub { font-size: 12px; color: var(--sop-primary); margin-left: 10px; }
+
+.status-value { font-weight: bold; padding: 2px 8px; border-radius: 2px; }
+.status-normal { color: var(--sop-bg); background: var(--sop-primary); box-shadow: 0 0 10px var(--sop-primary); }
+.status-alert { color: var(--sop-bg); background: var(--sop-alert); box-shadow: 0 0 10px var(--sop-alert); }
+
+#mission-clock {
+    font-size: 28px;
+    color: var(--sop-text);
+    text-shadow: 0 0 5px var(--sop-primary);
+}
+
+.header-right { display: flex; gap: 20px; align-items: center; font-size: 12px; color: var(--sop-primary); }
+.logout-btn { color: var(--sop-alert); text-decoration: none; margin-left: 10px; border: 1px solid var(--sop-alert); padding: 2px 5px; }
+
+/* --- B. SIDEBAR (DEVICE LIST) --- */
+.asset-sidebar {
+    grid-area: sidebar;
+    display: flex;
+    flex-direction: column;
+}
+
+.sidebar-header {
     padding: 15px;
-    margin-bottom: 10px;
+    background: rgba(0, 255, 204, 0.05);
+    border-bottom: 1px solid var(--sop-dim);
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 1.1em;
 }
 
-.terminal-list-item.busy {
-    color: #888;
-    cursor: not-allowed;
+.device-list {
+    flex: 1;
+    overflow-y: auto;
+    list-style: none;
+    padding: 10px;
 }
 
-.terminal-list-item.ready {
-    color: #b5cea8;
-    font-weight: bold;
-    border-color: #6a9955;
+.device-item {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--sop-dim);
+    margin-bottom: 8px;
+    padding: 10px;
+    display: flex;
+    align-items: center;
     cursor: pointer;
-    transition: background-color 0.2s;
+    transition: all 0.2s;
 }
 
-.terminal-list-item.ready:hover {
-    background-color: #4a4a4a;
+.device-item:hover, .device-item.active {
+    border-color: var(--sop-primary);
+    background: rgba(0, 255, 204, 0.1);
 }
+
+.device-icon {
+    width: 30px; height: 30px;
+    background: var(--sop-dim);
+    color: var(--sop-bg);
+    display: flex; justify-content: center; align-items: center;
+    font-weight: bold; font-size: 10px;
+    margin-right: 10px;
+}
+
+.device-item.status-online .device-icon { background: var(--sop-primary); }
+.device-item.status-offline .device-icon { background: var(--sop-alert); }
+
+.device-info { flex: 1; display: flex; flex-direction: column; }
+.device-id { font-size: 14px; font-weight: bold; color: var(--sop-text); }
+.device-mode { font-size: 10px; color: #888; }
+
+.console-log {
+    height: 100px;
+    background: #000;
+    border-top: 1px solid var(--sop-dim);
+    padding: 5px;
+    font-size: 10px;
+    color: #666;
+    overflow-y: auto;
+    font-family: 'Courier New', monospace;
+}
+
+/* --- C. MAIN STAGE --- */
+.main-stage {
+    grid-area: main;
+    position: relative;
+    overflow: hidden;
+}
+
+.view-panel {
+    width: 100%; height: 100%;
+    display: none; /* Nascosto di default */
+}
+.view-panel.active { display: block; }
+
+/* Grid Dashboard interna */
+.grid-dashboard {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: 200px 1fr;
+    gap: 15px;
+    height: 100%;
+}
+
+.widget {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--sop-dim);
+    display: flex;
+    flex-direction: column;
+}
+
+.widget-header {
+    background: var(--sop-dim);
+    color: var(--sop-text);
+    padding: 5px 10px;
+    font-size: 12px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.widget-body {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+}
+
+/* Widget Timer */
+.widget-timer h1 {
+    font-size: 80px;
+    color: var(--sop-primary);
+    text-shadow: 0 0 10px rgba(0, 255, 204, 0.5);
+}
+
+/* Widget Fazioni */
+.faction-grid { width: 100%; display: flex; justify-content: space-around; }
+.faction { text-align: center; }
+.faction-score { display: block; font-size: 48px; font-weight: bold; }
+.faction-a .faction-score { color: #ff5555; } /* Rossi */
+.faction-b .faction-score { color: #55ff55; } /* Verdi */
+.vs-divider { font-size: 24px; color: #666; align-self: center; }
+
+/* Inspector (Vista dettaglio) */
+.inspector-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--sop-primary);
+    padding-bottom: 10px;
+}
+.close-inspector-btn {
+    background: transparent; border: 1px solid var(--sop-primary);
+    color: var(--sop-primary); padding: 5px 10px; cursor: pointer;
+}
+.close-inspector-btn:hover { background: var(--sop-primary); color: #000; }
+
+.inspector-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+/* --- D. FOOTER --- */
+.command-deck {
+    grid-area: footer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    border-top: 1px solid var(--sop-alert);
+}
+
+.deck-label { color: var(--sop-alert); font-weight: bold; letter-spacing: 2px; }
+
+.deck-btn {
+    background: transparent;
+    border: 1px solid var(--sop-dim);
+    color: var(--sop-text);
+    padding: 5px 15px;
+    font-family: inherit;
+    cursor: pointer;
+    margin-left: 10px;
+    transition: all 0.2s;
+}
+
+.deck-btn:hover { border-color: var(--sop-primary); color: var(--sop-primary); }
+.btn-danger { border-color: var(--sop-alert); color: var(--sop-alert); }
+.btn-danger:hover { background: var(--sop-alert); color: #000; }
+
+/* --- UTILS --- */
+.hidden { display: none !important; }
