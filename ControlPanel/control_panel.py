@@ -44,7 +44,9 @@ class DeviceRegistry:
 
     def update_device(self, device_id, ip_info, msg_type, mode=None, version=None):
         now = time.time()
+        changed = False # Traccia se ci sono cambiamenti visibili per la UI
         
+        # 1. Nuovo Dispositivo
         if device_id not in self.devices:
             self.devices[device_id] = {
                 "id": device_id,
@@ -53,19 +55,31 @@ class DeviceRegistry:
                 "mode": "BOOTING...",
                 "version": "Unknown"
             }
+            changed = True 
         
         self.devices[device_id]["last_seen"] = now
-        self.devices[device_id]["ip"] = ip_info[0] if isinstance(ip_info, list) else ip_info
+        
+        # 2. Cambio IP
+        new_ip = ip_info[0] if isinstance(ip_info, list) else ip_info
+        if self.devices[device_id].get("ip") != new_ip:
+            self.devices[device_id]["ip"] = new_ip
+            # changed = True # Opzionale: decommenta se vuoi refresh su cambio IP
+        
         self.devices[device_id]["status"] = "ONLINE"
         
-        if version:
+        if version and self.devices[device_id].get("version") != version:
             self.devices[device_id]["version"] = version
+            changed = True
 
-        # Aggiorna la modalità se presente nel pacchetto (es. da Heartbeat o Mode Enter)
-        if mode:
+        # 3. Cambio Modalità (Cruciale per la tua richiesta)
+        if mode and self.devices[device_id].get("mode") != mode:
              self.devices[device_id]["mode"] = mode
-        elif msg_type == "MODE_EXIT":
+             changed = True
+        elif msg_type == "MODE_EXIT" and self.devices[device_id].get("mode") != "MAIN MENU":
             self.devices[device_id]["mode"] = "MAIN MENU"
+            changed = True
+            
+        return changed
 
     def rename_device(self, device_id, new_name):
         if device_id in self.devices:
@@ -86,21 +100,28 @@ class DeviceRegistry:
                 active_list.append(data)
         
         # Rimuovi i morti
+        needs_update = False
         for d_id in to_remove:
             del self.devices[d_id]
+            needs_update = True
             
-        return active_list
+        return active_list, needs_update
 
 registry = DeviceRegistry()
 
 # --- TASK DI PULIZIA AUTOMATICA ---
-# Questo thread gira ogni 2 secondi, pulisce la lista e la invia al frontend.
-# Risolve il problema del "dispositivo che non scompare mai".
 def background_cleanup_task():
+    """Controlla periodicamente i dispositivi offline e pulisce la lista."""
+    print("[SYSTEM] Background Cleanup Task Started")
     while True:
         socketio.sleep(2)
-        active_devs = registry.get_active_devices()
-        socketio.emit('devices_update', active_devs)
+        try:
+            active_devs, removed_something = registry.get_active_devices()
+            # Invia aggiornamento solo se abbiamo rimosso qualcuno (evita traffico inutile)
+            if removed_something:
+                socketio.emit('devices_update', active_devs)
+        except Exception as e:
+            print(f"[ERROR] Cleanup Task: {e}")
 
 # --- ROUTES ---
 
@@ -144,13 +165,17 @@ def receive_data_from_bridge():
         if device_id:
             mode = payload.get('mode')
             version = payload.get('version')
-            registry.update_device(device_id, ip_info, msg_type, mode, version)
             
-            # Invia l'evento al frontend (per i log e il gioco)
+            # Aggiorna registro e controlla se ci sono cambiamenti visivi (es. cambio modalità)
+            has_changed = registry.update_device(device_id, ip_info, msg_type, mode, version)
+            
+            # 1. Invia SEMPRE l'evento di gioco (per timer, log, ecc.)
             socketio.emit('esp_event', data)
             
-            # Invia subito la lista aggiornata (opzionale, ma rende la UI reattiva)
-            # socketio.emit('devices_update', registry.get_active_devices())
+            # 2. Invia aggiornamento lista SOLO se necessario (risolve il lag modaltà SENZA spam)
+            if has_changed:
+                active_devs, _ = registry.get_active_devices()
+                socketio.emit('devices_update', active_devs)
 
         return jsonify({"status": "ok"}), 200
 
@@ -186,11 +211,13 @@ def handle_rename(data):
     new_name = data.get('name')
     if device_id and new_name:
         registry.rename_device(device_id, new_name)
-        socketio.emit('devices_update', registry.get_active_devices())
+        # Forza aggiornamento immediato
+        active_devs, _ = registry.get_active_devices()
+        socketio.emit('devices_update', active_devs)
 
 @socketio.on('request_manual_scan')
 def handle_manual_scan():
-    active_devs = registry.get_active_devices()
+    active_devs, _ = registry.get_active_devices()
     socketio.emit('devices_update', active_devs)
 
 @socketio.on('send_command')
@@ -212,6 +239,6 @@ def handle_socket_command(data):
             print(f"[ERROR SOCKET] {e}")
 
 if __name__ == '__main__':
-    # AVVIO TASK BACKGROUND (Fondamentale per il refresh automatico)
+    # Avvio del task di pulizia background
     socketio.start_background_task(target=background_cleanup_task)
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
