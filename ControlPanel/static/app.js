@@ -353,17 +353,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const payload = raw.payload || {};
 
         // --- LOGGING ---
-        // Nascondiamo SOLO gli eventi ad altissima frequenza (Timer e Barre)
-        // HEARTBEAT ora è visibile per confermare la connessione
-        if (type !== 'TIME_UPDATE' && type !== 'SD_UPDATE') {
-            // Per Heartbeat, magari mostriamo solo se non è troppo frequente? 
-            // Per ora lasciamolo visibile come richiesto.
-            if(type === 'HEARTBEAT') {
-               // Opzionale: decommenta se vuoi nascondere anche heartbeat
-               // return; 
-               logSystem(`[${shortId}] HEARTBEAT OK`);
+        // Mostriamo HEARTBEAT ma non gli eventi rapidi di timer/barre
+        if (type && type !== 'TIME_UPDATE' && type !== 'SD_UPDATE') {
+            if (type === 'HEARTBEAT') {
+                logSystem(`[${shortId}] HEARTBEAT OK`); // <--- Questo ti conferma che è vivo
             } else {
-               logSystem(`[${shortId}] ${type}`);
+                logSystem(`[${shortId}] ${type}`);
             }
         }
         
@@ -383,6 +378,13 @@ document.addEventListener('DOMContentLoaded', () => {
         // --- 2. DATI TARGET-SPECIFICI (Bomba e Regole) ---
         // Filtraggio: Processiamo solo se arriva dal dispositivo che stiamo guardando
         if (monitoredDeviceId && senderId === monitoredDeviceId) {
+
+            let mode = payload.mode || (type === 'SD_UPDATE' ? 'SEARCH_AND_DESTROY' : null);
+        
+            // Se il firmware invia il vecchio nome, lo correggiamo al volo
+            if (mode === 'SEARCH_DESTROY') {
+                mode = 'SEARCH_AND_DESTROY';
+            }
             
             // RILEVAMENTO CAMBIO MODALITÀ
             // Se riceviamo un Heartbeat, Mode Enter o Update, controlliamo la modalità per aggiustare il layout

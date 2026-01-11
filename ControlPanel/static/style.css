@@ -217,10 +217,16 @@ body {
 .device-id { font-size: 14px; font-weight: bold; color: var(--sop-text); }
 .device-mode { font-size: 10px; color: #888; }
 
-.console-log {
-    height: 100px;
+.sidebar-footer {
+    height: 200px; /* Aumentato da default */
     background: #000;
     border-top: 1px solid var(--sop-dim);
+    padding: 5px;
+    overflow: hidden;
+}
+
+.console-log {
+    height: 100%; /* Si adatta al contenitore padre */
     padding: 5px;
     font-size: 10px;
     color: #666;
@@ -795,3 +801,94 @@ body {
     font-size: 10px; padding: 2px 5px; margin-top: 10px; 
     background: #111; border: 1px solid #333; 
 }
+
+/* --- MONITOR DASHBOARD LAYOUT (NUOVO) --- */
+
+.grid-dashboard {
+    display: grid;
+    grid-template-columns: 1fr 1fr; /* 2 Colonne uguali */
+    grid-template-rows: 150px 1fr;  /* Timer in alto piccoli, resto grande */
+    gap: 15px;
+    height: 100%;
+}
+
+/* Posizionamento Widget */
+.widget-timer    { grid-column: 1 / 2; grid-row: 1 / 2; } /* Timer a Sinistra */
+.widget-factions { grid-column: 2 / 3; grid-row: 1 / 2; } /* Fazioni a Destra */
+.widget-tactical, .widget-map { grid-column: 1 / 2; grid-row: 2 / 3; } /* Sotto Sinistra */
+.widget-rules    { grid-column: 2 / 3; grid-row: 2 / 3; } /* Sotto Destra */
+
+/* TACTICAL FEED (Bomba S&D) */
+.tactical-body {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    padding: 20px;
+    height: 100%;
+}
+
+.bomb-status-box {
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid var(--sop-dim); padding-bottom: 10px;
+}
+
+.digital-clock {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 60px;
+    color: var(--sop-alert);
+    text-align: center;
+    letter-spacing: 5px;
+    text-shadow: 0 0 10px rgba(255, 51, 51, 0.4);
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--sop-alert);
+    border-radius: 5px;
+    margin: 10px 0;
+}
+
+/* Barre di Progresso Fluide */
+.progress-section { margin-top: 20px; }
+.prog-group { margin-bottom: 15px; }
+.prog-label { font-size: 10px; color: #888; display: block; margin-bottom: 5px; text-transform: uppercase; }
+
+.progress-track {
+    width: 100%; height: 25px; /* Più alte per visibilità */
+    background: #0a0a0a;
+    border: 1px solid var(--sop-dim);
+    position: relative;
+    overflow: hidden;
+    border-radius: 2px;
+}
+
+.progress-fill {
+    height: 100%;
+    width: 0%;
+    transition: width 0.1s linear; /* FLUIDITÀ */
+    position: relative;
+}
+
+/* Pattern stile militare */
+.progress-fill::after {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background-image: linear-gradient(45deg,rgba(0,0,0,.15) 25%,transparent 25%,transparent 50%,rgba(0,0,0,.15) 50%,rgba(0,0,0,.15) 75%,transparent 75%,transparent);
+    background-size: 1rem 1rem;
+    animation: progress-stripe 1s linear infinite;
+}
+
+@keyframes progress-stripe { from { background-position: 1rem 0; } to { background-position: 0 0; } }
+
+.fill-red { background-color: var(--sop-alert); box-shadow: 0 0 10px var(--sop-alert); }
+.fill-blue { background-color: var(--sop-primary); box-shadow: 0 0 10px var(--sop-primary); }
+
+/* Rules List */
+.rules-list { list-style: none; padding: 20px; width: 100%; overflow-y: auto; }
+.rules-list li {
+    display: flex; justify-content: space-between;
+    border-bottom: 1px dashed var(--sop-dim);
+    padding: 10px 0;
+    font-size: 14px; color: var(--sop-text);
+}
+.rule-key { color: var(--sop-primary); font-weight: bold; }
+.rule-val { color: #fff; }
+
+/* Nascondi elementi */
+.hidden { display: none !important; }
