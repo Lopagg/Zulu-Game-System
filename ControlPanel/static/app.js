@@ -348,79 +348,68 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function handleGameEvent(msg) {
         const raw = msg.parsed_data || {};
-        const senderId = raw.id;
-        const type = raw.type;
+        const senderId = raw.id || 'UNK';
+        const type = raw.type || 'UNKNOWN';
         const payload = raw.payload || {};
+        const shortId = senderId.slice(-4);
 
-        // --- 1. LOGGING (Modificato) ---
-        // Definiamo cosa è "spam" (messaggi troppo frequenti)
-        const isSpam = (type === 'TIME_UPDATE' || type === 'SD_UPDATE');
+        // Debug Console Browser (Premi F12 per vedere se arrivano dati)
+        // console.log("RX Event:", type, payload); 
 
-        // Se esiste un tipo e non è spam, SCRIVILO nel log
-        if (type && !isSpam) {
+        // --- 1. LOGGING VISIBILE ---
+        // Mostra tutto tranne i messaggi spam (aggiornamenti rapidi)
+        // TIME_UPDATE = Timer globale (1s)
+        // SD_UPDATE = Barre progresso (100ms)
+        if (type !== 'TIME_UPDATE' && type !== 'SD_UPDATE') {
             logSystem(`[${shortId}] ${type}`);
         }
-        
-        // --- 1. DATI GLOBALI (Timer Partita e Giocatori) ---
-        // Questi dati aggiornano sempre i widget in alto, indipendentemente dal target
+
+        // --- 2. AGGIORNAMENTO DATI GLOBALI ---
         if (type === 'TIME_UPDATE') {
             if (payload.time_left !== undefined) {
                 const m = Math.floor(payload.time_left / 60);
                 const s = payload.time_left % 60;
-                elGlobalTimer.textContent = `${m}:${s.toString().padStart(2, '0')}`;
+                if(elGlobalTimer) elGlobalTimer.textContent = `${m}:${s.toString().padStart(2, '0')}`;
             }
-            // Aggiornamento Fazioni (Giocatori)
-            if (payload.t1_poss !== undefined) elScoreA.textContent = payload.t1_poss;
-            if (payload.t2_poss !== undefined) elScoreB.textContent = payload.t2_poss;
+            if (payload.t1_poss !== undefined && elScoreA) elScoreA.textContent = payload.t1_poss;
+            if (payload.t2_poss !== undefined && elScoreB) elScoreB.textContent = payload.t2_poss;
         }
 
-        // --- 2. DATI TARGET-SPECIFICI (Bomba e Regole) ---
-        // Filtraggio: Processiamo solo se arriva dal dispositivo che stiamo guardando
+        // --- 3. DATI DISPOSITIVO MONITORATO ---
         if (monitoredDeviceId && senderId === monitoredDeviceId) {
-
-            let mode = payload.mode || (type === 'SD_UPDATE' ? 'SEARCH_AND_DESTROY' : null);
-        
-            // Se il firmware invia il vecchio nome, lo correggiamo al volo
-            if (mode === 'SEARCH_DESTROY') {
-                mode = 'SEARCH_AND_DESTROY';
-            }
             
-            // RILEVAMENTO CAMBIO MODALITÀ
-            // Se riceviamo un Heartbeat, Mode Enter o Update, controlliamo la modalità per aggiustare il layout
-            if (type === 'HEARTBEAT' || type === 'MODE_ENTER' || type === 'SD_UPDATE' || type === 'SETTINGS_UPDATE') {
-                const mode = payload.mode || (type === 'SD_UPDATE' ? 'SEARCH_AND_DESTROY' : null);
-                if (mode) updateMonitorLayout(mode);
+            // Patch sicurezza nome modalità
+            let mode = payload.mode || (type === 'SD_UPDATE' ? 'SEARCH_AND_DESTROY' : null);
+            if (mode === 'SEARCH_DESTROY') mode = 'SEARCH_AND_DESTROY';
+
+            // Cambio Modalità
+            if (mode && (type === 'HEARTBEAT' || type === 'MODE_ENTER' || type === 'SD_UPDATE' || type === 'SETTINGS_UPDATE')) {
+                updateMonitorLayout(mode);
             }
 
-            // GESTIONE REGOLE (Pannello Destro)
+            // Regole
             if (type === 'SETTINGS_UPDATE' || (type === 'MODE_ENTER' && payload.bomb_time)) {
                 renderRules(payload);
             }
 
-            // GESTIONE TELEMETRIA S&D (Pannello Sinistro)
+            // Telemetria S&D
             if (type === 'SD_UPDATE') {
-                // Stato Testuale
-                if (payload.state) {
+                if (payload.state && elSdBombStatus) {
                     elSdBombStatus.textContent = payload.state;
-                    if(payload.state === 'ARMED') elSdBombStatus.style.color = 'var(--sop-alert)';
+                    // Colori stato
+                    if(payload.state === 'ARMED' || payload.state === 'ARMING...') elSdBombStatus.style.color = 'var(--sop-alert)';
                     else if(payload.state === 'SAFE') elSdBombStatus.style.color = 'var(--sop-primary)';
                     else elSdBombStatus.style.color = '#fff';
                 }
-
-                // Timer Bomba
-                if (payload.bomb_time !== undefined) {
+                
+                if (payload.bomb_time !== undefined && elSdBombTimer) {
                     const m = Math.floor(payload.bomb_time / 60);
                     const s = payload.bomb_time % 60;
                     elSdBombTimer.textContent = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
-                } else if (payload.state === 'ARMED' || payload.state === 'ARMING...') {
-                     // Mantieni visualizzazione o metti --
-                } else {
-                     elSdBombTimer.textContent = "00:00";
-                }
-
-                // Barre Progresso
-                if (payload.arm_prog !== undefined) elSdArmBar.style.width = `${payload.arm_prog}%`;
-                if (payload.def_prog !== undefined) elSdDefuseBar.style.width = `${payload.def_prog}%`;
+                } 
+                
+                if (payload.arm_prog !== undefined && elSdArmBar) elSdArmBar.style.width = `${payload.arm_prog}%`;
+                if (payload.def_prog !== undefined && elSdDefuseBar) elSdDefuseBar.style.width = `${payload.def_prog}%`;
             }
         }
     }
