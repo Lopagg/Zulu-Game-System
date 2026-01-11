@@ -352,14 +352,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const type = raw.type;
         const payload = raw.payload || {};
 
-        // --- LOGGING ---
-        // Mostriamo HEARTBEAT ma non gli eventi rapidi di timer/barre
-        if (type && type !== 'TIME_UPDATE' && type !== 'SD_UPDATE') {
-            if (type === 'HEARTBEAT') {
-                logSystem(`[${shortId}] HEARTBEAT OK`); // <--- Questo ti conferma che è vivo
-            } else {
-                logSystem(`[${shortId}] ${type}`);
-            }
+        // --- 1. LOGGING (Modificato) ---
+        // Definiamo cosa è "spam" (messaggi troppo frequenti)
+        const isSpam = (type === 'TIME_UPDATE' || type === 'SD_UPDATE');
+
+        // Se esiste un tipo e non è spam, SCRIVILO nel log
+        if (type && !isSpam) {
+            logSystem(`[${shortId}] ${type}`);
         }
         
         // --- 1. DATI GLOBALI (Timer Partita e Giocatori) ---
