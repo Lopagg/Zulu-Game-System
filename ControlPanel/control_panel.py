@@ -108,6 +108,8 @@ class DeviceRegistry:
 
 registry = DeviceRegistry()
 
+background_thread_started = False
+
 def background_cleanup():
     """Gira in background. Pulisce la lista e stampa debug nella console."""
     print("[DEBUG SYSTEM] Task di Pulizia AVVIATO.")
@@ -137,6 +139,21 @@ def background_cleanup():
             print(f"[ERROR CRITICAL] Errore nel thread di pulizia: {e}")
 
 # --- ROUTES ---
+
+@socketio.on('connect')
+def handle_connect():
+    global background_thread_started
+    if not background_thread_started:
+        socketio.start_background_task(background_cleanup)
+        background_thread_started = True
+        print("[SYSTEM] Background Cleanup Task Started (on connect)")
+    
+    # Invia subito la lista al nuovo client
+    active_devs, _ = registry.get_active_devices()
+    emit('devices_update', active_devs)
+    
+    # Log di conferma
+    print(f"[SYSTEM] Client connected: {request.sid}")
 
 @app.route('/')
 @login_required
@@ -243,11 +260,5 @@ def handle_socket_command(data):
         print(f"[ERROR SOCKET] {e}")
 
 if __name__ == '__main__':
-    print("[BOOT] Avvio server ZULU...")
-    
-    # IMPORTANTE: Usiamo start_background_task di socketio, NON threading.Thread
-    # Questo garantisce che 'socketio.emit' funzioni anche dal background.
-    socketio.start_background_task(background_cleanup)
-    
-    # Avvia il server
+    # Rimuovi start_background_task da qui
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
