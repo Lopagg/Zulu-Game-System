@@ -108,19 +108,33 @@ class DeviceRegistry:
 
 registry = DeviceRegistry()
 
-# --- TASK PULIZIA (SocketIO Background Task) ---
 def background_cleanup():
-    """Gira in un thread gestito da SocketIO e pulisce la lista ogni 2 secondi."""
-    print("[SYSTEM] Background Cleanup Task Started")
+    """Gira in background. Pulisce la lista e stampa debug nella console."""
+    print("[DEBUG SYSTEM] Task di Pulizia AVVIATO.")
+    
     while True:
-        socketio.sleep(2) # USA QUESTO! time.sleep() blocca tutto con SocketIO.
+        # Usiamo socketio.sleep per non bloccare il server asincrono
+        socketio.sleep(2) 
+        
         try:
+            # Stampiamo quanti dispositivi ci sono prima del controllo
+            count_before = len(registry.devices)
+            
+            # Eseguiamo la pulizia
             active_devs, removed_something = registry.get_active_devices()
+            
+            # Se abbiamo rimosso qualcosa, lo stampiamo e inviamo l'update
             if removed_something:
-                print(f"[SYSTEM] Rimossi dispositivi inattivi. Rimasti: {len(active_devs)}")
+                print(f"[DEBUG SYSTEM] Rilevato dispositivo morto! Rimasti: {len(active_devs)}")
+                print("[DEBUG SYSTEM] Invio aggiornamento 'devices_update' ai client...")
                 socketio.emit('devices_update', active_devs)
+            
+            # (Opzionale) Decommenta questa riga se vuoi vedere che il loop gira anche se non fa niente
+            # else:
+            #    print(f"[DEBUG SYSTEM] Loop pulizia OK. Dispositivi attivi: {len(active_devs)}")
+
         except Exception as e:
-            print(f"[ERROR] Cleanup Task: {e}")
+            print(f"[ERROR CRITICAL] Errore nel thread di pulizia: {e}")
 
 # --- ROUTES ---
 
@@ -229,8 +243,11 @@ def handle_socket_command(data):
         print(f"[ERROR SOCKET] {e}")
 
 if __name__ == '__main__':
-    # Avvia task di pulizia usando il gestore nativo di SocketIO
-    # Questo assicura che 'socketio.emit' funzioni anche dal background
+    print("[BOOT] Avvio server ZULU...")
+    
+    # IMPORTANTE: Usiamo start_background_task di socketio, NON threading.Thread
+    # Questo garantisce che 'socketio.emit' funzioni anche dal background.
     socketio.start_background_task(background_cleanup)
     
+    # Avvia il server
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
