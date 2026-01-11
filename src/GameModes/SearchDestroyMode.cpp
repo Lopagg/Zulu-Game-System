@@ -305,6 +305,36 @@ void SearchDestroyMode::handleBooleanEditInput(char key, bool btn1, bool btn2) {
  * del giocatore (innesco, disinnesco, inserimento PIN, ecc.).
  */
 void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_was_pressed, bool btn2_is_pressed, bool btn2_was_pressed) {
+
+    // GESTIONE TIMER GLOBALE PARTITA ---
+    if (_gameIsActive) {
+        long totalMatchSeconds = _settings->getGameDuration() * 60;
+        TimeSpan matchElapsed = _hardware->getRTCTime() - _gameMatchStartTime;
+        long remainingMatchSeconds = totalMatchSeconds - matchElapsed.totalseconds();
+
+        // Se il tempo partita scade, vincono i CT (Tempo esaurito per i terroristi)
+        if (remainingMatchSeconds <= 0 && _currentState != ModeState::IN_GAME_ENDED && _currentState != ModeState::IN_GAME_DEFUSED) {
+            
+            // Forza fine partita
+            JsonDocument doc;
+            doc["winner"] = "COUNTER_TERRORISTS";
+            doc["reason"] = "MATCH_TIME_EXPIRED";
+            _network->sendEvent("GAME_END", doc);
+
+            _currentState = ModeState::IN_GAME_ENDED; // O uno stato specifico "TIME_OVER"
+            _gameIsActive = false;
+            
+            _hardware->noTone();
+            _hardware->clearLcd();
+            _hardware->printLcd(1, 1, "TEMPO SCADUTO!");
+            _hardware->printLcd(0, 2, "Vince la squadra CT!");
+            _hardware->playTone(1000, 1000);
+            
+            sendTelemetry();
+            return; // Esci per non processare altro
+        }
+    }
+
     // Prima parte: gestione del timer principale della bomba (se attivo)
     if (_gameIsActive) {
         //Calcola il tempo rimanente, aggiorna il display e gestisce gli eventi sonori/visivi del timer
@@ -395,6 +425,11 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
             if (btn2_was_pressed) { 
                 _network->sendEvent("GAME_START");
                 _hardware->playTone(1500, 150);
+
+                // Salva il momento di inizio partita ---
+                _gameMatchStartTime = _hardware->getRTCTime();
+                _gameIsActive = true; // La partita è attiva (per il timer globale)
+
                 _currentState = ModeState::IN_GAME_AWAIT_ARM; 
                 displayAwaitArmScreen();
             }
@@ -792,6 +827,7 @@ void SearchDestroyMode::displayDefusingScreen(unsigned long progress) {
 void SearchDestroyMode::sendSettingsStatus() {
     JsonDocument doc;
     doc["bomb_time"] = _settings->getBombTime();
+    doc["game_duration"] = _settings->getGameDuration();
     doc["arm_pin"] = _settings->getArmingPin();
     doc["disarm_pin"] = _settings->getDisarmingPin();
     doc["arm_time"] = _settings->getArmingTime();
@@ -839,39 +875,53 @@ void SearchDestroyMode::forceEndGame() {
 void SearchDestroyMode::sendTelemetry() {
     JsonDocument doc;
     
-    // 1. Stato Testuale
-    if (_currentState == ModeState::IN_GAME_ENDED) doc["state"] = "EXPLODED";
+    // 1. Stato Testuale (Invariato)
+    if (_currentState == ModeState::IN_GAME_ENDED) doc["state"] = "EXPLODED"; // O "GAME OVER"
     else if (_currentState == ModeState::IN_GAME_DEFUSED) doc["state"] = "DEFUSED";
     else if (_currentState == ModeState::IN_GAME_COUNTDOWN || _currentState == ModeState::IN_GAME_ARMED) doc["state"] = "ARMED";
     else if (_currentState == ModeState::IN_GAME_IS_ARMING) doc["state"] = "ARMING...";
     else if (_currentState == ModeState::IN_GAME_IS_DEFUSING) doc["state"] = "DEFUSING...";
     else doc["state"] = "SAFE";
 
-    // 2. Percentuali Barre (0-100)
+    // 2. Percentuali Barre (Invariato)
     if (_currentState == ModeState::IN_GAME_IS_ARMING) {
         unsigned long total = _settings->getArmingTime() * 1000;
         unsigned long elapsed = millis() - _armingStartTime;
-        if(total == 0) total = 1;
-        doc["arm_prog"] = (elapsed * 100) / total;
-    } else {
-        doc["arm_prog"] = 0;
-    }
+        doc["arm_prog"] = (total > 0) ? (elapsed * 100 / total) : 0;
+    } else doc["arm_prog"] = 0;
     
     if (_currentState == ModeState::IN_GAME_IS_DEFUSING) {
         unsigned long total = _settings->getDefuseTime() * 1000;
         unsigned long elapsed = millis() - _defusingStartTime;
-        if(total == 0) total = 1;
-        doc["def_prog"] = (elapsed * 100) / total;
-    } else {
-        doc["def_prog"] = 0;
-    }
+        doc["def_prog"] = (total > 0) ? (elapsed * 100 / total) : 0;
+    } else doc["def_prog"] = 0;
     
-    // 3. Timer Bomba
-    if (_gameIsActive) {
+    // 3. TIMER BOMBA (Se attiva)
+    // Nota: _gameIsActive qui sotto si riferisce alla "fase bomba", 
+    // potresti voler rinominare la variabile membro in _bombTimerActive per chiarezza,
+    // ma per ora manteniamo la logica esistente per non rompere il codice.
+    // Se la bomba è armata, calcoliamo il tempo bomba.
+    bool bombArmed = (_currentState == ModeState::IN_GAME_COUNTDOWN || 
+                      _currentState == ModeState::IN_GAME_IS_DEFUSING || 
+                      _currentState == ModeState::IN_GAME_ENTER_DEFUSE_PIN);
+
+    if (bombArmed) {
         long totalSeconds = _settings->getBombTime() * 60;
         TimeSpan elapsed = _hardware->getRTCTime() - _roundStartTime;
-        long remainingSeconds = totalSeconds - elapsed.totalseconds();
-        doc["bomb_time"] = (remainingSeconds > 0) ? remainingSeconds : 0;
+        long remaining = totalSeconds - elapsed.totalseconds();
+        doc["bomb_time"] = (remaining > 0) ? remaining : 0;
+    } else {
+        doc["bomb_time"] = 0; // O null
+    }
+
+    // 4. NUOVO: TIMER PARTITA (Sempre attivo finché non finisce il gioco)
+    if (_gameIsActive) { // Assumendo che imposti _gameIsActive = true all'avvio
+        long totalMatch = _settings->getGameDuration() * 60;
+        TimeSpan matchElapsed = _hardware->getRTCTime() - _gameMatchStartTime;
+        long remainingMatch = totalMatch - matchElapsed.totalseconds();
+        doc["game_time"] = (remainingMatch > 0) ? remainingMatch : 0;
+    } else {
+        doc["game_time"] = 0;
     }
 
     _network->sendEvent("SD_UPDATE", doc);

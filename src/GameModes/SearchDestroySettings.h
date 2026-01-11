@@ -44,6 +44,7 @@ public:
     int getDefuseTime();
     bool getUseArmingPin();
     bool getUseDisarmingPin();
+    int getGameDuration();
 
     // --- Metodi Setter (per modificare i valori delle impostazioni) ---
     void setBombTime(int time);
@@ -53,6 +54,7 @@ public:
     void setDefuseTime(int time);
     void setUseArmingPin(bool value);
     void setUseDisarmingPin(bool value);
+    void setGameDuration(int minutes);
 
 private:
     // Variabili membro private che contengono i valori delle impostazioni.
@@ -63,6 +65,7 @@ private:
     int _defuseTime;
     bool _useArmingPin;
     bool _useDisarmingPin;
+    int _gameDuration;
 
     // Oggetto della libreria Preferences per interagire con la memoria flash.
     Preferences preferences;

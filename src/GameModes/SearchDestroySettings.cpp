@@ -28,6 +28,7 @@ void SearchDestroySettings::saveParameters() {
     preferences.putInt("defuseTime", _defuseTime);
     preferences.putBool("useArmPin", _useArmingPin);
     preferences.putBool("useDisarmPin", _useDisarmingPin);
+    preferences.putInt("gameDuration", _gameDuration);
     preferences.end();
     Serial.println("Parametri salvati.");
 }
@@ -47,6 +48,7 @@ void SearchDestroySettings::loadParameters() {
     _defuseTime = preferences.getInt("defuseTime", 10);
     _useArmingPin = preferences.getBool("useArmPin", true);
     _useDisarmingPin = preferences.getBool("useDisarmPin", true);
+    _gameDuration = preferences.getInt("gameDuration", 15);
     preferences.end();
     Serial.println("Parametri caricati.");
 }
@@ -60,6 +62,7 @@ int SearchDestroySettings::getArmingTime() { return _armingTime; }
 int SearchDestroySettings::getDefuseTime() { return _defuseTime; }
 bool SearchDestroySettings::getUseArmingPin() { return _useArmingPin; }
 bool SearchDestroySettings::getUseDisarmingPin() { return _useDisarmingPin; }
+int SearchDestroySettings::getGameDuration() { return _gameDuration; }
 
 // --- Implementazione dei Metodi Setter ---
 // Queste funzioni permettono di modificare il valore della variabile privata corrispondente.
@@ -70,3 +73,4 @@ void SearchDestroySettings::setArmingTime(int time) { _armingTime = time; }
 void SearchDestroySettings::setDefuseTime(int time) { _defuseTime = time; }
 void SearchDestroySettings::setUseArmingPin(bool value) { _useArmingPin = value; }
 void SearchDestroySettings::setUseDisarmingPin(bool value) { _useDisarmingPin = value; }
+void SearchDestroySettings::setGameDuration(int minutes) { _gameDuration = minutes; }

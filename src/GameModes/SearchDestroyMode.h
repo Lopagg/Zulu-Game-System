@@ -51,6 +51,8 @@ private:
     AppState* _appStatePtr;
     MainMenuDisplayFunction _mainMenuDisplayFunc;
 
+    DateTime _gameMatchStartTime; // Momento in cui è iniziata la partita globale
+
     /**
      * @enum ModeState
      * @brief Definisce tutti i possibili stati interni della modalità di gioco.

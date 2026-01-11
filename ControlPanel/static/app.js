@@ -214,7 +214,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     target_id: device.id, 
                     command: { cmd: "GET_STATUS" } 
                 });
-                
+
             });
 
             grid.appendChild(card);
@@ -409,10 +409,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     else elSdBombStatus.style.color = '#fff';
                 }
                 
-                if (payload.bomb_time !== undefined && elSdBombTimer) {
-                    const m = Math.floor(payload.bomb_time / 60);
-                    const s = payload.bomb_time % 60;
-                    elSdBombTimer.textContent = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+                if (payload.timer_source === 'BOMB') {
+                    // Mostra timer bomba nel riquadro ROSSO (basso sx)
+                    updateTimerDisplay(elSdBombTimer, payload.bomb_time);
+                    // Mostra lo stesso anche nel timer GLOBALE (alto sx) per drammaticità?
+                    // Oppure lascia il globale fermo. Di solito in CS quando la bomba è innescata il round timer sparisce.
+                    elGlobalTimer.textContent = "--:--"; 
+                } 
+                else if (payload.timer_source === 'GAME') {
+                    // Mostra timer partita nel riquadro GLOBALE (alto sx)
+                    updateTimerDisplay(elGlobalTimer, payload.game_time);
+                    // Resetta timer bomba
+                    elSdBombTimer.textContent = "00:00";
                 } 
                 
                 if (payload.arm_prog !== undefined && elSdArmBar) elSdArmBar.style.width = `${payload.arm_prog}%`;
@@ -456,6 +464,13 @@ document.addEventListener('DOMContentLoaded', () => {
         div.textContent = `> ${text}`;
         elMiniLog.prepend(div);
     }
+
+    function updateTimerDisplay(element, seconds) {
+        if (!element || seconds === undefined) return;
+        const m = Math.floor(seconds / 60);
+        const s = seconds % 60;
+        element.textContent = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+    }
     
     // Espone sendCommand per debug
     window.sendCommand = function(cmdObj) {
@@ -463,3 +478,4 @@ document.addEventListener('DOMContentLoaded', () => {
         socket.emit('send_command', { target_id: activeInspectorId, command: cmdObj });
     };
 });
+
