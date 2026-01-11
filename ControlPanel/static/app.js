@@ -208,6 +208,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 showView('monitor');
                 logSystem(`LINKING TELEMETRY TO: ${displayName}`);
+
+                // Chiede al dispositivo di rimandare subito impostazioni e stato
+                socket.emit('send_command', { 
+                    target_id: device.id, 
+                    command: { cmd: "GET_STATUS" } 
+                });
+                
             });
 
             grid.appendChild(card);

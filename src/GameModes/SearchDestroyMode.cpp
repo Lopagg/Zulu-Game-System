@@ -97,6 +97,12 @@ void SearchDestroyMode::loop() {
         forceEndGame();
     }
 
+    // Risponde alla richiesta del pannello di controllo inviando tutti i dati
+    if (command.indexOf("GET_STATUS") >= 0) {
+        sendSettingsStatus(); // Aggiorna il pannello Regole (Destra)
+        sendTelemetry();      // Aggiorna il pannello Bomba/Stato (Sinistra)
+    }
+
     // --- GESTIONE TELEMETRIA ---
 
     bool isHighAction = (_currentState == ModeState::IN_GAME_IS_ARMING || _currentState == ModeState::IN_GAME_IS_DEFUSING || _gameIsActive);
