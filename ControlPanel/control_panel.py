@@ -113,14 +113,11 @@ def background_cleanup():
     """Gira in un thread gestito da SocketIO e pulisce la lista ogni 2 secondi."""
     print("[SYSTEM] Background Cleanup Task Started")
     while True:
-        socketio.sleep(2) # USA QUESTO al posto di time.sleep!
+        socketio.sleep(2) # USA QUESTO! time.sleep() blocca tutto con SocketIO.
         try:
-            # Recupera la lista e controlla se qualcuno è stato rimosso
             active_devs, removed_something = registry.get_active_devices()
-            
-            # Se abbiamo rimosso dei "morti", aggiorniamo subito tutti i client
             if removed_something:
-                print("[SYSTEM] Rimossi dispositivi inattivi.")
+                print(f"[SYSTEM] Rimossi dispositivi inattivi. Rimasti: {len(active_devs)}")
                 socketio.emit('devices_update', active_devs)
         except Exception as e:
             print(f"[ERROR] Cleanup Task: {e}")
@@ -232,8 +229,8 @@ def handle_socket_command(data):
         print(f"[ERROR SOCKET] {e}")
 
 if __name__ == '__main__':
-    # Avvia task di pulizia usando il gestore nativo di SocketIO (non threading standard)
-    socketio.start_background_task(target=background_cleanup)
+    # Avvia task di pulizia usando il gestore nativo di SocketIO
+    # Questo assicura che 'socketio.emit' funzioni anche dal background
+    socketio.start_background_task(background_cleanup)
     
-    # Avvia il server
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
