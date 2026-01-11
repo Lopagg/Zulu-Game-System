@@ -100,7 +100,8 @@ private:
     unsigned long _stateChangeTime;
     int _lastDisplayedSeconds;
 
-    bool _gameIsActive;
+    bool _gameIsActive; // Indica se il round è in corso (Timer Globale)
+    bool _bombIsActive; // Indica se la bomba è armata e ticchetta
 
     // --- Funzioni Private ---
 

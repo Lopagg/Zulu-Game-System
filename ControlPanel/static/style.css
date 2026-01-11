@@ -218,7 +218,7 @@ body {
 .device-mode { font-size: 10px; color: #888; }
 
 .sidebar-footer {
-    height: 200px; /* Aumentato da default */
+    height: 400px; /* Aumentato da default */
     background: #000;
     border-top: 1px solid var(--sop-dim);
     padding: 5px;

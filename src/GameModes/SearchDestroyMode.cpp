@@ -29,6 +29,7 @@ SearchDestroyMode::SearchDestroyMode(HardwareManager* hardware, NetworkManager* 
       _stateChangeTime(0),
       _lastDisplayedSeconds(-1),
       _gameIsActive(false),
+      _bombIsActive(false),
       _lastTelemetryTime(0) {
 }
 
@@ -43,6 +44,7 @@ void SearchDestroyMode::enter() {
     _currentState = ModeState::MODE_SUB_MENU;
     _subMenuIndex = 0;
     _gameIsActive = false;
+    _bombIsActive = false;
     displaySubMenu();
     _hardware->setStripColor(255, 100, 0);  // Colore arancione tipico della modalità
     
@@ -336,7 +338,7 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
     }
 
     // Prima parte: gestione del timer principale della bomba (se attivo)
-    if (_gameIsActive) {
+    if (_bombIsActive) {
         //Calcola il tempo rimanente, aggiorna il display e gestisce gli eventi sonori/visivi del timer
         long totalSeconds = _settings->getBombTime() * 60;
         TimeSpan elapsed = _hardware->getRTCTime() - _roundStartTime;
@@ -388,6 +390,9 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
 
         if (remainingSeconds <= 0) {
             _currentState = ModeState::IN_GAME_ENDED; _gameIsActive = false;
+
+            _gameIsActive = false; // Ferma timer partita
+            _bombIsActive = false; // Ferma timer bomba
             
             JsonDocument doc;
             doc["winner"] = "TERRORISTS";
@@ -427,8 +432,8 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
                 _hardware->playTone(1500, 150);
 
                 // Salva il momento di inizio partita ---
-                _gameMatchStartTime = _hardware->getRTCTime();
-                _gameIsActive = true; // La partita è attiva (per il timer globale)
+                _gameIsActive = true;  // Il timer partita parte
+                _bombIsActive = false; // La bomba è ferma!
 
                 _currentState = ModeState::IN_GAME_AWAIT_ARM; 
                 displayAwaitArmScreen();
@@ -531,7 +536,7 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
                 _currentState = ModeState::IN_GAME_COUNTDOWN; 
                 _roundStartTime = _hardware->getRTCTime();
                 _lastDisplayedSeconds = -1; 
-                _gameIsActive = true; 
+                _bombIsActive = true; 
                 displayCountdownLayout();
                 sendTelemetry();
             }
@@ -571,7 +576,8 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
                     _network->sendEvent("GAME_END", doc);
 
                     _currentState = ModeState::IN_GAME_DEFUSED; // case IN_GAME_DEFUSED: la partita è finita, i CT hanno vinto.
-                    _gameIsActive = false; 
+                    _gameIsActive = false; // Ferma timer partita
+                    _bombIsActive = false; // Ferma timer bomba 
                     _hardware->clearLcd();
                     _hardware->printLcd(1, 1, "BOMBA DISINNESCATA"); 
                     _hardware->printLcd(0, 2, "Vince la squadra CT!");
@@ -625,7 +631,8 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
                     _network->sendEvent("GAME_END", doc);
 
                     _currentState = ModeState::IN_GAME_DEFUSED; 
-                    _gameIsActive = false;
+                    _gameIsActive = false; // Ferma timer partita
+                    _bombIsActive = false; // Ferma timer bomba
                     _hardware->clearLcd(); 
                     _hardware->printLcd(1, 1, "BOMBA DISINNESCATA");
                     _hardware->printLcd(0, 2, "Vince la squadra CT!");
@@ -857,6 +864,7 @@ void SearchDestroyMode::forceEndGame() {
     
     _currentState = ModeState::IN_GAME_DEFUSED; 
     _gameIsActive = false; 
+    _bombIsActive = false; 
     _hardware->noTone();
 
     _hardware->clearLcd();
@@ -905,7 +913,7 @@ void SearchDestroyMode::sendTelemetry() {
                       _currentState == ModeState::IN_GAME_IS_DEFUSING || 
                       _currentState == ModeState::IN_GAME_ENTER_DEFUSE_PIN);
 
-    if (bombArmed) {
+    if (_bombIsActive) {
         long totalSeconds = _settings->getBombTime() * 60;
         TimeSpan elapsed = _hardware->getRTCTime() - _roundStartTime;
         long remaining = totalSeconds - elapsed.totalseconds();
