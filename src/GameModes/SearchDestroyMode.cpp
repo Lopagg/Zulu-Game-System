@@ -432,6 +432,7 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
                 _hardware->playTone(1500, 150);
 
                 // Salva il momento di inizio partita ---
+                _gameMatchStartTime = _hardware->getRTCTime();
                 _gameIsActive = true;  // Il timer partita parte
                 _bombIsActive = false; // La bomba è ferma!
 
