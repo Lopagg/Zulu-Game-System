@@ -238,55 +238,66 @@ body {
 .fill-green { background-color: #55ff55; box-shadow: 0 0 10px #55ff55; }
 
 /* --- RULES WIDGET (Layout Corretto) --- */
-/* Forza il corpo del widget a gestire lo spazio verticalmente */
+/* Corpo del widget */
 .rules-body {
     display: flex !important;
     flex-direction: column !important;
     flex: 1 !important;          
-    min-height: 0 !important;    /* Permette lo shrink */
-    justify-content: space-between !important;
-    
-    /* CORREZIONE 1: Rimosso padding: 0 !important che stringeva tutto */
-    padding: 0 !important;       
+    min-height: 0 !important;    
+    justify-content: flex-start !important; /* Cambiato da space-between a flex-start */
+    padding: 0 !important;
     position: relative;
+    overflow: hidden !important;
 }
 
-/* La lista scrolla se c'è troppo contenuto */
+/* La lista occupa tutto lo spazio disponibile */
 .rules-list {
     flex: 1;             
     overflow-y: auto;    
-    /* CORREZIONE 2: Aggiunto padding qui per staccare il testo dai bordi */
-    padding: 15px 20px !important; 
+    padding: 10px 15px !important; /* Meno padding laterale = regole più larghe */
     margin: 0;           
     min-height: 0;       
+    width: 100%;         /* Forza larghezza piena */
 }
 
 .rules-list li {
     display: flex; justify-content: space-between;
-    border-bottom: 1px dashed var(--sop-dim); padding: 12px 0; /* Un po' più compatto */
-    font-size: 18px; color: var(--sop-text);
+    border-bottom: 1px dashed var(--sop-dim); padding: 10px 0;
+    font-size: 16px; /* Font leggermente ridimensionato per stare meglio */
+    color: var(--sop-text);
 }
-.rule-key { color: var(--sop-primary); font-weight: bold; font-size: 18px; }
+.rule-key { color: var(--sop-primary); font-weight: bold; font-size: 16px; }
 .rule-val { color: #fff; }
 
-/* Footer del widget regole */
+/* Footer del widget regole - TASTO */
 .rules-footer {
     flex-shrink: 0;      
-    /* CORREZIONE 3: Ridotto il padding per alzare il tasto */
-    padding: 15px; 
+    padding: 10px 15px; /* Padding ridotto e bilanciato */
+    padding-bottom: 15px !important; /* Rimosso l'eccesso che lo spingeva sotto */
     border-top: 1px solid var(--sop-dim);
     background: rgba(255, 0, 0, 0.05);
-    z-index: 20; 
+    z-index: 100; /* Z-Index altissimo per essere sicuro che sia cliccabile */
+    margin-bottom: 0;
 }
 
 .full-width {
     width: 100%; 
-    font-size: 16px; 
-    padding: 12px; 
+    font-size: 14px; /* Font tasto ottimizzato */
+    padding: 10px;   /* Tasto leggermente più compatto */
     font-weight: bold; 
     letter-spacing: 2px; 
     text-transform: uppercase;
-    cursor: pointer; /* Assicuriamoci che il cursore cambi */
+    cursor: pointer;
+    background: rgba(255, 51, 51, 0.1); /* Sfondo rossastro per visibilità */
+    border: 1px solid var(--sop-alert);
+    color: var(--sop-alert);
+    transition: all 0.2s;
+}
+
+.full-width:hover {
+    background: var(--sop-alert);
+    color: #000;
+    box-shadow: 0 0 15px var(--sop-alert);
 }
 
 /* --- HUB SCREEN & CARDS --- */
