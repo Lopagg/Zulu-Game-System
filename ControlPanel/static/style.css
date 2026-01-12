@@ -326,21 +326,30 @@ body {
 
 .digital-clock {
     font-family: 'Share Tech Mono', monospace;
-    font-size: 60px;
+    font-size: 80px;
     color: var(--sop-alert); /* Rosso */
     text-align: center;
     letter-spacing: 5px;
-    text-shadow: 0 0 10px rgba(255, 51, 51, 0.4);
+    text-shadow: 0 0 15px rgba(255, 51, 51, 0.6);
     background: rgba(0,0,0,0.3);
     border: 1px solid var(--sop-alert);
     border-radius: 5px;
     margin: 10px 0;
 }
 
-/* Barre di Progresso - MODIFICATO per essere più grandi e fluide */
+/* Barre di Progresso */
 .progress-section { margin-top: 20px; width: 100%; }
 .prog-group { margin-bottom: 15px; }
-.prog-label { font-size: 10px; color: #888; display: block; margin-bottom: 5px; text-transform: uppercase; }
+.prog-label {
+    font-size: 14px;
+    color: #888;
+    display: block;
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    text-align: center;
+    letter-spacing: 2px;
+    font-weight: bold;
+}
 
 .progress-track {
     width: 100%; 
@@ -719,11 +728,11 @@ body {
 }
 
 .card-content p {
-    font-size: 12px;
+    font-size: 14px;
     color: #888;
     margin-bottom: 25px;
     padding: 0 20px;
-    line-height: 1.4;
+    line-height: 1.5;
 }
 
 .card-action {
@@ -888,11 +897,23 @@ body {
 .rules-list li {
     display: flex; justify-content: space-between;
     border-bottom: 1px dashed var(--sop-dim);
-    padding: 10px 0;
-    font-size: 14px; color: var(--sop-text);
+    padding: 15px 0;
+    font-size: 18px; color: var(--sop-text);
 }
-.rule-key { color: var(--sop-primary); font-weight: bold; }
+.rule-key {
+    color: var(--sop-primary);
+    font-weight: bold;
+    font-size: 18px;
+}
 .rule-val { color: #fff; }
 
 /* Nascondi elementi */
 .hidden { display: none !important; }
+
+/* --- Stile per lo Status (SAFE, ARMED, ecc.) --- */
+#sd-bomb-status {
+    font-size: 40px;      /* Molto grande */
+    font-weight: bold;    /* Grassetto */
+    letter-spacing: 3px;  /* Spaziatura lettere tattica */
+    text-transform: uppercase;
+}
