@@ -326,15 +326,21 @@ body {
 
 .digital-clock {
     font-family: 'Share Tech Mono', monospace;
-    font-size: 100px;
-    color: var(--sop-alert); /* Rosso */
+    font-size: 100px;       /* <--- Aumentato a 100px */
+    font-weight: bold;      /* Più cicciotto */
+    color: var(--sop-alert);
     text-align: center;
-    letter-spacing: 5px;
-    text-shadow: 0 0 15px rgba(255, 51, 51, 0.6);
-    background: rgba(0,0,0,0.3);
-    border: 1px solid var(--sop-alert);
-    border-radius: 5px;
-    margin: 10px 0;
+    letter-spacing: 8px;    /* Più spazio tra i numeri */
+    text-shadow: 0 0 20px rgba(255, 51, 51, 0.8); /* Glow più intenso */
+    
+    background: rgba(0, 0, 0, 0.6); /* Sfondo più scuro per contrasto */
+    border: 2px solid var(--sop-alert);
+    border-radius: 10px;
+    
+    margin: 15px 0;
+    padding: 15px 0;        /* Più aria attorno ai numeri */
+    width: 100%;            /* FONDAMENTALE per il centraggio */
+    display: block;
 }
 
 /* Barre di Progresso */
@@ -844,24 +850,6 @@ body {
     display: flex; justify-content: space-between; align-items: center;
     border-bottom: 1px solid var(--sop-dim); padding-bottom: 10px;
 }
-
-.digital-clock {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 60px;
-    color: var(--sop-alert);
-    text-align: center;
-    letter-spacing: 5px;
-    text-shadow: 0 0 10px rgba(255, 51, 51, 0.4);
-    background: rgba(0,0,0,0.3);
-    border: 1px solid var(--sop-alert);
-    border-radius: 5px;
-    margin: 10px 0;
-}
-
-/* Barre di Progresso Fluide */
-.progress-section { margin-top: 20px; }
-.prog-group { margin-bottom: 15px; }
-.prog-label { font-size: 10px; color: #888; display: block; margin-bottom: 5px; text-transform: uppercase; }
 
 .progress-track {
     width: 100%; height: 25px; /* Più alte per visibilità */
