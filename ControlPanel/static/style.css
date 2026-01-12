@@ -117,7 +117,7 @@ body {
 .device-id { font-size: 14px; font-weight: bold; color: var(--sop-text); }
 .device-mode { font-size: 10px; color: #888; }
 
-/* Log Console (Alta) */
+/* Log Console */
 .sidebar-footer {
     height: 250px; background: #000; border-top: 1px solid var(--sop-dim);
     padding: 5px; overflow: hidden;
@@ -147,7 +147,7 @@ body {
 .widget-timer    { grid-column: 1 / 2; grid-row: 1 / 2; }
 .widget-factions { grid-column: 2 / 3; grid-row: 1 / 2; }
 .widget-tactical, .widget-map { grid-column: 1 / 2; grid-row: 2 / 3; }
-.widget-rules    { grid-column: 2 / 3; grid-row: 2 / 3; }
+.widget-rules    { grid-column: 2 / 3; grid-row: 2 / 3; display: flex; flex-direction: column; overflow: hidden; } /* Unito il layout rules qui */
 
 .widget {
     background: rgba(0, 0, 0, 0.3); border: 1px solid var(--sop-dim);
@@ -185,34 +185,15 @@ body {
     display: flex; justify-content: space-between; align-items: center;
     border-bottom: 2px solid var(--sop-dim); padding-bottom: 10px; width: 100%;
     
-    /* Questo ingrandisce la scritta "STATUS:" */
     font-size: 40px; 
     font-weight: bold; 
     letter-spacing: 3px;
     color: var(--sop-text);
 }
 
-/* Valore Status (SAFE/ARMED) - Colori gestiti da JS */
-#sd-bomb-status {
-    text-transform: uppercase;
-}
+#sd-bomb-status { text-transform: uppercase; }
 
-/* 2. NUOVA CLASSE PER IL TITOLO DEL TIMER (Centrato e Grande) */
-.detonation-title {
-    display: block !important;      /* Occupa tutta la riga */
-    width: 100% !important;         /* Forza larghezza 100% */
-    text-align: center !important;  /* Forza allineamento al centro */
-    
-    font-size: 26px !important;     /* Molto grande */
-    font-weight: bold;
-    color: #aaa;
-    text-transform: uppercase;
-    letter-spacing: 4px;
-    margin-bottom: 10px;
-    margin-top: 15px;
-}
-
-/* 2. TIMER BOMBA (Enorme) */
+/* 2. TIMER BOMBA (Enorme e Centrato) */
 .digital-clock {
     font-family: 'Share Tech Mono', monospace;
     font-size: 100px;
@@ -224,16 +205,34 @@ body {
     background: rgba(0, 0, 0, 0.6);
     border: 2px solid var(--sop-alert);
     border-radius: 10px;
-    margin: 0 auto; /* Centra il blocco stesso se serve */
+    margin: 0 auto; 
+    padding: 10px 0;
+    width: 100%; 
+    display: block;
 }
 
-/* 3. ETICHETTE (DETONATION SEQUENCE, ARMING, ecc.) - Centrate e Grandi */
+/* 3. TITOLO TIMER CENTRATO (DETONATION SEQUENCE) */
+.detonation-title {
+    display: block !important;      
+    width: 100% !important;         
+    text-align: center !important;  
+    
+    font-size: 26px !important;     
+    font-weight: bold;
+    color: #aaa;
+    text-transform: uppercase;
+    letter-spacing: 4px;
+    margin-bottom: 10px;
+    margin-top: 15px;
+}
+
+/* 4. ETICHETTE BARRE */
 .prog-label {
-    font-size: 22px;        /* Ingrandito */
+    font-size: 18px;
     color: #aaa;
     display: block;
-    width: 100%;            /* Occupa tutto */
-    text-align: center;     /* Centrato */
+    width: 100%;
+    text-align: center;
     margin-bottom: 8px; margin-top: 15px;
     text-transform: uppercase; letter-spacing: 3px; font-weight: bold;
 }
@@ -259,8 +258,27 @@ body {
 .fill-red { background-color: var(--sop-alert); box-shadow: 0 0 10px var(--sop-alert); }
 .fill-green { background-color: #55ff55; box-shadow: 0 0 10px #55ff55; }
 
-/* 4. REGOLE (Ingrandite) */
-.rules-list { list-style: none; padding: 20px; width: 100%; overflow-y: auto; }
+/* 5. REGOLE E FOOTER (Corretti) */
+.rules-body {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 !important;          
+    min-height: 0 !important;    
+    overflow: hidden !important; 
+    padding: 0 !important;
+    position: relative;
+    justify-content: space-between !important;
+    align-items: stretch !important;
+}
+
+.rules-list {
+    flex: 1;             
+    overflow-y: auto;    
+    padding: 20px;
+    margin: 0;           
+    min-height: 0;       
+}
+
 .rules-list li {
     display: flex; justify-content: space-between;
     border-bottom: 1px dashed var(--sop-dim); padding: 15px 0;
@@ -268,6 +286,18 @@ body {
 }
 .rule-key { color: var(--sop-primary); font-weight: bold; font-size: 18px; }
 .rule-val { color: #fff; }
+
+.rules-footer {
+    flex-shrink: 0;      
+    padding: 15px;
+    border-top: 1px solid var(--sop-dim);
+    background: rgba(255, 0, 0, 0.05);
+    z-index: 10;
+}
+
+.full-width {
+    width: 100%; font-size: 16px; padding: 12px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase;
+}
 
 /* --- HUB SCREEN & CARDS --- */
 .hub-grid { display: flex; gap: 30px; height: 100%; justify-content: center; align-items: center; padding: 50px; }
@@ -283,7 +313,6 @@ body {
 .hub-card:hover::before, .hub-card:hover::after { border-color: var(--sop-primary); width: 100%; height: 100%; }
 .card-icon { font-size: 50px; margin-bottom: 20px; filter: drop-shadow(0 0 5px var(--sop-primary)); }
 .card-content h3 { color: var(--sop-text); margin-bottom: 10px; font-size: 20px; letter-spacing: 2px; }
-/* Ingrandito testo descrittivo */
 .card-content p { font-size: 14px; color: #888; margin-bottom: 25px; padding: 0 20px; line-height: 1.5; }
 .card-action { color: var(--sop-dim); font-weight: bold; letter-spacing: 2px; transition: color 0.3s; }
 .hub-card:hover .card-action { color: var(--sop-primary); }
@@ -320,7 +349,7 @@ body {
 ::-webkit-scrollbar-thumb:hover { background: var(--sop-primary); border-color: var(--sop-primary); box-shadow: 0 0 5px var(--sop-primary); }
 .console-log::-webkit-scrollbar { width: 4px; }
 
-/* Login Page (Conservata) */
+/* Login Page */
 .login-body { display: flex; justify-content: center; align-items: center; height: 100vh; }
 .login-wrapper { width: 100%; max-width: 450px; padding: 20px; z-index: 2; }
 .login-box { padding: 40px; border: 2px solid var(--sop-primary); background: rgba(10, 10, 10, 0.95); }
@@ -333,39 +362,3 @@ body {
 .input-group input:focus { border-color: var(--sop-primary); box-shadow: 0 0 10px rgba(0, 255, 204, 0.2); background: rgba(0, 255, 204, 0.05); }
 .login-btn { width: 100%; padding: 15px; font-size: 18px; font-weight: bold; border-color: var(--sop-primary); color: var(--sop-primary); background: rgba(0, 255, 204, 0.1); margin: 0; }
 .login-btn:hover { background: var(--sop-primary); color: #000; box-shadow: 0 0 20px var(--sop-primary); }
-
-/* --- LAYOUT SPECIFICO PER IL WIDGET REGOLE --- */
-.rules-body {
-    display: flex !important;
-    flex-direction: column !important;
-    height: 100% !important; 
-    overflow: hidden !important; /* Fondamentale: impedisce al contenuto di uscire */
-    padding: 0 !important;
-    position: relative;
-}
-
-/* La lista occupa tutto lo spazio rimanente e scrolla se serve */
-.rules-list {
-    flex: 1;
-    overflow-y: auto;
-    min-height: 0; /* Trucco CSS per far funzionare lo scroll dentro flexbox */
-    padding: 20px;
-}
-
-/* Il footer sta fisso in basso e non si riduce */
-.rules-footer {
-    flex-shrink: 0; /* Impedisce che venga schiacciato */
-    padding: 15px;
-    border-top: 1px solid var(--sop-dim);
-    background: rgba(255, 0, 0, 0.05);
-    z-index: 10;
-}
-
-/* Classe utility per il bottone a larghezza piena */
-.full-width {
-    width: 100%;
-    font-size: 16px;
-    padding: 12px;
-    font-weight: bold;
-    letter-spacing: 2px;
-}
