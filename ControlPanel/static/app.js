@@ -401,12 +401,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Telemetria S&D
             if (type === 'SD_UPDATE') {
+
+                // 1. Stato Testuale e Colori
                 if (payload.state && elSdBombStatus) {
                     elSdBombStatus.textContent = payload.state;
-                    // Colori stato
-                    if(payload.state === 'ARMED' || payload.state === 'ARMING...') elSdBombStatus.style.color = 'var(--sop-alert)';
-                    else if(payload.state === 'SAFE') elSdBombStatus.style.color = 'var(--sop-primary)';
-                    else elSdBombStatus.style.color = '#fff';
+                    
+                    // Logica Colori
+                    if (payload.state === 'ARMED' || payload.state === 'ARMING...' || payload.state === 'EXPLODED') {
+                        elSdBombStatus.style.color = 'var(--sop-alert)'; // Rosso (#ff3333)
+                    } 
+                    else if (payload.state === 'DEFUSED' || payload.state === 'DEFUSING...') {
+                        elSdBombStatus.style.color = '#55ff55'; // Verde Bravo (lo stesso della barra)
+                    } 
+                    else {
+                        elSdBombStatus.style.color = 'var(--sop-primary)'; // Ciano (#00ffcc) per SAFE
+                    }
                 }
                 
                 // --- GESTIONE DOPPIO TIMER ---

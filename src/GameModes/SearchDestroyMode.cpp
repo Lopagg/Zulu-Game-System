@@ -888,13 +888,31 @@ void SearchDestroyMode::forceEndGame() {
 void SearchDestroyMode::sendTelemetry() {
     JsonDocument doc;
     
-    // 1. Stato Testuale (Invariato)
-    if (_currentState == ModeState::IN_GAME_ENDED) doc["state"] = "EXPLODED"; // O "GAME OVER"
-    else if (_currentState == ModeState::IN_GAME_DEFUSED) doc["state"] = "DEFUSED";
-    else if (_currentState == ModeState::IN_GAME_COUNTDOWN || _currentState == ModeState::IN_GAME_ARMED) doc["state"] = "ARMED";
-    else if (_currentState == ModeState::IN_GAME_IS_ARMING) doc["state"] = "ARMING...";
-    else if (_currentState == ModeState::IN_GAME_IS_DEFUSING) doc["state"] = "DEFUSING...";
-    else doc["state"] = "SAFE";
+    // 1. Stato Testuale
+    // Mappiamo gli stati interni in stringhe leggibili per il monitor
+    
+    if (_currentState == ModeState::IN_GAME_ENDED) {
+        doc["state"] = "EXPLODED";
+    } 
+    else if (_currentState == ModeState::IN_GAME_DEFUSED) {
+        doc["state"] = "DEFUSED";
+    }
+    // ARMING: Include sia la pressione del bottone che l'inserimento PIN
+    else if (_currentState == ModeState::IN_GAME_IS_ARMING || _currentState == ModeState::IN_GAME_ENTER_ARM_PIN) {
+        doc["state"] = "ARMING...";
+    }
+    // DEFUSING: Include sia la pressione del bottone che l'inserimento PIN
+    else if (_currentState == ModeState::IN_GAME_IS_DEFUSING || _currentState == ModeState::IN_GAME_ENTER_DEFUSE_PIN) {
+        doc["state"] = "DEFUSING...";
+    }
+    // ARMED: Bomba attiva
+    else if (_currentState == ModeState::IN_GAME_COUNTDOWN || _currentState == ModeState::IN_GAME_ARMED) {
+        doc["state"] = "ARMED";
+    }
+    // SAFE: Tutto tranquillo
+    else {
+        doc["state"] = "SAFE";
+    }
 
     // 2. Percentuali Barre (Invariato)
     if (_currentState == ModeState::IN_GAME_IS_ARMING) {
