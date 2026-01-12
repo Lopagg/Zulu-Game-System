@@ -197,6 +197,26 @@ body {
     text-transform: uppercase;
 }
 
+/* 2. TIMER CONTAINER E LABEL */
+.bomb-timer-container {
+    width: 100%;
+    text-align: center; /* Centra tutto il contenuto */
+    margin: 20px 0;
+}
+
+/* Scritta "DETONATION SEQUENCE" */
+.bomb-timer-container .label {
+    font-size: 24px;        /* Molto visibile */
+    color: #aaa;
+    display: block;         /* Occupa intera riga */
+    width: 100%;
+    text-align: center;     /* Centrato orizzontalmente */
+    margin-bottom: 10px;
+    text-transform: uppercase; 
+    letter-spacing: 4px; 
+    font-weight: bold;
+}
+
 /* 2. TIMER BOMBA (Enorme) */
 .digital-clock {
     font-family: 'Share Tech Mono', monospace;
