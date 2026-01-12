@@ -336,22 +336,29 @@ body {
 
 /* --- LAYOUT SPECIFICO PER IL WIDGET REGOLE --- */
 .rules-body {
-    display: flex !important;       /* Sovrascrive il flex generico */
+    display: flex !important;
     flex-direction: column !important;
-    justify-content: space-between !important; /* Spinge il footer in basso */
-    align-items: stretch !important; /* Occupa tutta la larghezza */
+    height: 100% !important; 
+    overflow: hidden !important; /* Fondamentale: impedisce al contenuto di uscire */
     padding: 0 !important;
+    position: relative;
 }
 
+/* La lista occupa tutto lo spazio rimanente e scrolla se serve */
 .rules-list {
-    flex: 1; /* Occupa tutto lo spazio disponibile */
+    flex: 1;
     overflow-y: auto;
+    min-height: 0; /* Trucco CSS per far funzionare lo scroll dentro flexbox */
+    padding: 20px;
 }
 
+/* Il footer sta fisso in basso e non si riduce */
 .rules-footer {
+    flex-shrink: 0; /* Impedisce che venga schiacciato */
     padding: 15px;
     border-top: 1px solid var(--sop-dim);
-    background: rgba(255, 0, 0, 0.05); /* Leggero sfondo rosso per indicare pericolo */
+    background: rgba(255, 0, 0, 0.05);
+    z-index: 10;
 }
 
 /* Classe utility per il bottone a larghezza piena */

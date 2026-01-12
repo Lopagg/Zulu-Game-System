@@ -449,6 +449,21 @@ document.addEventListener('DOMContentLoaded', () => {
                         elSdBombStatus.style.color = 'var(--sop-primary)';
                     }
                 }
+
+                // --- GESTIONE VISIBILITÀ TASTO TERMINA ---
+                const btnForceEnd = document.getElementById('btn-force-end');
+                if (btnForceEnd) {
+                    const footer = btnForceEnd.parentElement; // Selezioniamo il contenitore (rules-footer)
+                    
+                    // Stati in cui la partita è "VIVA"
+                    const activeStates = ['SAFE', 'ARMING...', 'ARMED', 'DEFUSING...'];
+                    
+                    if (activeStates.includes(payload.state)) {
+                        footer.classList.remove('hidden'); // Mostra
+                    } else {
+                        footer.classList.add('hidden');    // Nascondi (in STANDBY, CT WINS, ecc.)
+                    }
+                }
                 
                 // --- GESTIONE DOPPIO TIMER ---
                 
