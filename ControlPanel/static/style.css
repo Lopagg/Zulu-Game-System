@@ -244,7 +244,7 @@ body {
     flex-direction: column !important;
     flex: 1 !important;          
     min-height: 0 !important;    
-    justify-content: flex-start !important; /* Cambiato da space-between a flex-start */
+    justify-content: flex-start !important; /* Allinea tutto in alto */
     padding: 0 !important;
     position: relative;
     overflow: hidden !important;
@@ -254,41 +254,41 @@ body {
 .rules-list {
     flex: 1;             
     overflow-y: auto;    
-    padding: 10px 15px !important; /* Meno padding laterale = regole più larghe */
+    padding: 20px !important; /* Mantiene le regole larghe e leggibili */
     margin: 0;           
     min-height: 0;       
-    width: 100%;         /* Forza larghezza piena */
+    width: 100%;
 }
 
 .rules-list li {
     display: flex; justify-content: space-between;
-    border-bottom: 1px dashed var(--sop-dim); padding: 10px 0;
-    font-size: 16px; /* Font leggermente ridimensionato per stare meglio */
-    color: var(--sop-text);
+    border-bottom: 1px dashed var(--sop-dim); padding: 12px 0;
+    font-size: 18px; color: var(--sop-text);
 }
-.rule-key { color: var(--sop-primary); font-weight: bold; font-size: 16px; }
+.rule-key { color: var(--sop-primary); font-weight: bold; font-size: 18px; }
 .rule-val { color: #fff; }
 
 /* Footer del widget regole - TASTO */
 .rules-footer {
     flex-shrink: 0;      
-    padding: 10px 15px; /* Padding ridotto e bilanciato */
-    padding-bottom: 15px !important; /* Rimosso l'eccesso che lo spingeva sotto */
+    padding: 15px; /* Padding ridotto per alzare il tasto */
     border-top: 1px solid var(--sop-dim);
     background: rgba(255, 0, 0, 0.05);
-    z-index: 100; /* Z-Index altissimo per essere sicuro che sia cliccabile */
-    margin-bottom: 0;
+    
+    /* FIX CRITICO: Z-Index 100 rende il tasto cliccabile sopra ogni altra cosa */
+    z-index: 100 !important; 
+    position: relative; 
 }
 
 .full-width {
     width: 100%; 
-    font-size: 14px; /* Font tasto ottimizzato */
-    padding: 10px;   /* Tasto leggermente più compatto */
+    font-size: 16px; 
+    padding: 12px; 
     font-weight: bold; 
     letter-spacing: 2px; 
     text-transform: uppercase;
-    cursor: pointer;
-    background: rgba(255, 51, 51, 0.1); /* Sfondo rossastro per visibilità */
+    cursor: pointer; /* Cursore manina */
+    background: rgba(255, 51, 51, 0.1); 
     border: 1px solid var(--sop-alert);
     color: var(--sop-alert);
     transition: all 0.2s;
