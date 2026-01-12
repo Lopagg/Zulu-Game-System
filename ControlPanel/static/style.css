@@ -355,7 +355,7 @@ body {
 .progress-fill {
     height: 100%;
     width: 0%;
-    transition: width 0.1s linear; /* FLUIDITÀ FONDAMENTALE */
+    transition: width 0.25s linear; /* FLUIDITÀ FONDAMENTALE */
     position: relative;
 }
 
@@ -371,6 +371,10 @@ body {
 
 .fill-red { background-color: var(--sop-alert); box-shadow: 0 0 10px var(--sop-alert); }
 .fill-blue { background-color: var(--sop-primary); box-shadow: 0 0 10px var(--sop-primary); }
+.fill-green { 
+    background-color: #55ff55;
+    box-shadow: 0 0 10px #55ff55; 
+}
 
 /* RULES WIDGET - MODIFICATO */
 .widget-rules {
