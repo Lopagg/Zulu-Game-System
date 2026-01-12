@@ -272,7 +272,7 @@ body {
 .rules-footer {
     flex-shrink: 0;
     
-    padding: 15px 15px 100x 15px !important; 
+    padding: 15px 15px 100px 15px !important; 
     
     border-top: 1px solid var(--sop-dim);
     background: rgba(255, 0, 0, 0.05);
