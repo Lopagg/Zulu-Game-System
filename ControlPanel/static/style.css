@@ -333,3 +333,32 @@ body {
 .input-group input:focus { border-color: var(--sop-primary); box-shadow: 0 0 10px rgba(0, 255, 204, 0.2); background: rgba(0, 255, 204, 0.05); }
 .login-btn { width: 100%; padding: 15px; font-size: 18px; font-weight: bold; border-color: var(--sop-primary); color: var(--sop-primary); background: rgba(0, 255, 204, 0.1); margin: 0; }
 .login-btn:hover { background: var(--sop-primary); color: #000; box-shadow: 0 0 20px var(--sop-primary); }
+
+/* --- LAYOUT SPECIFICO PER IL WIDGET REGOLE --- */
+.rules-body {
+    display: flex !important;       /* Sovrascrive il flex generico */
+    flex-direction: column !important;
+    justify-content: space-between !important; /* Spinge il footer in basso */
+    align-items: stretch !important; /* Occupa tutta la larghezza */
+    padding: 0 !important;
+}
+
+.rules-list {
+    flex: 1; /* Occupa tutto lo spazio disponibile */
+    overflow-y: auto;
+}
+
+.rules-footer {
+    padding: 15px;
+    border-top: 1px solid var(--sop-dim);
+    background: rgba(255, 0, 0, 0.05); /* Leggero sfondo rosso per indicare pericolo */
+}
+
+/* Classe utility per il bottone a larghezza piena */
+.full-width {
+    width: 100%;
+    font-size: 16px;
+    padding: 12px;
+    font-weight: bold;
+    letter-spacing: 2px;
+}

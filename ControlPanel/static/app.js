@@ -332,6 +332,30 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- GESTIONE BOTTONE TERMINA MISSIONE (S&D) ---
+    const btnForceEnd = document.getElementById('btn-force-end');
+    if(btnForceEnd) {
+        btnForceEnd.addEventListener('click', () => {
+            // Verifica di sicurezza
+            if(!monitoredDeviceId) {
+                alert("Nessun dispositivo selezionato.");
+                return;
+            }
+
+            // Chiede conferma all'operatore
+            if(confirm("ATTENZIONE: Sei sicuro di voler terminare forzatamente la partita corrente?\nLa vittoria verrà assegnata alla squadra Counter-Terrorist.")) {
+                
+                // Invia il comando al firmware
+                socket.emit('send_command', { 
+                    target_id: monitoredDeviceId, 
+                    command: { cmd: "FORCE_END_GAME" } 
+                });
+                
+                logSystem(`SENDING TERMINATION SIGNAL TO ${monitoredDeviceId}...`);
+            }
+        });
+    }
+
     // Scan Manuale
     const btnScan = document.getElementById('scan-btn');
     if(btnScan) {
