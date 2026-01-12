@@ -30,7 +30,8 @@ SearchDestroyMode::SearchDestroyMode(HardwareManager* hardware, NetworkManager* 
       _lastDisplayedSeconds(-1),
       _gameIsActive(false),
       _bombIsActive(false),
-      _lastTelemetryTime(0) {
+      _lastTelemetryTime(0),
+      _endGameStatus("") {
 }
 
 /**
@@ -45,6 +46,7 @@ void SearchDestroyMode::enter() {
     _subMenuIndex = 0;
     _gameIsActive = false;
     _bombIsActive = false;
+    _endGameStatus = ""; // Reset vincitore
     displaySubMenu();
     _hardware->setStripColor(255, 100, 0);  // Colore arancione tipico della modalità
     
@@ -326,6 +328,7 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
             doc["reason"] = "MATCH_TIME_EXPIRED";
             _network->sendEvent("GAME_END", doc);
 
+            _endGameStatus = "CT WINS";
             _currentState = ModeState::IN_GAME_ENDED; // O uno stato specifico "TIME_OVER"
             _gameIsActive = false;
             
@@ -392,7 +395,8 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
         }
 
         if (remainingSeconds <= 0) {
-            _currentState = ModeState::IN_GAME_ENDED; _gameIsActive = false;
+            _endGameStatus = "T WINS";
+            _currentState = ModeState::IN_GAME_ENDED;
 
             _gameIsActive = false; // Ferma timer partita
             _bombIsActive = false; // Ferma timer bomba
@@ -579,6 +583,7 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
                     doc["reason"] = "BOMB_DEFUSED";
                     _network->sendEvent("GAME_END", doc);
 
+                    _endGameStatus = "CT WINS";
                     _currentState = ModeState::IN_GAME_DEFUSED; // case IN_GAME_DEFUSED: la partita è finita, i CT hanno vinto.
                     _gameIsActive = false; // Ferma timer partita
                     _bombIsActive = false; // Ferma timer bomba 
@@ -634,6 +639,7 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
                     doc["reason"] = "BOMB_DEFUSED";
                     _network->sendEvent("GAME_END", doc);
 
+                    _endGameStatus = "CT WINS";
                     _currentState = ModeState::IN_GAME_DEFUSED; 
                     _gameIsActive = false; // Ferma timer partita
                     _bombIsActive = false; // Ferma timer bomba
@@ -867,6 +873,7 @@ void SearchDestroyMode::forceEndGame() {
     doc["reason"] = "FORCED_BY_ADMIN";
     _network->sendEvent("GAME_END", doc);
     
+    _endGameStatus = "CT WINS";
     _currentState = ModeState::IN_GAME_DEFUSED; 
     _gameIsActive = false; 
     _bombIsActive = false; 
@@ -888,33 +895,32 @@ void SearchDestroyMode::forceEndGame() {
 void SearchDestroyMode::sendTelemetry() {
     JsonDocument doc;
     
-    // 1. Stato Testuale
-    // Mappiamo gli stati interni in stringhe leggibili per il monitor
+    // 1. STATO TESTUALE
     
-    if (_currentState == ModeState::IN_GAME_ENDED) {
-        doc["state"] = "EXPLODED";
-    } 
-    else if (_currentState == ModeState::IN_GAME_DEFUSED) {
-        doc["state"] = "DEFUSED";
+    // A. Partita Finita -> Mostra Vincitore
+    if (_currentState == ModeState::IN_GAME_ENDED || _currentState == ModeState::IN_GAME_DEFUSED) {
+        doc["state"] = (_endGameStatus.length() > 0) ? _endGameStatus : "GAME OVER";
     }
-    // ARMING: Include sia la pressione del bottone che l'inserimento PIN
+    // B. Azioni in corso (Alta priorità)
     else if (_currentState == ModeState::IN_GAME_IS_ARMING || _currentState == ModeState::IN_GAME_ENTER_ARM_PIN) {
         doc["state"] = "ARMING...";
     }
-    // DEFUSING: Include sia la pressione del bottone che l'inserimento PIN
     else if (_currentState == ModeState::IN_GAME_IS_DEFUSING || _currentState == ModeState::IN_GAME_ENTER_DEFUSE_PIN) {
         doc["state"] = "DEFUSING...";
     }
-    // ARMED: Bomba attiva
     else if (_currentState == ModeState::IN_GAME_COUNTDOWN || _currentState == ModeState::IN_GAME_ARMED) {
         doc["state"] = "ARMED";
     }
-    // SAFE: Tutto tranquillo
+    // C. Partita non ancora iniziata
+    else if (!_gameIsActive && !_bombIsActive) {
+        doc["state"] = "STANDBY";
+    }
+    // D. Partita in corso (Bomba non armata)
     else {
         doc["state"] = "SAFE";
     }
 
-    // 2. Percentuali Barre (Invariato)
+    // 2. Percentuali Barre
     if (_currentState == ModeState::IN_GAME_IS_ARMING) {
         unsigned long total = _settings->getArmingTime() * 1000;
         unsigned long elapsed = millis() - _armingStartTime;
@@ -945,7 +951,7 @@ void SearchDestroyMode::sendTelemetry() {
         doc["bomb_time"] = 0; // O null
     }
 
-    // 4. NUOVO: TIMER PARTITA (Sempre attivo finché non finisce il gioco)
+    // 4. TIMER PARTITA (Sempre attivo finché non finisce il gioco)
     if (_gameIsActive) { // Assumendo che imposti _gameIsActive = true all'avvio
         long totalMatch = _settings->getGameDuration() * 60;
         TimeSpan matchElapsed = _hardware->getRTCTime() - _gameMatchStartTime;

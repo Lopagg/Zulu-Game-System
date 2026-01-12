@@ -406,15 +406,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (payload.state && elSdBombStatus) {
                     elSdBombStatus.textContent = payload.state;
                     
-                    // Logica Colori
-                    if (payload.state === 'ARMED' || payload.state === 'ARMING...' || payload.state === 'EXPLODED') {
-                        elSdBombStatus.style.color = 'var(--sop-alert)'; // Rosso (#ff3333)
+                    const s = payload.state; // Alias per brevità
+
+                    // ROSSO: Pericolo o Vittoria Terroristi
+                    if (s === 'ARMED' || s === 'ARMING...' || s === 'EXPLODED' || s === 'T WINS') {
+                        elSdBombStatus.style.color = 'var(--sop-alert)'; 
                     } 
-                    else if (payload.state === 'DEFUSED' || payload.state === 'DEFUSING...') {
-                        elSdBombStatus.style.color = '#55ff55'; // Verde Bravo (lo stesso della barra)
+                    // VERDE: Disinnesco o Vittoria CT
+                    else if (s === 'DEFUSED' || s === 'DEFUSING...' || s === 'CT WINS') {
+                        elSdBombStatus.style.color = '#55ff55'; 
                     } 
+                    // GIALLO/ARANCIO: In attesa
+                    else if (s === 'STANDBY') {
+                        elSdBombStatus.style.color = '#ff9900';
+                    }
+                    // CIANO: Safe mode durante il gioco
                     else {
-                        elSdBombStatus.style.color = 'var(--sop-primary)'; // Ciano (#00ffcc) per SAFE
+                        elSdBombStatus.style.color = 'var(--sop-primary)';
                     }
                 }
                 
