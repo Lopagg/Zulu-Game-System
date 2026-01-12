@@ -272,13 +272,11 @@ body {
 .rules-footer {
     flex-shrink: 0;
     
-    /* MODIFICA 1: Padding asimmetrico. 15px sopra/lati, ma 40px sotto */
-    padding: 15px 15px 40px 15px !important; 
+    padding: 15px 15px 100x 15px !important; 
     
     border-top: 1px solid var(--sop-dim);
     background: rgba(255, 0, 0, 0.05);
     
-    /* MODIFICA 2: Z-Index alto per renderlo cliccabile */
     z-index: 100 !important; 
     position: relative;
 }
