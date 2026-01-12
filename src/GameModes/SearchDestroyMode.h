@@ -63,6 +63,7 @@ private:
         MODE_SUB_MENU,          // Sottomenu principale (Inizia Partita / Impostazioni)
         MENU_SETTINGS,          // Menu delle impostazioni
         EDIT_BOMB_TIME,         // Schermata di modifica del timer della bomba
+        EDIT_GAME_DURATION,     // Schermata di modifica della durata della partita
         EDIT_ARM_PIN,           // Schermata di modifica del PIN di innesco
         EDIT_DISARM_PIN,        // Schermata di modifica del PIN di disinnesco
         EDIT_ARM_TIME,          // Schermata di modifica del tempo di innesco

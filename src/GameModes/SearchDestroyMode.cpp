@@ -126,6 +126,7 @@ void SearchDestroyMode::loop() {
                 handleSettingsInput(key, btn1_was_pressed, btn2_was_pressed);
                 break;
             case ModeState::EDIT_BOMB_TIME:
+            case ModeState::EDIT_GAME_DURATION:
             case ModeState::EDIT_ARM_PIN:
             case ModeState::EDIT_DISARM_PIN:
             case ModeState::EDIT_ARM_TIME:
@@ -201,7 +202,7 @@ void SearchDestroyMode::handleSubMenuInput(char key, bool btn1, bool btn2) {
  * @details Fase del gioco: Menu.
  */
 void SearchDestroyMode::handleSettingsInput(char key, bool btn1, bool btn2) {
-    String menuItems[] = { "Timer Bomba", "PIN Armamento", "PIN Disarmo", "Tempo Armamento", "Tempo Disarmo", "Usa PIN armamento", "Usa PIN disarmo" };
+    String menuItems[] = { "Timer Bomba", "Durata Partita", "PIN Armamento", "PIN Disarmo", "Tempo Armamento", "Tempo Disarmo", "Usa PIN armamento", "Usa PIN disarmo" };
     int numItems = sizeof(menuItems) / sizeof(menuItems[0]);
     if (key == '2') {
         _hardware->playTone(800, 50); _menuIndex = (_menuIndex - 1 + numItems) % numItems; displaySettingsMenu();
@@ -220,12 +221,13 @@ void SearchDestroyMode::handleSettingsInput(char key, bool btn1, bool btn2) {
         _currentInputBuffer = "";
         switch (_menuIndex) {
             case 0: _currentState = ModeState::EDIT_BOMB_TIME; break;
-            case 1: _currentState = ModeState::EDIT_ARM_PIN; break;
-            case 2: _currentState = ModeState::EDIT_DISARM_PIN; break;
-            case 3: _currentState = ModeState::EDIT_ARM_TIME; break;
-            case 4: _currentState = ModeState::EDIT_DEFUSE_TIME; break;
-            case 5: _currentState = ModeState::EDIT_USE_ARM_PIN; _tempBoolSelection = _settings->getUseArmingPin(); break;
-            case 6: _currentState = ModeState::EDIT_USE_DISARM_PIN; _tempBoolSelection = _settings->getUseDisarmingPin(); break;
+            case 1: _currentState = ModeState::EDIT_GAME_DURATION; break;
+            case 2: _currentState = ModeState::EDIT_ARM_PIN; break;
+            case 3: _currentState = ModeState::EDIT_DISARM_PIN; break;
+            case 4: _currentState = ModeState::EDIT_ARM_TIME; break;
+            case 5: _currentState = ModeState::EDIT_DEFUSE_TIME; break;
+            case 6: _currentState = ModeState::EDIT_USE_ARM_PIN; _tempBoolSelection = _settings->getUseArmingPin(); break;
+            case 7: _currentState = ModeState::EDIT_USE_DISARM_PIN; _tempBoolSelection = _settings->getUseDisarmingPin(); break;
         }
         updateDisplayForCurrentState();
     }
@@ -260,6 +262,7 @@ void SearchDestroyMode::handleEditInput(char key, bool btn1, bool btn2) {
         if (isValid) {
             switch (_currentState) {
                 case ModeState::EDIT_BOMB_TIME: _settings->setBombTime(_currentInputBuffer.toInt()); break;
+                case ModeState::EDIT_GAME_DURATION: _settings->setGameDuration(_currentInputBuffer.toInt()); break;
                 case ModeState::EDIT_ARM_PIN: _settings->setArmingPin(_currentInputBuffer); break;
                 case ModeState::EDIT_DISARM_PIN: _settings->setDisarmingPin(_currentInputBuffer); break;
                 case ModeState::EDIT_ARM_TIME: _settings->setArmingTime(_currentInputBuffer.toInt()); break;
@@ -692,7 +695,7 @@ void SearchDestroyMode::displaySubMenu() {
 }
 void SearchDestroyMode::displaySettingsMenu() {
     _hardware->clearLcd(); _hardware->printLcd(0, 0, "IMPOSTAZIONI S&D");
-    String menuItems[] = { "Timer Bomba", "PIN Armamento", "PIN Disarmo", "Tempo Armamento", "Tempo Disarmo", "Usa PIN armamento", "Usa PIN disarmo" };
+    String menuItems[] = { "Timer Bomba", "Durata Partita", "PIN Armamento", "PIN Disarmo", "Tempo Armamento", "Tempo Disarmo", "Usa PIN armamento", "Usa PIN disarmo" };
     int numItems = sizeof(menuItems) / sizeof(menuItems[0]);
     int maxRows = _hardware->getLcdRows() - 1;
     int startIdx = 0;
@@ -796,6 +799,7 @@ void SearchDestroyMode::updateCountdownDisplay(long remainingSeconds) {
 void SearchDestroyMode::updateDisplayForCurrentState() {
     switch (_currentState) {
         case ModeState::EDIT_BOMB_TIME: displayEditScreen("Mod. Timer Bomba", String(_settings->getBombTime()), "min"); break;
+        case ModeState::EDIT_GAME_DURATION: displayEditScreen("Mod. Durata Partita", String(_settings->getGameDuration()), "min"); break;
         case ModeState::EDIT_ARM_PIN: displayEditScreen("Mod. PIN Armamento", _settings->getArmingPin(), ""); break;
         case ModeState::EDIT_DISARM_PIN: displayEditScreen("Mod. PIN Disarmo", _settings->getDisarmingPin(), ""); break;
         case ModeState::EDIT_ARM_TIME: displayEditScreen("Mod. Tempo Armamento", String(_settings->getArmingTime()), "s"); break;
