@@ -270,14 +270,17 @@ body {
 
 /* Footer del widget regole - TASTO */
 .rules-footer {
-    flex-shrink: 0;      
-    padding: 15px; /* Padding ridotto per alzare il tasto */
+    flex-shrink: 0;
+    
+    /* MODIFICA 1: Padding asimmetrico. 15px sopra/lati, ma 40px sotto */
+    padding: 15px 15px 40px 15px !important; 
+    
     border-top: 1px solid var(--sop-dim);
     background: rgba(255, 0, 0, 0.05);
     
-    /* FIX CRITICO: Z-Index 100 rende il tasto cliccabile sopra ogni altra cosa */
+    /* MODIFICA 2: Z-Index alto per renderlo cliccabile */
     z-index: 100 !important; 
-    position: relative; 
+    position: relative;
 }
 
 .full-width {
