@@ -409,18 +409,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     else elSdBombStatus.style.color = '#fff';
                 }
                 
-                if (payload.timer_source === 'BOMB') {
-                    // Mostra timer bomba nel riquadro ROSSO (basso sx)
-                    updateTimerDisplay(elSdBombTimer, payload.bomb_time);
-                    // Mostra lo stesso anche nel timer GLOBALE (alto sx) per drammaticità?
-                    // Oppure lascia il globale fermo. Di solito in CS quando la bomba è innescata il round timer sparisce.
-                    elGlobalTimer.textContent = "--:--"; 
-                } 
-                else if (payload.timer_source === 'GAME') {
-                    // Mostra timer partita nel riquadro GLOBALE (alto sx)
-                    updateTimerDisplay(elGlobalTimer, payload.game_time);
-                    // Resetta timer bomba
+                // --- GESTIONE DOPPIO TIMER ---
+                
+                // A. Timer Bomba (Pannello Sinistro - Rosso)
+                if (payload.bomb_time !== undefined && elSdBombTimer) {
+                    const m = Math.floor(payload.bomb_time / 60);
+                    const s = payload.bomb_time % 60;
+                    elSdBombTimer.textContent = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+                } else if (elSdBombTimer) {
                     elSdBombTimer.textContent = "00:00";
+                }
+
+                // B. Timer Partita (Pannello Superiore - Ciano)
+                if (payload.game_time !== undefined && elGlobalTimer) {
+                    const m = Math.floor(payload.game_time / 60);
+                    const s = payload.game_time % 60;
+                    elGlobalTimer.textContent = `${m}:${s.toString().padStart(2, '0')}`;
                 } 
                 
                 if (payload.arm_prog !== undefined && elSdArmBar) elSdArmBar.style.width = `${payload.arm_prog}%`;
