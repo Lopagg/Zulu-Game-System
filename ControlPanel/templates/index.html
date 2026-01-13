@@ -152,25 +152,40 @@
                     </div>
 
                     <div id="widget-sd-tactical" class="widget sop-card widget-tactical hidden">
-                        <div class="widget-header">TACTICAL FEED // BOMB STATUS</div>
+                        <div id="tactical-panel-title" class="widget-header">TACTICAL FEED</div>
+                        
                         <div class="widget-body tactical-body">
+                            
                             <div class="bomb-status-box">
                                 <span class="label">STATUS:</span>
                                 <span id="sd-bomb-status" class="status-value">SAFE</span>
                             </div>
+
                             <div class="bomb-timer-container">
                                 <span class="detonation-title">DETONATION SEQUENCE</span>
                                 <div id="sd-bomb-timer" class="digital-clock">00:00</div>
                             </div>
+
+                            <div id="domination-scores" class="dom-scores-box hidden">
+                                <div class="d-score">
+                                    <span class="d-label">ALPHA</span>
+                                    <span id="d-val-a" class="d-val-red">0</span>
+                                </div>
+                                <div class="d-vs">VS</div>
+                                <div class="d-score">
+                                    <span class="d-label">BRAVO</span>
+                                    <span id="d-val-b" class="d-val-green">0</span>
+                                </div>
+                            </div>
+
                             <div class="progress-section">
                                 <div class="prog-group">
-                                    <span class="prog-label">ARMING SEQUENCE</span>
-                                    <div class="progress-track">
+                                    <span class="prog-label">ALPHA ACTION</span> <div class="progress-track">
                                         <div id="sd-arm-bar" class="progress-fill fill-red" style="width: 0%"></div>
                                     </div>
                                 </div>
                                 <div class="prog-group">
-                                    <span class="prog-label">DEFUSAL SEQUENCE</span>
+                                    <span class="prog-label">BRAVO ACTION</span>
                                     <div class="progress-track">
                                         <div id="sd-defuse-bar" class="progress-fill fill-green" style="width: 0%"></div>
                                     </div>

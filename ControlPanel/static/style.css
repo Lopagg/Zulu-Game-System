@@ -389,3 +389,49 @@ body {
 .close-inspector-btn { background: transparent; border: 1px solid var(--sop-primary); color: var(--sop-primary); padding: 5px 10px; cursor: pointer; }
 .close-inspector-btn:hover { background: var(--sop-primary); color: #000; }
 .inspector-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+/* --- DOMINATION SCORES (Nel pannello Tattico) --- */
+.dom-scores-box {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    width: 100%;
+    margin: 20px 0;
+    padding: 10px 0;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+    border: 1px solid var(--sop-dim);
+}
+
+.d-score {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 40%;
+}
+
+.d-label {
+    font-size: 14px;
+    color: #888;
+    letter-spacing: 2px;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+/* Numeri dei punteggi belli grandi */
+.d-val-red, .d-val-green {
+    font-size: 60px;
+    font-weight: bold;
+    font-family: 'Share Tech Mono', monospace;
+    line-height: 1;
+}
+
+.d-val-red { color: var(--sop-alert); text-shadow: 0 0 15px rgba(255, 51, 51, 0.5); }
+.d-val-green { color: #55ff55; text-shadow: 0 0 15px rgba(85, 255, 85, 0.5); }
+
+.d-vs {
+    font-size: 24px;
+    color: #444;
+    font-weight: bold;
+    font-style: italic;
+}

@@ -55,6 +55,44 @@ document.addEventListener('DOMContentLoaded', () => {
     const elInspIp = document.getElementById('insp-ip');
     const elInspAliasInput = document.getElementById('insp-alias-input');
     const elInspFwVer = document.getElementById('insp-fw-ver');
+
+    const elTacticalTitle = document.getElementById('tactical-panel-title');
+    const elDomScores = document.getElementById('domination-scores');
+
+    function updateMonitorLayout(mode) {
+        if (!mode) return;
+
+        // Se siamo in una modalità "Tattica" (S&D o DOM)
+        if (mode === 'SEARCH_AND_DESTROY' || mode === 'DOMINATION') {
+            elWidgetSdTactical.classList.remove('hidden');
+            elWidgetSdRules.classList.remove('hidden');
+            elWidgetGenericMap.classList.add('hidden');
+            
+            // CONFIGURAZIONE SPECIFICA PER MODALITÀ
+            if (mode === 'SEARCH_AND_DESTROY') {
+                // Configura per S&D
+                if(elTacticalTitle) elTacticalTitle.textContent = "TACTICAL FEED // BOMB STATUS";
+                if(elBombContainer) elBombContainer.classList.remove('hidden'); // Mostra Timer Bomba
+                if(elDomScores) elDomScores.classList.add('hidden');            // Nascondi Punteggi
+            } 
+            else if (mode === 'DOMINATION') {
+                // Configura per DOMINIO
+                if(elTacticalTitle) elTacticalTitle.textContent = "TACTICAL FEED // ZONE CONTROL";
+                if(elBombContainer) elBombContainer.classList.add('hidden');    // Nascondi Timer Bomba
+                if(elDomScores) elDomScores.classList.remove('hidden');         // Mostra Punteggi
+            }
+
+            // Reset barre
+            if(elSdArmBar) elSdArmBar.style.width = "0%";
+            if(elSdDefuseBar) elSdDefuseBar.style.width = "0%";
+
+        } else {
+            // Modalità diverse
+            elWidgetSdTactical.classList.add('hidden');
+            elWidgetSdRules.classList.add('hidden');
+            elWidgetGenericMap.classList.remove('hidden');
+        }
+    }
     
     // --- STATO LOCALE ---
     let activeInspectorId = null; // ID del dispositivo che stiamo configurando
@@ -502,37 +540,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // --- TELEMETRIA DOMINIO (DOM_UPDATE) ---
             if (type === 'DOM_UPDATE') {
-
-                if (elBombContainer) elBombContainer.classList.add('hidden');
                 
-                // 1. STATO CENTRALE E COLORI
+                // 1. STATO CENTRALE
                 if (payload.state && elSdBombStatus) {
                     elSdBombStatus.textContent = payload.state;
                     const s = payload.state;
-
                     if (s === 'OWNED ALPHA' || s === 'CAPTURING A...' || s === 'ALPHA WINS') {
-                        elSdBombStatus.style.color = 'var(--sop-alert)'; // Rosso
+                        elSdBombStatus.style.color = 'var(--sop-alert)'; 
                     } else if (s === 'OWNED BRAVO' || s === 'CAPTURING B...' || s === 'BRAVO WINS') {
-                        elSdBombStatus.style.color = '#55ff55'; // Verde
-                    } else if (s === 'NEUTRAL' || s === 'STANDBY') {
-                        elSdBombStatus.style.color = '#fff'; // Bianco
+                        elSdBombStatus.style.color = '#55ff55'; 
                     } else {
-                        elSdBombStatus.style.color = 'var(--sop-primary)'; // Ciano
+                        elSdBombStatus.style.color = '#fff';
                     }
                 }
 
-                // 2. PUNTEGGI
-                if (payload.score_a !== undefined && elScoreA) elScoreA.textContent = payload.score_a;
-                if (payload.score_b !== undefined && elScoreB) elScoreB.textContent = payload.score_b;
+                // 2. PUNTEGGI (Nel nuovo box tattico)
+                const elDomValA = document.getElementById('d-val-a');
+                const elDomValB = document.getElementById('d-val-b');
+                
+                if (payload.score_a !== undefined && elDomValA) elDomValA.textContent = payload.score_a;
+                if (payload.score_b !== undefined && elDomValB) elDomValB.textContent = payload.score_b;
 
-                // 3. TIMER PARTITA
-                // DominationMode.cpp invia "game_time" già formattato come stringa "MM:SS"
+                // Nota: Non tocchiamo più elScoreA/elScoreB (Operator Count)
+
+                // 3. TIMER PARTITA (Solo quello in alto)
                 if (payload.game_time && elGlobalTimer) {
                     elGlobalTimer.textContent = payload.game_time;
                 }
 
-                // 4. BARRE DI PROGRESSO (Cattura)
-                // Ricicliamo: Arm Bar = Alpha (Rosso), Defuse Bar = Bravo (Verde)
+                // 4. BARRE DI PROGRESSO
                 const prog = payload.capture_prog || 0;
                 const state = payload.state || '';
 
@@ -543,22 +579,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     if(elSdArmBar) elSdArmBar.style.width = "0%";
                     if(elSdDefuseBar) elSdDefuseBar.style.width = `${prog}%`;
                 } else {
-                    // Reset barre se nessuno cattura
                     if(elSdArmBar) elSdArmBar.style.width = "0%";
                     if(elSdDefuseBar) elSdDefuseBar.style.width = "0%";
                 }
 
-                // 5. TASTO TERMINA MISSIONE
-                // Mostra il tasto solo se la partita è attiva
-                const btnForceEnd = document.getElementById('btn-force-end');
-                if (btnForceEnd) {
-                    const footer = btnForceEnd.parentElement;
-                    if (state !== 'STANDBY' && !state.includes('WINS') && state !== 'DRAW') {
-                        footer.classList.remove('hidden');
-                    } else {
-                        footer.classList.add('hidden');
-                    }
-                }
+                updateForceEndButton(payload.state);
             }
         }
     }
