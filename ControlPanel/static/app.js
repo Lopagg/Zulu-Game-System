@@ -540,6 +540,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // --- TELEMETRIA DOMINIO (DOM_UPDATE) ---
             if (type === 'DOM_UPDATE') {
+
+                if (elBombContainer) elBombContainer.classList.add('hidden');
                 
                 // 1. STATO CENTRALE
                 if (payload.state && elSdBombStatus) {
