@@ -402,9 +402,9 @@ void DominationMode::handleConfirmInput(bool btn1, bool btn2) {
         _countdownStartTime = millis();
         _lastCountdownSecond = -1;
 
-        JsonDocument doc;
-        doc["duration"] = _settings->getCountdownDuration();
-        _network->sendEvent("COUNTDOWN_START", doc);
+        _team1PossessionTime = 0;
+        _team2PossessionTime = 0;
+        _endGameStatus = "";
 
         _hardware->clearLcd();
         _hardware->printLcd(4, 1, "LA PARTITA");
@@ -412,6 +412,9 @@ void DominationMode::handleConfirmInput(bool btn1, bool btn2) {
         _hardware->setStripColor(255, 255, 255);
         _hardware->clearOled1();
         _hardware->clearOled2();
+        
+        // Forza un invio dati immediato per pulire l'interfaccia web
+        sendTelemetry();
     }
 }
 

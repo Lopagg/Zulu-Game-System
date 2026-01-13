@@ -447,7 +447,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (payload.score_a !== undefined && elDomValA) elDomValA.textContent = payload.score_a;
                 if (payload.score_b !== undefined && elDomValB) elDomValB.textContent = payload.score_b;
 
-                if (payload.game_time && elGlobalTimer) elGlobalTimer.textContent = payload.game_time;
+                if (payload.game_time && elGlobalTimer && payload.state !== 'STANDBY') {
+                    elGlobalTimer.textContent = payload.game_time;
+                    elGlobalTimer.style.color = 'var(--sop-text)'; // Colore normale
+                }
 
                 const prog = payload.capture_prog || 0;
                 const state = payload.state || '';
