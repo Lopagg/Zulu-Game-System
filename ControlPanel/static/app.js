@@ -1,13 +1,11 @@
 document.addEventListener('DOMContentLoaded', () => {
     const socket = io();
     
-    // --- RIFERIMENTI DOM (Elementi dell'interfaccia) ---
-    
-    // Liste e Log
+    // --- RIFERIMENTI DOM ---
     const elDeviceList = document.getElementById('device-list');
     const elMiniLog = document.getElementById('mini-log');
     
-    // Viste (Pannelli principali)
+    // Viste
     const elViewHub = document.getElementById('view-hub');
     const elViewSelectTarget = document.getElementById('view-select-target');
     const elViewSetup = document.getElementById('view-setup');
@@ -22,91 +20,53 @@ document.addEventListener('DOMContentLoaded', () => {
         'inspector': elViewInspector
     };
     
-    // Header Stats
+    // Header
     const elAssetCount = document.getElementById('asset-count');
     const elGlobalStatus = document.getElementById('global-status');
     const elMissionClock = document.getElementById('mission-clock');
 
-    // --- MONITOR WIDGETS (Vista Monitor) ---
-    
-    // Widget Contenitori (Per nascondere/mostrare in base alla modalità)
+    // --- MONITOR WIDGETS ---
     const elWidgetSdTactical = document.getElementById('widget-sd-tactical');
     const elWidgetSdRules = document.getElementById('widget-sd-rules');
     const elWidgetGenericMap = document.getElementById('widget-generic-map');
 
-    // Generici (Timer Partita e Punteggi/Giocatori)
     const elGlobalTimer = document.getElementById('global-timer-display');
     const elScoreA = document.getElementById('score-a');
     const elScoreB = document.getElementById('score-b');
     const elMonitorTargetId = document.getElementById('monitoring-target-id');
 
-    // Specifici Cerca e Distruggi (S&D)
+    // Specifici S&D e Dominio
     const elSdBombStatus = document.getElementById('sd-bomb-status');
     const elSdBombTimer = document.getElementById('sd-bomb-timer');
-    const elBombContainer = document.querySelector('.bomb-timer-container');
+    const elBombContainer = document.querySelector('.bomb-timer-container'); // Contenitore Timer
+    const elDomScores = document.getElementById('domination-scores');       // Contenitore Punteggi
+    
+    const elTacticalTitle = document.getElementById('tactical-panel-title');
+    
     const elSdArmBar = document.getElementById('sd-arm-bar');
     const elSdDefuseBar = document.getElementById('sd-defuse-bar');
     const elSdRulesList = document.getElementById('sd-rules-list');
 
-    // --- INSPECTOR ELEMENTS (Vista Dettaglio Asset) ---
+    // Inspector
     const elInspTitle = document.getElementById('inspector-title');
     const elInspMode = document.getElementById('insp-mode');
     const elInspState = document.getElementById('insp-state');
     const elInspIp = document.getElementById('insp-ip');
     const elInspAliasInput = document.getElementById('insp-alias-input');
     const elInspFwVer = document.getElementById('insp-fw-ver');
-
-    const elTacticalTitle = document.getElementById('tactical-panel-title');
-    const elDomScores = document.getElementById('domination-scores');
-
-    function updateMonitorLayout(mode) {
-        if (!mode) return;
-
-        // Se siamo in una modalità "Tattica" (S&D o DOM)
-        if (mode === 'SEARCH_AND_DESTROY' || mode === 'DOMINATION') {
-            elWidgetSdTactical.classList.remove('hidden');
-            elWidgetSdRules.classList.remove('hidden');
-            elWidgetGenericMap.classList.add('hidden');
-            
-            // CONFIGURAZIONE SPECIFICA PER MODALITÀ
-            if (mode === 'SEARCH_AND_DESTROY') {
-                // Configura per S&D
-                if(elTacticalTitle) elTacticalTitle.textContent = "TACTICAL FEED // BOMB STATUS";
-                if(elBombContainer) elBombContainer.classList.remove('hidden'); // Mostra Timer Bomba
-                if(elDomScores) elDomScores.classList.add('hidden');            // Nascondi Punteggi
-            } 
-            else if (mode === 'DOMINATION') {
-                // Configura per DOMINIO
-                if(elTacticalTitle) elTacticalTitle.textContent = "TACTICAL FEED // ZONE CONTROL";
-                if(elBombContainer) elBombContainer.classList.add('hidden');    // Nascondi Timer Bomba
-                if(elDomScores) elDomScores.classList.remove('hidden');         // Mostra Punteggi
-            }
-
-            // Reset barre
-            if(elSdArmBar) elSdArmBar.style.width = "0%";
-            if(elSdDefuseBar) elSdDefuseBar.style.width = "0%";
-
-        } else {
-            // Modalità diverse
-            elWidgetSdTactical.classList.add('hidden');
-            elWidgetSdRules.classList.add('hidden');
-            elWidgetGenericMap.classList.remove('hidden');
-        }
-    }
     
-    // --- STATO LOCALE ---
-    let activeInspectorId = null; // ID del dispositivo che stiamo configurando
-    let monitoredDeviceId = null; // ID del dispositivo che stiamo sorvegliando nel Monitor
-    let currentDevices = [];      // Cache locale dei dispositivi attivi per la griglia
+    // Stato Locale
+    let activeInspectorId = null;
+    let monitoredDeviceId = null;
+    let currentDevices = [];
 
-    // --- OROLOGIO TATTICO ---
+    // Orologio Locale
     setInterval(() => {
         const now = new Date();
         elMissionClock.textContent = now.toLocaleTimeString('it-IT', { hour12: false });
     }, 1000);
 
-    // --- SOCKET.IO EVENTS ---
-
+    // --- SOCKET IO ---
     socket.on('connect', () => {
         logSystem("LINK ESTABLISHED WITH SOP SERVER.");
         elGlobalStatus.textContent = "ONLINE";
@@ -121,49 +81,40 @@ document.addEventListener('DOMContentLoaded', () => {
         elGlobalStatus.classList.add('status-alert');
     });
 
-    // Aggiornamento Dispositivi
     socket.on('devices_update', (devices) => {
-        currentDevices = devices; // Salviamo la cache
+        currentDevices = devices;
         updateDeviceList(devices);
         
-        // Se siamo nella vista di selezione target, aggiorniamo la griglia in tempo reale
         if (!elViewSelectTarget.classList.contains('hidden')) {
             renderTargetSelection();
         }
 
-        // Se stiamo monitorando un dispositivo, controlliamo se ha cambiato modalità
         if (monitoredDeviceId) {
             const dev = devices.find(d => d.id === monitoredDeviceId);
             if (dev && dev.mode) {
+                // Aggiorna il layout se la modalità cambia "live"
                 updateMonitorLayout(dev.mode);
             }
         }
     });
 
-    // Eventi di Gioco (Telemetria)
     socket.on('esp_event', (msg) => {
         handleGameEvent(msg);
     });
 
-    // --- FUNZIONI NAVIGAZIONE VISTE ---
-
+    // --- NAVIGAZIONE ---
     function showView(viewName) {
-        // Nascondi tutto
         Object.values(views).forEach(el => {
             if(el) {
                 el.classList.remove('active');
                 el.classList.add('hidden');
             }
         });
-        
-        // Mostra target
         const target = views[viewName];
         if(target) {
             target.classList.remove('hidden');
             target.classList.add('active');
         }
-        
-        // Reset stati se torniamo all'Hub
         if(viewName === 'hub') {
             activeInspectorId = null;
             monitoredDeviceId = null; 
@@ -171,8 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- FUNZIONI UI SIDEBAR ---
-
+    // --- SIDEBAR ---
     function updateDeviceList(devices) {
         elDeviceList.innerHTML = ''; 
         elAssetCount.textContent = devices.length;
@@ -198,11 +148,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <span class="device-mode">${device.mode || 'UNKNOWN'}</span>
                 </div>
             `;
-            
-            li.addEventListener('click', () => {
-                openInspector(device);
-            });
-
+            li.addEventListener('click', () => openInspector(device));
             elDeviceList.appendChild(li);
             
             if (device.id === activeInspectorId) {
@@ -211,8 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- FUNZIONI UI TARGET SELECTION (Griglia) ---
-
+    // --- TARGET SELECTION ---
     function renderTargetSelection() {
         const grid = document.getElementById('target-grid');
         grid.innerHTML = '';
@@ -224,7 +169,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         currentDevices.forEach(device => {
             const displayName = device.name || device.id;
-            
             const card = document.createElement('div');
             card.className = 'target-card';
             card.innerHTML = `
@@ -235,47 +179,56 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
             
             card.addEventListener('click', () => {
-                // Imposta il target
                 monitoredDeviceId = device.id;
                 elMonitorTargetId.textContent = displayName;
                 
-                // Configura il layout in base alla modalità attuale del dispositivo
+                // 1. Reset Dati (Pulizia valori vecchi)
+                resetMonitorData(); 
+                
+                // 2. Imposta Layout Corretto (IMPORTANTE: Dopo il reset!)
                 updateMonitorLayout(device.mode);
                 
-                // Resetta i dati visuali per evitare "fantasmi"
-                resetMonitorData();
-
                 showView('monitor');
                 logSystem(`LINKING TELEMETRY TO: ${displayName}`);
 
-                // Chiede al dispositivo di rimandare subito impostazioni e stato
+                // Richiedi stato aggiornato
                 socket.emit('send_command', { 
                     target_id: device.id, 
                     command: { cmd: "GET_STATUS" } 
                 });
-
             });
-
             grid.appendChild(card);
         });
     }
     
-    // Funzione per nascondere/mostrare widget in base alla modalità
+    // --- GESTIONE LAYOUT INTELLIGENTE ---
     function updateMonitorLayout(mode) {
         if (!mode) return;
 
-        // Mostriamo il pannello tattico sia per S&D che per DOMINATION
-        // Ricicliamo lo stesso layout: è efficiente e già pronto.
         if (mode === 'SEARCH_AND_DESTROY' || mode === 'DOMINATION') {
+            // Mostra widget tattici
             elWidgetSdTactical.classList.remove('hidden');
             elWidgetSdRules.classList.remove('hidden');
             elWidgetGenericMap.classList.add('hidden');
             
-            // Piccola pulizia visiva: resetta le barre quando cambi modalità
+            // --- CONFIGURAZIONE SPECIFICA ---
+            if (mode === 'SEARCH_AND_DESTROY') {
+                if(elTacticalTitle) elTacticalTitle.textContent = "TACTICAL FEED // BOMB STATUS";
+                if(elBombContainer) elBombContainer.classList.remove('hidden'); // MOSTRA TIMER
+                if(elDomScores) elDomScores.classList.add('hidden');            // NASCONDI PUNTEGGI
+            } 
+            else if (mode === 'DOMINATION') {
+                if(elTacticalTitle) elTacticalTitle.textContent = "TACTICAL FEED // ZONE CONTROL";
+                if(elBombContainer) elBombContainer.classList.add('hidden');    // NASCONDI TIMER
+                if(elDomScores) elDomScores.classList.remove('hidden');         // MOSTRA PUNTEGGI
+            }
+
+            // Pulisci barre quando cambi modalità
             if(elSdArmBar) elSdArmBar.style.width = "0%";
             if(elSdDefuseBar) elSdDefuseBar.style.width = "0%";
+
         } else {
-            // Modalità diverse: Nascondi pannello tattico
+            // Modalità non tattiche
             elWidgetSdTactical.classList.add('hidden');
             elWidgetSdRules.classList.add('hidden');
             elWidgetGenericMap.classList.remove('hidden');
@@ -286,23 +239,29 @@ document.addEventListener('DOMContentLoaded', () => {
         if(elSdBombTimer) elSdBombTimer.textContent = "00:00";
         if(elSdBombStatus) elSdBombStatus.textContent = "WAITING...";
         if(elSdBombStatus) elSdBombStatus.style.color = "#fff";
+        
+        // Pulisci valori Dominio
+        const elDomValA = document.getElementById('d-val-a');
+        const elDomValB = document.getElementById('d-val-b');
+        if(elDomValA) elDomValA.textContent = "0";
+        if(elDomValB) elDomValB.textContent = "0";
+
         if(elSdArmBar) elSdArmBar.style.width = "0%";
         if(elSdDefuseBar) elSdDefuseBar.style.width = "0%";
         if(elSdRulesList) elSdRulesList.innerHTML = '<li>WAITING FOR TELEMETRY...</li>';
+        
+        // *** CRUCIALE: NON FORZARE LA VISIBILITÀ DEL TIMER QUI! ***
+        // Lasciamo che sia updateMonitorLayout a decidere chi deve essere visibile.
     }
 
-    // --- FUNZIONI UI INSPECTOR ---
-
+    // --- INSPECTOR ---
     function openInspector(device) {
         activeInspectorId = device.id;
-        
         const displayName = device.name || device.id;
         elInspTitle.textContent = `${displayName} // CONFIG`;
         elInspAliasInput.value = (device.name === device.id) ? "" : device.name;
-        
         updateInspectorData(device);
         showView('inspector');
-        
         logSystem(`ACCESSING ZGT NODE: ${device.id}`);
     }
 
@@ -313,114 +272,59 @@ document.addEventListener('DOMContentLoaded', () => {
         if(elInspFwVer) elInspFwVer.textContent = `FW_VER: ${device.version || '--'}`;
     }
 
-    // --- GESTIONE BOTTONI DI NAVIGAZIONE ---
-
-    // 1. Hub -> Setup
+    // --- PULSANTI ---
     const btnModeSetup = document.getElementById('btn-mode-setup');
-    if(btnModeSetup) {
-        btnModeSetup.addEventListener('click', () => {
-            showView('setup');
-        });
-    }
+    if(btnModeSetup) btnModeSetup.addEventListener('click', () => showView('setup'));
 
-    // 2. Hub -> Selezione Target -> Monitor
     const btnModeObserve = document.getElementById('btn-mode-observe');
-    if(btnModeObserve) {
-        btnModeObserve.addEventListener('click', () => {
-            renderTargetSelection();
-            showView('select-target');
-        });
-    }
+    if(btnModeObserve) btnModeObserve.addEventListener('click', () => { renderTargetSelection(); showView('select-target'); });
 
-    // 3. Bottoni Indietro (Back)
-    document.querySelectorAll('.back-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            showView('hub');
-        });
-    });
+    document.querySelectorAll('.back-btn').forEach(btn => btn.addEventListener('click', () => showView('hub')));
+    document.querySelector('.close-inspector-btn').addEventListener('click', () => { showView('hub'); logSystem("RETURNING TO HUB."); });
 
-    // 4. Chiudi Inspector
-    document.querySelector('.close-inspector-btn').addEventListener('click', () => {
-        showView('hub');
-        logSystem("RETURNING TO HUB.");
-    });
-
-    // --- GESTIONE BOTTONI AZIONE ---
-
-    // Salva Alias
     const btnSaveAlias = document.getElementById('save-alias-btn');
-    if(btnSaveAlias) {
-        btnSaveAlias.addEventListener('click', () => {
-            if(!activeInspectorId) return;
-            const newName = elInspAliasInput.value.trim();
-            if(newName) {
-                socket.emit('rename_device', { id: activeInspectorId, name: newName });
-                logSystem(`ALIAS UPDATE REQUEST: ${newName}`);
-            }
-        });
-    }
+    if(btnSaveAlias) btnSaveAlias.addEventListener('click', () => {
+        if(!activeInspectorId) return;
+        const newName = elInspAliasInput.value.trim();
+        if(newName) {
+            socket.emit('rename_device', { id: activeInspectorId, name: newName });
+            logSystem(`ALIAS UPDATE REQUEST: ${newName}`);
+        }
+    });
 
-    // Reset Hardware
     const btnHardReset = document.getElementById('hard-reset-btn');
-    if(btnHardReset) {
-        btnHardReset.addEventListener('click', () => {
-            if(!activeInspectorId) return;
-            if(confirm("CONFERMI RESET HARDWARE? L'asset andrà offline.")) {
-                const resetPayload = { cmd: "RESET" };
-                socket.emit('send_command', { 
-                    target_id: activeInspectorId, 
-                    command: resetPayload 
-                });
-                logSystem(`SENDING KILL SIGNAL TO ${activeInspectorId}...`);
-            }
-        });
-    }
+    if(btnHardReset) btnHardReset.addEventListener('click', () => {
+        if(!activeInspectorId) return;
+        if(confirm("CONFERMI RESET HARDWARE?")) {
+            socket.emit('send_command', { target_id: activeInspectorId, command: { cmd: "RESET" } });
+            logSystem(`SENDING KILL SIGNAL...`);
+        }
+    });
 
-    // --- GESTIONE BOTTONE TERMINA MISSIONE (S&D) ---
     const btnForceEnd = document.getElementById('btn-force-end');
-    if(btnForceEnd) {
-        btnForceEnd.addEventListener('click', () => {
-            // Verifica di sicurezza
-            if(!monitoredDeviceId) {
-                alert("Nessun dispositivo selezionato.");
-                return;
-            }
+    if(btnForceEnd) btnForceEnd.addEventListener('click', () => {
+        if(!monitoredDeviceId) { alert("Nessun dispositivo selezionato."); return; }
+        if(confirm("ATTENZIONE: Terminare forzatamente la partita?")) {
+            socket.emit('send_command', { target_id: monitoredDeviceId, command: { cmd: "FORCE_END_GAME" } });
+            logSystem(`SENDING TERMINATION SIGNAL...`);
+        }
+    });
 
-            // Chiede conferma all'operatore
-            if(confirm("ATTENZIONE: Sei sicuro di voler terminare forzatamente la partita corrente?\nLa vittoria verrà assegnata alla squadra Counter-Terrorist.")) {
-                
-                // Invia il comando al firmware
-                socket.emit('send_command', { 
-                    target_id: monitoredDeviceId, 
-                    command: { cmd: "FORCE_END_GAME" } 
-                });
-                
-                logSystem(`SENDING TERMINATION SIGNAL TO ${monitoredDeviceId}...`);
-            }
-        });
-    }
-
-    // Scan Manuale
     const btnScan = document.getElementById('scan-btn');
-    if(btnScan) {
-        btnScan.addEventListener('click', () => {
-            logSystem("INITIATING NETWORK SCAN...");
-            elDeviceList.innerHTML = '<li class="placeholder-msg blink">SCANNING FREQUENCIES...</li>';
-            
-            btnScan.disabled = true;
-            btnScan.style.opacity = "0.5";
+    if(btnScan) btnScan.addEventListener('click', () => {
+        logSystem("INITIATING NETWORK SCAN...");
+        elDeviceList.innerHTML = '<li class="placeholder-msg blink">SCANNING FREQUENCIES...</li>';
+        btnScan.disabled = true;
+        btnScan.style.opacity = "0.5";
+        setTimeout(() => {
+            socket.emit('request_manual_scan');
+            btnScan.disabled = false;
+            btnScan.style.opacity = "1";
+            logSystem("SCAN COMPLETE.");
+        }, 800); 
+    });
 
-            setTimeout(() => {
-                socket.emit('request_manual_scan');
-                btnScan.disabled = false;
-                btnScan.style.opacity = "1";
-                logSystem("SCAN COMPLETE.");
-            }, 800); 
-        });
-    }
-
-    // --- GESTIONE EVENTI DI GIOCO (IL CUORE DEL MONITOR) ---
-    
+    // --- GESTIONE TELEMETRIA ---
     function handleGameEvent(msg) {
         const raw = msg.parsed_data || {};
         const senderId = raw.id || 'UNK';
@@ -428,99 +332,50 @@ document.addEventListener('DOMContentLoaded', () => {
         const payload = raw.payload || {};
         const shortId = senderId.slice(-4);
 
-        // Debug Console Browser (Premi F12 per vedere se arrivano dati)
-        // console.log("RX Event:", type, payload); 
+        if (type !== 'TIME_UPDATE' && type !== 'SD_UPDATE') logSystem(`[${shortId}] ${type}`);
 
-        // --- 1. LOGGING VISIBILE ---
-        // Mostra tutto tranne i messaggi spam (aggiornamenti rapidi)
-        // TIME_UPDATE = Timer globale (1s)
-        // SD_UPDATE = Barre progresso (100ms)
-        if (type !== 'TIME_UPDATE' && type !== 'SD_UPDATE') {
-            logSystem(`[${shortId}] ${type}`);
-        }
-
-        // --- 2. AGGIORNAMENTO DATI GLOBALI ---
         if (type === 'TIME_UPDATE') {
-            if (payload.time_left !== undefined) {
+            if (payload.time_left !== undefined && elGlobalTimer) {
                 const m = Math.floor(payload.time_left / 60);
                 const s = payload.time_left % 60;
-                if(elGlobalTimer) elGlobalTimer.textContent = `${m}:${s.toString().padStart(2, '0')}`;
+                elGlobalTimer.textContent = `${m}:${s.toString().padStart(2, '0')}`;
             }
             if (payload.t1_poss !== undefined && elScoreA) elScoreA.textContent = payload.t1_poss;
             if (payload.t2_poss !== undefined && elScoreB) elScoreB.textContent = payload.t2_poss;
         }
 
-        // --- 3. DATI DISPOSITIVO MONITORATO ---
         if (monitoredDeviceId && senderId === monitoredDeviceId) {
             
-            // Patch sicurezza nome modalità
+            // Rilevamento automatico della modalità dal pacchetto
             let mode = payload.mode || (type === 'SD_UPDATE' ? 'SEARCH_AND_DESTROY' : (type === 'DOM_UPDATE' ? 'DOMINATION' : null));
             if (mode === 'SEARCH_DESTROY') mode = 'SEARCH_AND_DESTROY';
 
-            // Cambio Modalità
-            if (mode && (type === 'HEARTBEAT' || type === 'MODE_ENTER' || type === 'SD_UPDATE' || type === 'SETTINGS_UPDATE' || type === 'DOM_UPDATE')) {
+            // Cambio layout al volo se necessario
+            if (mode && (type === 'HEARTBEAT' || type === 'MODE_ENTER' || type === 'SD_UPDATE' || type === 'DOM_UPDATE' || type === 'SETTINGS_UPDATE')) {
                 updateMonitorLayout(mode);
-            }   
+            }
 
-            // Regole
             if (type === 'SETTINGS_UPDATE' || (type === 'MODE_ENTER' && payload.bomb_time)) {
                 renderRules(payload);
             }
 
-            // Telemetria S&D
+            // --- PACCHETTO S&D ---
             if (type === 'SD_UPDATE') {
-
-                // Assicura che il timer sia visibile
+                // Ridondanza: Assicura layout S&D
                 if (elBombContainer) elBombContainer.classList.remove('hidden');
-                
-                // Assicura che i punteggi dominio siano NASCOSTI
                 if (elDomScores) elDomScores.classList.add('hidden');
+                
+                if (elSdBombTimer) elSdBombTimer.style.color = 'var(--sop-alert)'; // Forza Rosso
 
-                // Forza il colore ROSSO per il timer della bomba
-                if (elSdBombTimer) elSdBombTimer.style.color = 'var(--sop-alert)';
-
-                // 1. Stato Testuale e Colori
                 if (payload.state && elSdBombStatus) {
                     elSdBombStatus.textContent = payload.state;
-                    
-                    const s = payload.state; // Alias per brevità
-
-                    // ROSSO: Pericolo o Vittoria Terroristi
-                    if (s === 'ARMED' || s === 'ARMING...' || s === 'EXPLODED' || s === 'T WINS') {
-                        elSdBombStatus.style.color = 'var(--sop-alert)'; 
-                    } 
-                    // VERDE: Disinnesco o Vittoria CT
-                    else if (s === 'DEFUSED' || s === 'DEFUSING...' || s === 'CT WINS') {
-                        elSdBombStatus.style.color = '#55ff55'; 
-                    } 
-                    // GIALLO/ARANCIO: In attesa
-                    else if (s === 'STANDBY') {
-                        elSdBombStatus.style.color = '#ff9900';
-                    }
-                    // CIANO: Safe mode durante il gioco
-                    else {
-                        elSdBombStatus.style.color = 'var(--sop-primary)';
-                    }
+                    const s = payload.state;
+                    if (['ARMED', 'ARMING...', 'EXPLODED', 'T WINS'].includes(s)) elSdBombStatus.style.color = 'var(--sop-alert)'; 
+                    else if (['DEFUSED', 'DEFUSING...', 'CT WINS'].includes(s)) elSdBombStatus.style.color = '#55ff55'; 
+                    else if (s === 'STANDBY') elSdBombStatus.style.color = '#ff9900';
+                    else elSdBombStatus.style.color = 'var(--sop-primary)';
                 }
 
-                // --- GESTIONE VISIBILITÀ TASTO TERMINA ---
-                const btnForceEnd = document.getElementById('btn-force-end');
-                if (btnForceEnd) {
-                    const footer = btnForceEnd.parentElement; // Selezioniamo il contenitore (rules-footer)
-                    
-                    // Stati in cui la partita è "VIVA"
-                    const activeStates = ['SAFE', 'ARMING...', 'ARMED', 'DEFUSING...'];
-                    
-                    if (activeStates.includes(payload.state)) {
-                        footer.classList.remove('hidden'); // Mostra
-                    } else {
-                        footer.classList.add('hidden');    // Nascondi (in STANDBY, CT WINS, ecc.)
-                    }
-                }
-                
-                // --- GESTIONE DOPPIO TIMER ---
-                
-                // A. Timer Bomba (Pannello Sinistro - Rosso)
                 if (payload.bomb_time !== undefined && elSdBombTimer) {
                     const m = Math.floor(payload.bomb_time / 60);
                     const s = payload.bomb_time % 60;
@@ -529,7 +384,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     elSdBombTimer.textContent = "00:00";
                 }
 
-                // B. Timer Partita (Pannello Superiore - Ciano)
                 if (payload.game_time !== undefined && elGlobalTimer) {
                     const m = Math.floor(payload.game_time / 60);
                     const s = payload.game_time % 60;
@@ -538,43 +392,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 if (payload.arm_prog !== undefined && elSdArmBar) elSdArmBar.style.width = `${payload.arm_prog}%`;
                 if (payload.def_prog !== undefined && elSdDefuseBar) elSdDefuseBar.style.width = `${payload.def_prog}%`;
+                
+                updateForceEndButton(payload.state);
             }
 
-            // --- TELEMETRIA DOMINIO (DOM_UPDATE) ---
+            // --- PACCHETTO DOMINIO ---
             if (type === 'DOM_UPDATE') {
-
-                // Nascondi Timer Bomba
+                // Ridondanza: Assicura layout Dominio
                 if (elBombContainer) elBombContainer.classList.add('hidden');
-                
-                // 2. Mostra Punteggi
                 if (elDomScores) elDomScores.classList.remove('hidden');
-                
-                // 1. STATO CENTRALE
+
                 if (payload.state && elSdBombStatus) {
                     elSdBombStatus.textContent = payload.state;
                     const s = payload.state;
-                    if (s === 'OWNED ALPHA' || s === 'CAPTURING A...' || s === 'ALPHA WINS') {
-                        elSdBombStatus.style.color = 'var(--sop-alert)'; 
-                    } else if (s === 'OWNED BRAVO' || s === 'CAPTURING B...' || s === 'BRAVO WINS') {
-                        elSdBombStatus.style.color = '#55ff55'; 
-                    } else {
-                        elSdBombStatus.style.color = '#fff';
-                    }
+                    if (s.includes('ALPHA') || s.includes('CAPTURING A')) elSdBombStatus.style.color = 'var(--sop-alert)'; 
+                    else if (s.includes('BRAVO') || s.includes('CAPTURING B')) elSdBombStatus.style.color = '#55ff55'; 
+                    else elSdBombStatus.style.color = '#fff';
                 }
 
-                // 2. PUNTEGGI (Nel nuovo box tattico)
                 const elDomValA = document.getElementById('d-val-a');
                 const elDomValB = document.getElementById('d-val-b');
-                
                 if (payload.score_a !== undefined && elDomValA) elDomValA.textContent = payload.score_a;
                 if (payload.score_b !== undefined && elDomValB) elDomValB.textContent = payload.score_b;
 
-                // 3. TIMER PARTITA
-                if (payload.game_time && elGlobalTimer) {
-                    elGlobalTimer.textContent = payload.game_time;
-                }
+                if (payload.game_time && elGlobalTimer) elGlobalTimer.textContent = payload.game_time;
 
-                // 4. BARRE DI PROGRESSO
                 const prog = payload.capture_prog || 0;
                 const state = payload.state || '';
 
@@ -588,56 +430,46 @@ document.addEventListener('DOMContentLoaded', () => {
                     if(elSdArmBar) elSdArmBar.style.width = "0%";
                     if(elSdDefuseBar) elSdDefuseBar.style.width = "0%";
                 }
-
+                
                 updateForceEndButton(payload.state);
             }
         }
     }
 
-    // Funzione per mostrare le regole nel pannello laterale
+    function updateForceEndButton(state) {
+        const btnForceEnd = document.getElementById('btn-force-end');
+        if (btnForceEnd) {
+            const footer = btnForceEnd.parentElement;
+            const activeStates = ['SAFE', 'ARMING...', 'ARMED', 'DEFUSING...', 'NEUTRAL', 'OWNED ALPHA', 'OWNED BRAVO', 'CAPTURING A...', 'CAPTURING B...'];
+            if (activeStates.includes(state)) footer.classList.remove('hidden');
+            else footer.classList.add('hidden');
+        }
+    }
+
     function renderRules(payload) {
         if(!elSdRulesList) return;
         elSdRulesList.innerHTML = '';
-        
-        const keysMap = {
-            'bomb_time': 'TIMER BOMBA (Min)',
-            'arm_time': 'TEMPO INNESCO (Sec)',
-            'defuse_time': 'TEMPO DISINNESCO (Sec)',
-            'game_duration': 'DURATA ROUND (Min)',
-            'arm_pin_req': 'PIN INNESCO?',
-            'defuse_pin_req': 'PIN DISINNESCO?'
-        };
+        const keysMap = { 'bomb_time': 'TIMER BOMBA (Min)', 'arm_time': 'TEMPO INNESCO (Sec)', 'defuse_time': 'TEMPO DISINNESCO (Sec)', 'game_duration': 'DURATA ROUND (Min)', 'capture_time': 'TEMPO CATTURA (Sec)', 'countdown': 'START DELAY (Sec)' };
 
         for (const [key, val] of Object.entries(payload)) {
             if (key === 'mode' || key === 'version' || key === 'type') continue; 
-            
             let displayVal = val;
             if(val === true || val === 'YES') displayVal = 'SÌ';
             if(val === false || val === 'NO') displayVal = 'NO';
-
             const label = keysMap[key] || key.toUpperCase().replace('_', ' ');
-            
             const li = document.createElement('li');
             li.innerHTML = `<span class="rule-key">${label}</span> <span class="rule-val">${displayVal}</span>`;
             elSdRulesList.appendChild(li);
         }
     }
 
-    // Utility: Logger
     function logSystem(text) {
         const div = document.createElement('div');
         div.textContent = `> ${text}`;
         elMiniLog.prepend(div);
     }
-
-    function updateTimerDisplay(element, seconds) {
-        if (!element || seconds === undefined) return;
-        const m = Math.floor(seconds / 60);
-        const s = seconds % 60;
-        element.textContent = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
-    }
     
-    // Espone sendCommand per debug
+    // Debug
     window.sendCommand = function(cmdObj) {
         if (!activeInspectorId) return console.warn("No active inspector");
         socket.emit('send_command', { target_id: activeInspectorId, command: cmdObj });
