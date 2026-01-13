@@ -225,13 +225,18 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateMonitorLayout(mode) {
         if (!mode) return;
 
-        if (mode === 'SEARCH_AND_DESTROY') {
-            // Mostra Pannelli S&D, Nascondi Mappa Generica
+        // Mostriamo il pannello tattico sia per S&D che per DOMINATION
+        // Ricicliamo lo stesso layout: è efficiente e già pronto.
+        if (mode === 'SEARCH_AND_DESTROY' || mode === 'DOMINATION') {
             elWidgetSdTactical.classList.remove('hidden');
             elWidgetSdRules.classList.remove('hidden');
             elWidgetGenericMap.classList.add('hidden');
+            
+            // Piccola pulizia visiva: resetta le barre quando cambi modalità
+            if(elSdArmBar) elSdArmBar.style.width = "0%";
+            if(elSdDefuseBar) elSdDefuseBar.style.width = "0%";
         } else {
-            // Modalità diverse: Nascondi S&D, Mostra Mappa Generica
+            // Modalità diverse: Nascondi pannello tattico
             elWidgetSdTactical.classList.add('hidden');
             elWidgetSdRules.classList.add('hidden');
             elWidgetGenericMap.classList.remove('hidden');
@@ -485,6 +490,70 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 if (payload.arm_prog !== undefined && elSdArmBar) elSdArmBar.style.width = `${payload.arm_prog}%`;
                 if (payload.def_prog !== undefined && elSdDefuseBar) elSdDefuseBar.style.width = `${payload.def_prog}%`;
+            }
+
+            // --- TELEMETRIA DOMINIO (DOM_UPDATE) ---
+            if (type === 'DOM_UPDATE') {
+                
+                // 1. STATO CENTRALE E COLORI
+                if (payload.state && elSdBombStatus) {
+                    elSdBombStatus.textContent = payload.state;
+                    const s = payload.state;
+
+                    if (s === 'OWNED ALPHA' || s === 'CAPTURING A...' || s === 'ALPHA WINS') {
+                        elSdBombStatus.style.color = 'var(--sop-alert)'; // Rosso
+                    } else if (s === 'OWNED BRAVO' || s === 'CAPTURING B...' || s === 'BRAVO WINS') {
+                        elSdBombStatus.style.color = '#55ff55'; // Verde
+                    } else if (s === 'NEUTRAL' || s === 'STANDBY') {
+                        elSdBombStatus.style.color = '#fff'; // Bianco
+                    } else {
+                        elSdBombStatus.style.color = 'var(--sop-primary)'; // Ciano
+                    }
+                }
+
+                // 2. PUNTEGGI
+                if (payload.score_a !== undefined && elScoreA) elScoreA.textContent = payload.score_a;
+                if (payload.score_b !== undefined && elScoreB) elScoreB.textContent = payload.score_b;
+
+                // 3. TIMER PARTITA
+                // DominationMode.cpp invia "game_time" già formattato come stringa "MM:SS"
+                if (payload.game_time && elGlobalTimer) {
+                    elGlobalTimer.textContent = payload.game_time;
+                }
+                // Usiamo il timer centrale (quello rosso grande) per mostrare lo stesso tempo o nasconderlo
+                if (payload.game_time && elSdBombTimer) {
+                    elSdBombTimer.textContent = payload.game_time;
+                    elSdBombTimer.style.color = 'var(--sop-primary)'; // Lo facciamo ciano invece che rosso per differenziare
+                }
+
+                // 4. BARRE DI PROGRESSO (Cattura)
+                // Ricicliamo: Arm Bar = Alpha (Rosso), Defuse Bar = Bravo (Verde)
+                const prog = payload.capture_prog || 0;
+                const state = payload.state || '';
+
+                if (state.includes('CAPTURING A')) {
+                    if(elSdArmBar) elSdArmBar.style.width = `${prog}%`;
+                    if(elSdDefuseBar) elSdDefuseBar.style.width = "0%";
+                } else if (state.includes('CAPTURING B')) {
+                    if(elSdArmBar) elSdArmBar.style.width = "0%";
+                    if(elSdDefuseBar) elSdDefuseBar.style.width = `${prog}%`;
+                } else {
+                    // Reset barre se nessuno cattura
+                    if(elSdArmBar) elSdArmBar.style.width = "0%";
+                    if(elSdDefuseBar) elSdDefuseBar.style.width = "0%";
+                }
+
+                // 5. TASTO TERMINA MISSIONE
+                // Mostra il tasto solo se la partita è attiva
+                const btnForceEnd = document.getElementById('btn-force-end');
+                if (btnForceEnd) {
+                    const footer = btnForceEnd.parentElement;
+                    if (state !== 'STANDBY' && !state.includes('WINS') && state !== 'DRAW') {
+                        footer.classList.remove('hidden');
+                    } else {
+                        footer.classList.add('hidden');
+                    }
+                }
             }
         }
     }
