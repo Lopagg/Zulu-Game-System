@@ -236,22 +236,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function resetMonitorData() {
+        // Reset Timer Tattico
         if(elSdBombTimer) elSdBombTimer.textContent = "00:00";
         if(elSdBombStatus) elSdBombStatus.textContent = "WAITING...";
         if(elSdBombStatus) elSdBombStatus.style.color = "#fff";
         
-        // Pulisci valori Dominio
+        // Reset Punteggi Dominio
         const elDomValA = document.getElementById('d-val-a');
         const elDomValB = document.getElementById('d-val-b');
         if(elDomValA) elDomValA.textContent = "0";
         if(elDomValB) elDomValB.textContent = "0";
 
+        // Reset Barre
         if(elSdArmBar) elSdArmBar.style.width = "0%";
         if(elSdDefuseBar) elSdDefuseBar.style.width = "0%";
         if(elSdRulesList) elSdRulesList.innerHTML = '<li>WAITING FOR TELEMETRY...</li>';
-        
-        // *** CRUCIALE: NON FORZARE LA VISIBILITÀ DEL TIMER QUI! ***
-        // Lasciamo che sia updateMonitorLayout a decidere chi deve essere visibile.
+
+        // --- NUOVO: Reset Globale (Timer principale e Punteggi Operatori) ---
+        if(elGlobalTimer) elGlobalTimer.textContent = "--:--";
+        if(elScoreA) elScoreA.textContent = "0";
+        if(elScoreB) elScoreB.textContent = "0";
     }
 
     // --- INSPECTOR ---
@@ -349,6 +353,34 @@ document.addEventListener('DOMContentLoaded', () => {
             // Rilevamento automatico della modalità dal pacchetto
             let mode = payload.mode || (type === 'SD_UPDATE' ? 'SEARCH_AND_DESTROY' : (type === 'DOM_UPDATE' ? 'DOMINATION' : null));
             if (mode === 'SEARCH_DESTROY') mode = 'SEARCH_AND_DESTROY';
+
+            // 1. GESTIONE RESET SU CAMBIO MODALITÀ
+            if (type === 'MODE_EXIT') {
+                resetMonitorData(); // Pulisce tutto quando esci
+                updateMonitorLayout(null); // (Opzionale) Nasconde i widget tattici
+                logSystem(`MODE EXIT DETECTED.`);
+            }
+
+            if (type === 'MODE_ENTER') {
+                resetMonitorData(); // Pulisce tutto quando entri in una nuova modalità
+                updateMonitorLayout(mode);
+                logSystem(`MODE ENTER: ${mode}`);
+            }
+
+            // 2. VISUALIZZAZIONE COUNTDOWN (PRE-PARTITA)
+            if (type === 'COUNTDOWN_UPDATE') {
+                if (payload.time !== undefined && elGlobalTimer) {
+                    // Mostra "T-10", "T-9" sul timer principale
+                    elGlobalTimer.textContent = `T-${payload.time}`;
+                    elGlobalTimer.style.color = '#ff9900'; // Arancione per attesa
+                }
+                
+                // Aggiorna anche lo stato centrale per chiarezza
+                if(elSdBombStatus) {
+                    elSdBombStatus.textContent = "PREPARING";
+                    elSdBombStatus.style.color = "#ff9900"; 
+                }
+            }
 
             // Cambio layout al volo se necessario
             if (mode && (type === 'HEARTBEAT' || type === 'MODE_ENTER' || type === 'SD_UPDATE' || type === 'DOM_UPDATE' || type === 'SETTINGS_UPDATE')) {
