@@ -289,7 +289,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if(elSdArmBar) elSdArmBar.style.width = "0%";
         if(elSdDefuseBar) elSdDefuseBar.style.width = "0%";
         if(elSdRulesList) elSdRulesList.innerHTML = '<li>WAITING FOR TELEMETRY...</li>';
-        if(elBombContainer) elBombContainer.classList.remove('hidden');
     }
 
     // --- FUNZIONI UI INSPECTOR ---
@@ -474,6 +473,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Assicura che il timer sia visibile
                 if (elBombContainer) elBombContainer.classList.remove('hidden');
                 
+                // Assicura che i punteggi dominio siano NASCOSTI
+                if (elDomScores) elDomScores.classList.add('hidden');
+
                 // Forza il colore ROSSO per il timer della bomba
                 if (elSdBombTimer) elSdBombTimer.style.color = 'var(--sop-alert)';
 
@@ -541,9 +543,11 @@ document.addEventListener('DOMContentLoaded', () => {
             // --- TELEMETRIA DOMINIO (DOM_UPDATE) ---
             if (type === 'DOM_UPDATE') {
 
-                // Gestione visibilità pannelli specifica
-                if (elBombContainer) elBombContainer.classList.add('hidden'); // Via timer bomba
-                if (elDomScores) elDomScores.classList.remove('hidden');      // Dentro punteggi [FIX]
+                // Nascondi Timer Bomba
+                if (elBombContainer) elBombContainer.classList.add('hidden');
+                
+                // 2. Mostra Punteggi
+                if (elDomScores) elDomScores.classList.remove('hidden');
                 
                 // 1. STATO CENTRALE
                 if (payload.state && elSdBombStatus) {
