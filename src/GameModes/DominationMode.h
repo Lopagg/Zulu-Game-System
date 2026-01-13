@@ -19,6 +19,7 @@ public:
     void sendSettingsStatus();
     void enterInGame();
     void forceEndGame();
+    void sendTelemetry();
 
 private:
     HardwareManager* _hardware;
@@ -61,6 +62,9 @@ private:
     unsigned long _team2PossessionTime;
     unsigned long _lastPossessionUpdateTime;
     int _winner; // 0 = Pareggio, 1 = Squadra 1, 2 = Squadra 2
+
+    String _endGameStatus;
+    unsigned long _lastTelemetryTime;
 
     // Funzioni
     void displaySubMenu();

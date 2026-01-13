@@ -13,23 +13,19 @@ DominationMode::DominationMode(HardwareManager* hardware, NetworkManager* networ
       _currentState(ModeState::MODE_SUB_MENU),
       _lastZoneState(ModeState::IN_GAME_NEUTRAL),
       _subMenuIndex(0),
-      _menuIndex(0) {
+      _menuIndex(0),
+      _lastTelemetryTime(0) {
 }
 
 void DominationMode::enter() {
     Serial.println("Entrato in modalita' Dominio");
     _currentState = ModeState::MODE_SUB_MENU;
     _subMenuIndex = 0;
+    _endGameStatus = ""; // Reset stato finale
     displaySubMenu();
     _hardware->setStripColor(0, 255, 255);
     
-    JsonDocument doc;
-    doc["mode"] = "DOMINATION";
-    // Inviamo anche le impostazioni attuali per aggiornare la dashboard
-    doc["duration"] = _settings->getGameDuration();
-    doc["capture_time"] = _settings->getCaptureTime();
-    _network->sendEvent("MODE_ENTER", doc);
-    
+    // Invia configurazione iniziale
     sendSettingsStatus();
 }
 
@@ -51,6 +47,7 @@ void DominationMode::enterInGame() {
     _lastGameSecond = -1;
     _team1PossessionTime = 0;
     _team2PossessionTime = 0;
+    _endGameStatus = "";
 
     // Esegui effetti visivi e sonori di inizio partita
     _hardware->playTone(1500, 500);
@@ -73,6 +70,8 @@ void DominationMode::enterInGame() {
     startDoc["mode"] = "DOMINATION";
     startDoc["duration_min"] = _settings->getGameDuration();
     _network->sendEvent("GAME_START", startDoc);
+
+    sendTelemetry(); // Aggiornamento immediato
 }
 
 void DominationMode::loop() {
@@ -122,6 +121,73 @@ void DominationMode::loop() {
             handleGameOverState(btn1_was_pressed, btn2_was_pressed, key);
             break;
     }
+
+    // --- TELEMETRIA PERIODICA ---
+    // Invia lo stato al sito web ogni secondo se siamo in una fase attiva
+    if (_currentState != ModeState::MODE_SUB_MENU && 
+        _currentState != ModeState::MENU_SETTINGS && 
+        millis() - _lastTelemetryTime > 1000) {
+        
+        sendTelemetry();
+        _lastTelemetryTime = millis();
+    }
+}
+
+// --- LOGICA TELEMETRIA ---
+void DominationMode::sendTelemetry() {
+    JsonDocument doc;
+    // Il campo "type" viene passato come primo argomento a sendEvent, non serve qui
+
+    // Mappa lo stato interno in stringhe leggibili per l'interfaccia
+    if (_currentState == ModeState::IN_GAME_NEUTRAL) doc["state"] = "NEUTRAL";
+    else if (_currentState == ModeState::TEAM1_CAPTURED) doc["state"] = "OWNED ALPHA";
+    else if (_currentState == ModeState::TEAM2_CAPTURED) doc["state"] = "OWNED BRAVO";
+    else if (_currentState == ModeState::CAPTURING_TEAM1) doc["state"] = "CAPTURING A...";
+    else if (_currentState == ModeState::CAPTURING_TEAM2) doc["state"] = "CAPTURING B...";
+    else if (_currentState == ModeState::IN_GAME_COUNTDOWN) doc["state"] = "STANDBY";
+    else if (_currentState == ModeState::GAME_OVER) doc["state"] = _endGameStatus;
+    else doc["state"] = "CONFIG"; // Stati di menu
+
+    // Punteggi (convertiti in secondi)
+    doc["score_a"] = _team1PossessionTime / 1000;
+    doc["score_b"] = _team2PossessionTime / 1000;
+
+    // Calcolo Tempo Rimanente
+    long totalSeconds = _settings->getGameDuration() * 60;
+    long remainingSeconds = 0;
+    
+    // Calcola solo se la partita è effettivamente iniziata
+    if (_currentState != ModeState::MODE_SUB_MENU && 
+        _currentState != ModeState::MENU_SETTINGS && 
+        _currentState != ModeState::IN_GAME_CONFIRM &&
+        _currentState != ModeState::IN_GAME_COUNTDOWN) {
+            
+        TimeSpan elapsed = _hardware->getRTCTime() - _gameStartTime;
+        remainingSeconds = totalSeconds - elapsed.totalseconds();
+        if (remainingSeconds < 0) remainingSeconds = 0;
+    } else {
+        remainingSeconds = totalSeconds; // Prima dell'inizio mostra il totale
+    }
+    
+    // Formatta il tempo come MM:SS
+    char timeBuffer[10];
+    sprintf(timeBuffer, "%02ld:%02ld", remainingSeconds / 60, remainingSeconds % 60);
+    doc["game_time"] = timeBuffer;
+
+    // Calcolo Progresso Cattura (0-100%)
+    int progress = 0;
+    if (_currentState == ModeState::CAPTURING_TEAM1 || _currentState == ModeState::CAPTURING_TEAM2) {
+        unsigned long elapsed = millis() - _captureStartTime;
+        unsigned long total = _settings->getCaptureTime() * 1000;
+        if (total > 0) {
+            progress = (elapsed * 100) / total;
+            if (progress > 100) progress = 100;
+        }
+    }
+    doc["capture_prog"] = progress;
+
+    // USARE sendEvent (definito in NetworkManager.h)
+    _network->sendEvent("DOM_UPDATE", doc);
 }
 
 void DominationMode::exit() {
@@ -345,12 +411,14 @@ void DominationMode::handleCountdown() {
     unsigned long elapsedTime = millis() - _countdownStartTime;
     
     if (elapsedTime >= countdownDuration) {
+        // FINE COUNTDOWN - INIZIO PARTITA
         _currentState = ModeState::IN_GAME_NEUTRAL;
         _lastZoneState = ModeState::IN_GAME_NEUTRAL;
         _gameStartTime = _hardware->getRTCTime();
         _lastGameSecond = -1;
         _team1PossessionTime = 0;
         _team2PossessionTime = 0;
+        _endGameStatus = ""; // Reset
 
         _hardware->playTone(1500, 500);
         _hardware->setBrightness(255);
@@ -366,66 +434,55 @@ void DominationMode::handleCountdown() {
         _hardware->printOled1("CONQUISTA", 2, 8, 25);
         _hardware->printOled2("CONQUISTA", 2, 8, 25);
 
-        JsonDocument doc;
-        doc["mode"] = "DOMINATION";
-        doc["duration"] = _settings->getGameDuration();
-        _network->sendEvent("GAME_START", doc);
-
+        sendTelemetry(); // Aggiorna sito
         return;
     }
 
     int remainingSeconds = (_settings->getCountdownDuration()) - (elapsedTime / 1000);
     if (remainingSeconds != _lastCountdownSecond) {
         String secStr = String(remainingSeconds);
-        if(remainingSeconds < 10) {
-            secStr = "0" + secStr;
-        }
+        if(remainingSeconds < 10) secStr = "0" + secStr;
+        
         _hardware->printLcd(9, 3, secStr);
-
-        JsonDocument doc;
-        doc["time"] = remainingSeconds;
-        _network->sendEvent("COUNTDOWN_UPDATE", doc);
         
         if (remainingSeconds > 3) {
             _hardware->playTone(800, 100);
         } else if (remainingSeconds > 0) {
             _hardware->playTone(1200, 150);
         }
+        
         _lastCountdownSecond = remainingSeconds;
+        sendTelemetry(); // Aggiorna timer standby sul sito
     }
 }
 
 void DominationMode::updateGameTimerOnRow(int row) {
     long totalSeconds = _settings->getGameDuration() * 60;
 
-    // ***Controllo di validità per l'ora di inizio partita ***
-    // Questo previene crash o fine immediata della partita se l'RTC fornisce dati errati.
     if (_gameStartTime.year() < 2024) {
-        Serial.println("ERRORE: Orario di inizio partita non valido! L'RTC potrebbe avere problemi di alimentazione.");
+        Serial.println("ERRORE: Orario di inizio partita non valido!");
         _hardware->printLcd(0, 3, "ERRORE OROLOGIO RTC");
-        return; // Esce dalla funzione per questo ciclo, riproverà al prossimo.
+        return;
     }
 
     TimeSpan elapsed = _hardware->getRTCTime() - _gameStartTime;
     long remainingSeconds = totalSeconds - elapsed.totalseconds();
 
-    if (remainingSeconds < 0) {
-        remainingSeconds = 0;
-    }
+    if (remainingSeconds < 0) remainingSeconds = 0;
 
+    // Controllo Fine Partita
     if (remainingSeconds == 0 && _currentState != ModeState::GAME_OVER) {
         _currentState = ModeState::GAME_OVER;
         _hardware->playTone(400, 1000);
 
-        if (_team1PossessionTime > _team2PossessionTime) _winner = 1;
-        else if (_team2PossessionTime > _team1PossessionTime) _winner = 2;
+        if (_team1PossessionTime > _team2PossessionTime) _endGameStatus = "ALPHA WINS";
+        else if (_team2PossessionTime > _team1PossessionTime) _endGameStatus = "BRAVO WINS";
+        else _endGameStatus = "DRAW";
+        
+        // Imposta vincitore numerico per effetti luce
+        if (_endGameStatus == "ALPHA WINS") _winner = 1;
+        else if (_endGameStatus == "BRAVO WINS") _winner = 2;
         else _winner = 0;
-
-        JsonDocument doc;
-        doc["winner"] = _winner;
-        doc["t1_score"] = _team1PossessionTime;
-        doc["t2_score"] = _team2PossessionTime;
-        _network->sendEvent("GAME_END", doc);
 
         _hardware->clearLcd();
         if (_winner == 1) _hardware->printLcd(2, 1, "VINCE SQUADRA 1!");
@@ -440,6 +497,8 @@ void DominationMode::updateGameTimerOnRow(int row) {
 
         _hardware->printOled1("ESCI", 2, 35, 25);
         _hardware->printOled2("ESCI", 2, 35, 25);
+        
+        sendTelemetry(); // Invia stato finale
         return;
     }
 
@@ -449,12 +508,6 @@ void DominationMode::updateGameTimerOnRow(int row) {
         char timeBuffer[10];
         sprintf(timeBuffer, "%02d : %02d", minutes, seconds);
         _hardware->printLcd(6, row, timeBuffer);
-
-        JsonDocument doc;
-        doc["time_left"] = remainingSeconds;
-        doc["t1_poss"] = _team1PossessionTime / 1000;
-        doc["t2_poss"] = _team2PossessionTime / 1000;
-        _network->sendEvent("TIME_UPDATE", doc);
 
         if (remainingSeconds > 0 && remainingSeconds < totalSeconds && remainingSeconds % 60 == 0) {
             _hardware->playTone(1500, 150);
@@ -482,18 +535,14 @@ void DominationMode::handleNeutralState(bool btn1_is_pressed, bool btn2_is_press
         _captureStartTime = millis();
         _captureSoundLastUpdate = 0;
         displayCapturingScreen(1);
-        
-        JsonDocument doc; doc["team"] = 1;
-        _network->sendEvent("CAPTURE_START", doc);
+        sendTelemetry(); // Inizio cattura
     }
     if (btn2_is_pressed) {
         _currentState = ModeState::CAPTURING_TEAM2;
         _captureStartTime = millis();
         _captureSoundLastUpdate = 0;
         displayCapturingScreen(2);
-        
-        JsonDocument doc; doc["team"] = 2;
-        _network->sendEvent("CAPTURE_START", doc);
+        sendTelemetry(); // Inizio cattura
     }
 }
 
@@ -516,10 +565,7 @@ void DominationMode::handleCapturingState(bool btn1_is_pressed, bool btn2_is_pre
     bool isStillPressed = (teamCapturing == 1) ? btn1_is_pressed : btn2_is_pressed;
 
     if (!isStillPressed) {
-        
-        JsonDocument doc; doc["team"] = teamCapturing;
-        _network->sendEvent("CAPTURE_CANCEL", doc);
-
+        // CATTURA FALLITA / INTERROTTA
         _currentState = _lastZoneState;
         if (_lastZoneState == ModeState::IN_GAME_NEUTRAL) {
             _hardware->clearLcd();
@@ -538,6 +584,7 @@ void DominationMode::handleCapturingState(bool btn1_is_pressed, bool btn2_is_pre
             _hardware->clearOled2();
         }
         _hardware->noTone();
+        sendTelemetry(); // Aggiorna stato annullato
         return;
     }
 
@@ -545,13 +592,11 @@ void DominationMode::handleCapturingState(bool btn1_is_pressed, bool btn2_is_pre
     unsigned long elapsedTime = millis() - _captureStartTime;
 
     if (elapsedTime >= captureDuration) {
+        // CATTURA COMPLETATA
         _hardware->noTone();
         _hardware->playTone(1500, 80);
         delay(100);
         _hardware->playTone(1500, 80);
-
-        JsonDocument doc; doc["team"] = teamCapturing;
-        _network->sendEvent("ZONE_CAPTURED", doc);
 
         _lastPossessionUpdateTime = millis();
         if (teamCapturing == 1) {
@@ -569,9 +614,11 @@ void DominationMode::handleCapturingState(bool btn1_is_pressed, bool btn2_is_pre
             _hardware->printOled1("CONQUISTA", 2, 8, 25);
             _hardware->clearOled2();
         }
+        sendTelemetry(); // Conferma cattura
         return;
     }
 
+    // Visualizzazione Barra Progresso LCD e LED
     int barWidthChars = 16;
     int totalPixels = barWidthChars * 5;
     int progressPixels = map(elapsedTime, 0, captureDuration, 0, totalPixels);
@@ -595,7 +642,7 @@ void DominationMode::handleCapturingState(bool btn1_is_pressed, bool btn2_is_pre
                 _hardware->setPixelColor(i, 255, 0, 0);
             } else if (_lastZoneState == ModeState::TEAM2_CAPTURED) {
                 _hardware->setPixelColor(i, 0, 255, 0);
-            } else { // IN_GAME_NEUTRAL
+            } else { 
                 _hardware->setPixelColor(i, 255, 255, 255);
             }
         }
@@ -630,10 +677,7 @@ void DominationMode::handleCapturedState(int team, bool btn1_is_pressed, bool bt
         _captureStartTime = millis();
         _captureSoundLastUpdate = 0;
         displayCapturingScreen((team == 1) ? 2 : 1);
-
-        JsonDocument doc; doc["team"] = (team == 1) ? 2 : 1;
-        _network->sendEvent("CAPTURE_START", doc);
-
+        sendTelemetry(); // Inizio tentativo rubare zona
         return;
     }
 }
@@ -660,16 +704,15 @@ void DominationMode::handleGameOverState(bool btn1_was_pressed, bool btn2_was_pr
 void DominationMode::forceEndGame() {
     Serial.println("!!! COMANDO RICEVUTO: forceEndGame in Dominio !!!");
 
-    // Non fare nulla se la partita è GIA' finita
     if (_currentState == ModeState::GAME_OVER) {
         return;
     }
     
     _currentState = ModeState::GAME_OVER;
     _hardware->playTone(400, 1000);
-    _hardware->noTone(); // Assicura che qualsiasi suono venga interrotto
+    _hardware->noTone(); 
 
-    // Aggiorna un'ultima volta i tempi di possesso prima di calcolare il vincitore
+    // Aggiorna punteggi finali
     unsigned long now = millis();
     if (_lastZoneState == ModeState::TEAM1_CAPTURED) {
         _team1PossessionTime += now - _lastPossessionUpdateTime;
@@ -677,15 +720,14 @@ void DominationMode::forceEndGame() {
         _team2PossessionTime += now - _lastPossessionUpdateTime;
     }
 
-    if (_team1PossessionTime > _team2PossessionTime) _winner = 1;
-    else if (_team2PossessionTime > _team1PossessionTime) _winner = 2;
-    else _winner = 0; // Pareggio
+    if (_team1PossessionTime > _team2PossessionTime) _endGameStatus = "ALPHA WINS";
+    else if (_team2PossessionTime > _team1PossessionTime) _endGameStatus = "BRAVO WINS";
+    else _endGameStatus = "DRAW"; // O STOPPED
 
-    JsonDocument doc;
-    doc["winner"] = _winner;
-    doc["t1_score"] = _team1PossessionTime;
-    doc["t2_score"] = _team2PossessionTime;
-    _network->sendEvent("GAME_END", doc);
+    // Imposta _winner per effetti
+    if (_endGameStatus == "ALPHA WINS") _winner = 1;
+    else if (_endGameStatus == "BRAVO WINS") _winner = 2;
+    else _winner = 0;
 
     _hardware->clearLcd();
     _hardware->printLcd(3, 0, "PARTITA TERMINATA");
@@ -701,10 +743,13 @@ void DominationMode::forceEndGame() {
 
     _hardware->printOled1("ESCI", 2, 35, 25);
     _hardware->printOled2("ESCI", 2, 35, 25);
+    
+    sendTelemetry();
 }
 
 void DominationMode::sendSettingsStatus() {
     JsonDocument doc;
+    doc["type"] = "SETTINGS_UPDATE"; // Tag generico
     doc["duration"] = _settings->getGameDuration();
     doc["capture_time"] = _settings->getCaptureTime();
     doc["countdown"] = _settings->getCountdownDuration();
