@@ -455,13 +455,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (monitoredDeviceId && senderId === monitoredDeviceId) {
             
             // Patch sicurezza nome modalità
-            let mode = payload.mode || (type === 'SD_UPDATE' ? 'SEARCH_AND_DESTROY' : null);
+            let mode = payload.mode || (type === 'SD_UPDATE' ? 'SEARCH_AND_DESTROY' : (type === 'DOM_UPDATE' ? 'DOMINATION' : null));
             if (mode === 'SEARCH_DESTROY') mode = 'SEARCH_AND_DESTROY';
 
             // Cambio Modalità
-            if (mode && (type === 'HEARTBEAT' || type === 'MODE_ENTER' || type === 'SD_UPDATE' || type === 'SETTINGS_UPDATE')) {
+            if (mode && (type === 'HEARTBEAT' || type === 'MODE_ENTER' || type === 'SD_UPDATE' || type === 'SETTINGS_UPDATE' || type === 'DOM_UPDATE')) {
                 updateMonitorLayout(mode);
-            }
+            }   
 
             // Regole
             if (type === 'SETTINGS_UPDATE' || (type === 'MODE_ENTER' && payload.bomb_time)) {
@@ -541,7 +541,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // --- TELEMETRIA DOMINIO (DOM_UPDATE) ---
             if (type === 'DOM_UPDATE') {
 
-                if (elBombContainer) elBombContainer.classList.add('hidden');
+                // Gestione visibilità pannelli specifica
+                if (elBombContainer) elBombContainer.classList.add('hidden'); // Via timer bomba
+                if (elDomScores) elDomScores.classList.remove('hidden');      // Dentro punteggi [FIX]
                 
                 // 1. STATO CENTRALE
                 if (payload.state && elSdBombStatus) {
@@ -563,9 +565,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (payload.score_a !== undefined && elDomValA) elDomValA.textContent = payload.score_a;
                 if (payload.score_b !== undefined && elDomValB) elDomValB.textContent = payload.score_b;
 
-                // Nota: Non tocchiamo più elScoreA/elScoreB (Operator Count)
-
-                // 3. TIMER PARTITA (Solo quello in alto)
+                // 3. TIMER PARTITA
                 if (payload.game_time && elGlobalTimer) {
                     elGlobalTimer.textContent = payload.game_time;
                 }
