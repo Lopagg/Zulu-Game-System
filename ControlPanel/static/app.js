@@ -43,6 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Specifici Cerca e Distruggi (S&D)
     const elSdBombStatus = document.getElementById('sd-bomb-status');
     const elSdBombTimer = document.getElementById('sd-bomb-timer');
+    const elBombContainer = document.querySelector('.bomb-timer-container');
     const elSdArmBar = document.getElementById('sd-arm-bar');
     const elSdDefuseBar = document.getElementById('sd-defuse-bar');
     const elSdRulesList = document.getElementById('sd-rules-list');
@@ -250,6 +251,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if(elSdArmBar) elSdArmBar.style.width = "0%";
         if(elSdDefuseBar) elSdDefuseBar.style.width = "0%";
         if(elSdRulesList) elSdRulesList.innerHTML = '<li>WAITING FOR TELEMETRY...</li>';
+        if(elBombContainer) elBombContainer.classList.remove('hidden');
     }
 
     // --- FUNZIONI UI INSPECTOR ---
@@ -431,6 +433,12 @@ document.addEventListener('DOMContentLoaded', () => {
             // Telemetria S&D
             if (type === 'SD_UPDATE') {
 
+                // Assicura che il timer sia visibile
+                if (elBombContainer) elBombContainer.classList.remove('hidden');
+                
+                // Forza il colore ROSSO per il timer della bomba
+                if (elSdBombTimer) elSdBombTimer.style.color = 'var(--sop-alert)';
+
                 // 1. Stato Testuale e Colori
                 if (payload.state && elSdBombStatus) {
                     elSdBombStatus.textContent = payload.state;
@@ -494,6 +502,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // --- TELEMETRIA DOMINIO (DOM_UPDATE) ---
             if (type === 'DOM_UPDATE') {
+
+                if (elBombContainer) elBombContainer.classList.add('hidden');
                 
                 // 1. STATO CENTRALE E COLORI
                 if (payload.state && elSdBombStatus) {
@@ -519,11 +529,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 // DominationMode.cpp invia "game_time" già formattato come stringa "MM:SS"
                 if (payload.game_time && elGlobalTimer) {
                     elGlobalTimer.textContent = payload.game_time;
-                }
-                // Usiamo il timer centrale (quello rosso grande) per mostrare lo stesso tempo o nasconderlo
-                if (payload.game_time && elSdBombTimer) {
-                    elSdBombTimer.textContent = payload.game_time;
-                    elSdBombTimer.style.color = 'var(--sop-primary)'; // Lo facciamo ciano invece che rosso per differenziare
                 }
 
                 // 4. BARRE DI PROGRESSO (Cattura)
@@ -607,4 +612,3 @@ document.addEventListener('DOMContentLoaded', () => {
         socket.emit('send_command', { target_id: activeInspectorId, command: cmdObj });
     };
 });
-

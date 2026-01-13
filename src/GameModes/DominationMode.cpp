@@ -81,9 +81,18 @@ void DominationMode::loop() {
     bool btn2_is_pressed = _hardware->isButton2Pressed();
     bool btn2_was_pressed = _hardware->wasButton2Pressed();
 
+    // Gestione Comandi Remoti
     String command = _network->getReceivedMessage();
-    if (command.indexOf("FORCE_END_GAME") >= 0) { // Check lasco per compatibilità
+    
+    // 1. Comando Terminazione Forzata
+    if (command.indexOf("FORCE_END_GAME") >= 0) { 
         forceEndGame();
+    }
+    
+    // 2. NUOVO: Richiesta Stato (Appena il sito si connette)
+    if (command.indexOf("GET_STATUS") >= 0) {
+        sendSettingsStatus(); // Invia durata, capture time, ecc.
+        sendTelemetry();      // Invia punteggi e stato attuale
     }
 
     switch (_currentState) {
