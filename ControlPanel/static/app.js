@@ -38,8 +38,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Specifici S&D e Dominio
     const elSdBombStatus = document.getElementById('sd-bomb-status');
     const elSdBombTimer = document.getElementById('sd-bomb-timer');
-    const elBombContainer = document.querySelector('.bomb-timer-container'); // Contenitore Timer
-    const elDomScores = document.getElementById('domination-scores');       // Contenitore Punteggi
+    const elBombContainer = document.querySelector('.bomb-timer-container');
+    const elDomScores = document.getElementById('domination-scores');
     
     const elTacticalTitle = document.getElementById('tactical-panel-title');
     
@@ -62,7 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let activeInspectorId = null;
     let monitoredDeviceId = null;
     let currentDevices = [];
-    let lastConfiguredMode = null; // Evita refresh inutili del layout
+    let lastConfiguredMode = null; 
 
     // --- TIMERS PER ANTI-RIMBALZO GRAFICO ---
     let debounceTimer1 = null;
@@ -125,7 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if(viewName === 'hub') {
             activeInspectorId = null;
             monitoredDeviceId = null; 
-            lastConfiguredMode = null; // Reset stato layout
+            lastConfiguredMode = null;
             document.querySelectorAll('.device-item').forEach(el => el.classList.remove('active'));
         }
     }
@@ -209,9 +209,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateMonitorLayout(mode) {
         if (!mode) return;
 
-        // FIX: Se la modalità è la stessa di prima, non resettare nulla!
         if (mode === lastConfiguredMode) return;
-        
         lastConfiguredMode = mode;
 
         if (mode === 'SEARCH_AND_DESTROY' || mode === 'DOMINATION') {
@@ -236,7 +234,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(elLblProg2) elLblProg2.textContent = "BRAVO ACTION";
             }
 
-            // Reset barre (Eseguito solo UNA volta all'ingresso della modalità)
             if(elSdArmBar) elSdArmBar.style.width = "0%";
             if(elSdDefuseBar) elSdDefuseBar.style.width = "0%";
 
@@ -349,9 +346,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // --- DEBUG LOGGER ---
         if (type === 'SD_UPDATE' || type === 'DOM_UPDATE') {
             const time = new Date().toLocaleTimeString().split(' ')[0];
-            console.log(`[${time}] ${type} | State: ${payload.state} | Arm: ${payload.arm_prog}% | Def: ${payload.def_prog}% | Cap: ${payload.capture_prog}%`);
+            console.log(`[${time}] ${type} | State: ${payload.state} | Arm: ${payload.arm_prog}% | Def: ${payload.def_prog}%`);
         }
-        // --------------------
 
         if (type === 'TIME_UPDATE') {
             if (payload.time_left !== undefined && elGlobalTimer) {
@@ -407,7 +403,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (type === 'SD_UPDATE' || type === 'DOM_UPDATE') {
                 const isDom = (type === 'DOM_UPDATE');
                 
-                // 1. Visibilità e Colori
                 if (isDom) {
                     if (elBombContainer) elBombContainer.classList.add('hidden');
                     if (elDomScores) elDomScores.classList.remove('hidden');
@@ -417,21 +412,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (elSdBombTimer) elSdBombTimer.style.color = 'var(--sop-alert)';
                 }
 
-                // 2. Stato Testuale
+                // 2. STATO TESTUALE (FIX COLORI DEFINITIVO)
                 if (payload.state && elSdBombStatus) {
                     elSdBombStatus.textContent = payload.state;
                     const s = payload.state;
-                    if (s.includes('ARM') || s.includes('EXPLODED') || s.includes('T WINS') || s.includes('ALPHA')) 
-                        elSdBombStatus.style.color = 'var(--sop-alert)'; 
-                    else if (s.includes('DEFUS') || s.includes('CT WINS') || s.includes('BRAVO')) 
-                        elSdBombStatus.style.color = '#55ff55'; 
-                    else if (s === 'STANDBY') 
-                        elSdBombStatus.style.color = '#ff9900';
+                    
+                    // PRIORITÀ VERDE: Controlliamo PRIMA le condizioni "buone"
+                    // Questo risolve il problema di "CT WINS" che veniva catturato da "T WINS"
+                    if (s.includes('DEFUS') || s.includes('CT WINS') || s.includes('BRAVO')) 
+                        elSdBombStatus.style.color = '#55ff55'; // VERDE
+                    else if (s.includes('ARM') || s.includes('EXPLODED') || s.includes('T WINS') || s.includes('ALPHA')) 
+                        elSdBombStatus.style.color = 'var(--sop-alert)'; // ROSSO
+                    else if (s === 'STANDBY' || s === 'PREPARING') 
+                        elSdBombStatus.style.color = '#ff9900'; // ARANCIONE
                     else 
-                        elSdBombStatus.style.color = 'var(--sop-primary)';
+                        elSdBombStatus.style.color = 'var(--sop-primary)'; // CIANO (Default/Safe)
                 }
 
-                // 3. Dati Specifici
                 if (!isDom && payload.bomb_time !== undefined && elSdBombTimer) {
                     const m = Math.floor(payload.bomb_time / 60);
                     const s = payload.bomb_time % 60;
@@ -445,25 +442,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (payload.score_b !== undefined && elDomValB) elDomValB.textContent = payload.score_b;
                 }
 
-                // 4. Timer Globale (FIX COLORE DEFINITIVO)
-                // Gestione del testo del timer
+                // FIX COLORE TIMER GLOBALE
                 if (payload.game_time !== undefined && elGlobalTimer) {
                     const m = Math.floor(payload.game_time / 60);
                     const s = payload.game_time % 60;
                     elGlobalTimer.textContent = `${m}:${s.toString().padStart(2, '0')}`;
                 }
-
-                // Gestione separata del colore: Se non siamo in STANDBY, forza Ciano.
-                // Questo previene che il timer diventi bianco se manca il dato del tempo.
                 if (elGlobalTimer && payload.state !== 'STANDBY') {
-                    // Controlla se c'è un override attivo (es. Countdown arancione)
-                    // Se siamo in gioco normale, forza Ciano.
                     if (!elGlobalTimer.style.color || elGlobalTimer.style.color === 'var(--sop-text)' || elGlobalTimer.style.color === 'white') {
                          elGlobalTimer.style.color = 'var(--sop-primary)';
                     }
-                    // Nota: Se era stato impostato a Arancione dal countdown, 
-                    // lo SD_UPDATE lo sovrascriverà qui a Ciano appena inizia il gioco vero. 
-                    // Va bene così.
                     elGlobalTimer.style.color = 'var(--sop-primary)';
                 }
 
@@ -474,41 +462,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 let bar2Active = false;
 
                 if (!isDom) {
-                    // S&D
                     if(payload.arm_prog !== undefined) { width1 = payload.arm_prog; bar1Active = width1 > 0; }
                     if(payload.def_prog !== undefined) { width2 = payload.def_prog; bar2Active = width2 > 0; }
                 } else {
-                    // DOMINIO
                     const prog = payload.capture_prog || 0;
                     const state = payload.state || '';
                     if (state.includes('CAPTURING A')) { width1 = prog; bar1Active = true; }
                     else if (state.includes('CAPTURING B')) { width2 = prog; bar2Active = true; }
                 }
 
-                // Funzione helper per applicare il debounce
                 const updateBar = (barElem, width, isActive, timerRefName) => {
                     if(!barElem) return;
-                    
                     if (isActive) {
                         if (timerRefName === 1) { clearTimeout(debounceTimer1); debounceTimer1 = null; }
                         else { clearTimeout(debounceTimer2); debounceTimer2 = null; }
                         barElem.style.width = `${width}%`;
                     } else {
-                        // Se inattivo (0%), aspetta 200ms prima di azzerare
                         if (barElem.style.width !== '0%') {
                             if (timerRefName === 1) {
                                 if(!debounceTimer1) {
-                                    debounceTimer1 = setTimeout(() => { 
-                                        barElem.style.width = "0%"; 
-                                        debounceTimer1 = null; 
-                                    }, 200); 
+                                    debounceTimer1 = setTimeout(() => { barElem.style.width = "0%"; debounceTimer1 = null; }, 200); 
                                 }
                             } else {
                                 if(!debounceTimer2) {
-                                    debounceTimer2 = setTimeout(() => { 
-                                        barElem.style.width = "0%"; 
-                                        debounceTimer2 = null; 
-                                    }, 200);
+                                    debounceTimer2 = setTimeout(() => { barElem.style.width = "0%"; debounceTimer2 = null; }, 200);
                                 }
                             }
                         }
