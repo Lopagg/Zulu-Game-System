@@ -331,13 +331,27 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- GESTIONE TELEMETRIA ---
     function handleGameEvent(msg) {
         const raw = msg.parsed_data || {};
-        const senderId = raw.id || 'UNK';
         const type = raw.type || 'UNKNOWN';
         const payload = raw.payload || {};
-        const shortId = senderId.slice(-4);
 
-        if (type !== 'TIME_UPDATE' && type !== 'SD_UPDATE' && type !== 'DOM_UPDATE') {
-            logSystem(`[${shortId}] ${type}`);
+        // Filtriamo solo gli eventi che ci interessano per il debug delle barre
+        if (type === 'SD_UPDATE' || type === 'DOM_UPDATE') {
+            
+            console.groupCollapsed(`[DEBUG] Pacchetto ${type} ricevuto`);
+            console.log("Stato:", payload.state);
+            console.log("Valori S&D:", "Arm:", payload.arm_prog, "Def:", payload.def_prog);
+            console.log("Valori DOM:", "Capture:", payload.capture_prog);
+            console.groupEnd();
+
+            // --- QUI INIZIA LA TUA LOGICA NORMALE ---
+            // (Incolla qui sotto il codice che gestisce l'interfaccia, 
+            //  come quello che hai già nel tuo file)
+            
+            // Esempio per farti capire dove guardare:
+            if (monitoredDeviceId && raw.id === monitoredDeviceId) {
+                 // ...tutto il resto della tua logica UI...
+                 // (Se vuoi ti rimando il blocco UI completo, ma l'importante ora è il log sopra)
+            }
         }
 
         if (type === 'TIME_UPDATE') {
