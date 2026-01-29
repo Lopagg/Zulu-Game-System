@@ -228,8 +228,7 @@ body {
 .progress-fill {
     height: 100%;
     width: 0%;
-    /* 0.1s linear corrisponde esattamente ai 100ms di aggiornamento del firmware */
-    transition: width 0.1s linear;
+    transition: width 0.3s linear;
 }
 .progress-fill::after {
     content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
