@@ -63,6 +63,12 @@ document.addEventListener('DOMContentLoaded', () => {
     let monitoredDeviceId = null;
     let currentDevices = [];
 
+    // --- TIMERS PER ANTI-RIMBALZO GRAFICO ---
+    // Questi timer impediscono alla barra di scendere a zero istantaneamente
+    // se c'è un micro-buco nella ricezione dati o un rimbalzo del tasto.
+    let debounceTimer1 = null;
+    let debounceTimer2 = null;
+
     // Orologio Locale
     setInterval(() => {
         const now = new Date();
@@ -95,7 +101,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (monitoredDeviceId) {
             const dev = devices.find(d => d.id === monitoredDeviceId);
             if (dev && dev.mode) {
-                // Aggiorna il layout se la modalità cambia "live"
                 updateMonitorLayout(dev.mode);
             }
         }
@@ -185,16 +190,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 monitoredDeviceId = device.id;
                 elMonitorTargetId.textContent = displayName;
                 
-                // 1. Reset Dati (Pulizia valori vecchi)
                 resetMonitorData(); 
-                
-                // 2. Imposta Layout Corretto (IMPORTANTE: Dopo il reset!)
                 updateMonitorLayout(device.mode);
                 
                 showView('monitor');
                 logSystem(`LINKING TELEMETRY TO: ${displayName}`);
 
-                // Richiedi stato aggiornato
                 socket.emit('send_command', { 
                     target_id: device.id, 
                     command: { cmd: "GET_STATUS" } 
@@ -208,36 +209,28 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateMonitorLayout(mode) {
         if (!mode) return;
 
-        // Riferimenti alle etichette delle barre
-        const lbl1 = document.getElementById('lbl-prog-1');
-        const lbl2 = document.getElementById('lbl-prog-2');
-
         if (mode === 'SEARCH_AND_DESTROY' || mode === 'DOMINATION') {
             elWidgetSdTactical.classList.remove('hidden');
             elWidgetSdRules.classList.remove('hidden');
             elWidgetGenericMap.classList.add('hidden');
             
-            // --- CONFIGURAZIONE SPECIFICA ---
             if (mode === 'SEARCH_AND_DESTROY') {
                 if(elTacticalTitle) elTacticalTitle.textContent = "TACTICAL FEED // BOMB STATUS";
                 if(elBombContainer) elBombContainer.classList.remove('hidden'); 
                 if(elDomScores) elDomScores.classList.add('hidden');
                 
-                // TESTI PER S&D
-                if(lbl1) lbl1.textContent = "ARMING PROGRESS";
-                if(lbl2) lbl2.textContent = "DEFUSING PROGRESS";
+                if(elLblProg1) elLblProg1.textContent = "ARMING PROGRESS";
+                if(elLblProg2) elLblProg2.textContent = "DEFUSING PROGRESS";
             } 
             else if (mode === 'DOMINATION') {
                 if(elTacticalTitle) elTacticalTitle.textContent = "TACTICAL FEED // ZONE CONTROL";
                 if(elBombContainer) elBombContainer.classList.add('hidden');    
                 if(elDomScores) elDomScores.classList.remove('hidden');
                 
-                // TESTI PER DOMINIO
-                if(lbl1) lbl1.textContent = "ALPHA ACTION";
-                if(lbl2) lbl2.textContent = "BRAVO ACTION";
+                if(elLblProg1) elLblProg1.textContent = "ALPHA ACTION";
+                if(elLblProg2) elLblProg2.textContent = "BRAVO ACTION";
             }
 
-            // Reset barre solo al cambio layout
             if(elSdArmBar) elSdArmBar.style.width = "0%";
             if(elSdDefuseBar) elSdDefuseBar.style.width = "0%";
 
@@ -249,29 +242,24 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function resetMonitorData() {
-        // Reset Timer Tattico
         if(elSdBombTimer) elSdBombTimer.textContent = "00:00";
         if(elSdBombStatus) elSdBombStatus.textContent = "WAITING...";
         if(elSdBombStatus) elSdBombStatus.style.color = "#fff";
         
-        // Reset Punteggi Dominio
         const elDomValA = document.getElementById('d-val-a');
         const elDomValB = document.getElementById('d-val-b');
         if(elDomValA) elDomValA.textContent = "0";
         if(elDomValB) elDomValB.textContent = "0";
 
-        // Reset Barre
         if(elSdArmBar) elSdArmBar.style.width = "0%";
         if(elSdDefuseBar) elSdDefuseBar.style.width = "0%";
         if(elSdRulesList) elSdRulesList.innerHTML = '<li>WAITING FOR TELEMETRY...</li>';
 
-        // --- NUOVO: Reset Globale (Timer principale e Punteggi Operatori) ---
         if(elGlobalTimer) elGlobalTimer.textContent = "--:--";
         if(elScoreA) elScoreA.textContent = "0";
         if(elScoreB) elScoreB.textContent = "0";
     }
 
-    // --- INSPECTOR ---
     function openInspector(device) {
         activeInspectorId = device.id;
         const displayName = device.name || device.id;
@@ -289,7 +277,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if(elInspFwVer) elInspFwVer.textContent = `FW_VER: ${device.version || '--'}`;
     }
 
-    // --- PULSANTI ---
     const btnModeSetup = document.getElementById('btn-mode-setup');
     if(btnModeSetup) btnModeSetup.addEventListener('click', () => showView('setup'));
 
@@ -353,7 +340,6 @@ document.addEventListener('DOMContentLoaded', () => {
             logSystem(`[${shortId}] ${type}`);
         }
 
-        // Timer Globale (aggiornato da TIME_UPDATE o dai pacchetti specifici se TIME_UPDATE manca)
         if (type === 'TIME_UPDATE') {
             if (payload.time_left !== undefined && elGlobalTimer) {
                 const m = Math.floor(payload.time_left / 60);
@@ -366,11 +352,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (monitoredDeviceId && senderId === monitoredDeviceId) {
             
-            // Rilevamento automatico modalità
             let mode = payload.mode || (type === 'SD_UPDATE' ? 'SEARCH_AND_DESTROY' : (type === 'DOM_UPDATE' ? 'DOMINATION' : null));
             if (mode === 'SEARCH_DESTROY') mode = 'SEARCH_AND_DESTROY';
 
-            // Eventi di sistema
             if (type === 'MODE_EXIT') {
                 resetMonitorData();
                 updateMonitorLayout(null);
@@ -379,7 +363,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (type === 'MODE_ENTER') {
                 resetMonitorData();
                 updateMonitorLayout(mode);
-                if(elGlobalTimer) elGlobalTimer.textContent = "--:--"; // Reset visivo timer
+                if(elGlobalTimer) elGlobalTimer.textContent = "--:--"; 
                 logSystem(`MODE ENTER: ${mode}`);
             }
             if (type === 'COUNTDOWN_UPDATE') {
@@ -387,7 +371,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     elGlobalTimer.textContent = `T-${payload.time}`;
                     elGlobalTimer.style.color = '#ff9900'; 
                 }
-                // Reset visivo punteggi mentre contiamo
                 if(elDomValA) elDomValA.textContent = "0";
                 if(elDomValB) elDomValB.textContent = "0";
                 if(elScoreA) elScoreA.textContent = "0";
@@ -399,23 +382,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            // Aggiornamento Layout dinamico
             if (mode && (type === 'HEARTBEAT' || type === 'MODE_ENTER' || type === 'SD_UPDATE' || type === 'DOM_UPDATE' || type === 'SETTINGS_UPDATE')) {
                 updateMonitorLayout(mode);
             }
             
-            // Aggiornamento Regole
             if (type === 'SETTINGS_UPDATE' || (type === 'MODE_ENTER' && payload.bomb_time)) {
                 renderRules(payload);
             }
 
-            // --- GESTIONE UNIFICATA BARRE E STATO ---
-            // Usiamo una logica comune per evitare duplicazioni e errori
+            // --- GESTIONE UNIFICATA AGGIORNAMENTI (BARRE FLUIDE) ---
             if (type === 'SD_UPDATE' || type === 'DOM_UPDATE') {
-                
                 const isDom = (type === 'DOM_UPDATE');
                 
-                // 1. Visibilità Elementi (Ridondanza di sicurezza)
+                // 1. Visibilità e Colori
                 if (isDom) {
                     if (elBombContainer) elBombContainer.classList.add('hidden');
                     if (elDomScores) elDomScores.classList.remove('hidden');
@@ -439,7 +418,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         elSdBombStatus.style.color = 'var(--sop-primary)';
                 }
 
-                // 3. Dati Specifici (Timer Bomba o Punteggi)
+                // 3. Dati Specifici
                 if (!isDom && payload.bomb_time !== undefined && elSdBombTimer) {
                     const m = Math.floor(payload.bomb_time / 60);
                     const s = payload.bomb_time % 60;
@@ -453,7 +432,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (payload.score_b !== undefined && elDomValB) elDomValB.textContent = payload.score_b;
                 }
 
-                // 4. Timer Globale (Protezione durante countdown)
                 if (payload.game_time && elGlobalTimer && payload.state !== 'STANDBY') {
                     const m = Math.floor(payload.game_time / 60);
                     const s = payload.game_time % 60;
@@ -461,39 +439,59 @@ document.addEventListener('DOMContentLoaded', () => {
                     elGlobalTimer.style.color = 'var(--sop-text)';
                 }
 
-                // 5. BARRE DI PROGRESSO (FIX RIMBALZO)
-                // Aggiorniamo la barra SOLO se il dato è presente nel pacchetto.
-                // Se è undefined, lasciamo la barra dov'è (evita il ritorno a 0).
+                // 4. BARRE DI PROGRESSO CON DEBOUNCE (FIX RIMBALZI)
+                let width1 = 0;
+                let width2 = 0;
+                let bar1Active = false;
+                let bar2Active = false;
 
                 if (!isDom) {
-                    // --- SEARCH & DESTROY ---
-                    if (payload.arm_prog !== undefined && elSdArmBar) {
-                        elSdArmBar.style.width = `${payload.arm_prog}%`;
-                    }
-                    if (payload.def_prog !== undefined && elSdDefuseBar) {
-                        elSdDefuseBar.style.width = `${payload.def_prog}%`;
-                    }
+                    // S&D
+                    if(payload.arm_prog !== undefined) { width1 = payload.arm_prog; bar1Active = width1 > 0; }
+                    if(payload.def_prog !== undefined) { width2 = payload.def_prog; bar2Active = width2 > 0; }
                 } else {
-                    // --- DOMINATION ---
-                    // Controlla anche qui che capture_prog esista
-                    if (payload.capture_prog !== undefined) {
-                        const prog = payload.capture_prog;
-                        
-                        if (payload.state.includes('CAPTURING A')) {
-                            if(elSdArmBar) elSdArmBar.style.width = `${prog}%`;
-                            if(elSdDefuseBar) elSdDefuseBar.style.width = "0%";
-                        } 
-                        else if (payload.state.includes('CAPTURING B')) {
-                            if(elSdArmBar) elSdArmBar.style.width = "0%";
-                            if(elSdDefuseBar) elSdDefuseBar.style.width = `${prog}%`;
-                        } 
-                        else {
-                            // Se nessuno cattura, resetta a 0
-                            if(elSdArmBar) elSdArmBar.style.width = "0%";
-                            if(elSdDefuseBar) elSdDefuseBar.style.width = "0%";
+                    // DOMINIO
+                    const prog = payload.capture_prog || 0;
+                    const state = payload.state || '';
+                    if (state.includes('CAPTURING A')) { width1 = prog; bar1Active = true; }
+                    else if (state.includes('CAPTURING B')) { width2 = prog; bar2Active = true; }
+                }
+
+                // Funzione helper per applicare il debounce
+                const updateBar = (barElem, width, isActive, timerRefName) => {
+                    if(!barElem) return;
+                    
+                    if (isActive) {
+                        // Se attivo, cancella timer di reset e aggiorna subito
+                        if (timerRefName === 1) { clearTimeout(debounceTimer1); debounceTimer1 = null; }
+                        else { clearTimeout(debounceTimer2); debounceTimer2 = null; }
+                        barElem.style.width = `${width}%`;
+                    } else {
+                        // Se inattivo (0%), non azzerare subito. Aspetta 150ms.
+                        // Se è già a 0, non fare nulla.
+                        if (barElem.style.width !== '0%') {
+                            if (timerRefName === 1) {
+                                if(!debounceTimer1) {
+                                    debounceTimer1 = setTimeout(() => { 
+                                        barElem.style.width = "0%"; 
+                                        debounceTimer1 = null; 
+                                    }, 150);
+                                }
+                            } else {
+                                if(!debounceTimer2) {
+                                    debounceTimer2 = setTimeout(() => { 
+                                        barElem.style.width = "0%"; 
+                                        debounceTimer2 = null; 
+                                    }, 150);
+                                }
+                            }
                         }
                     }
-                }
+                };
+
+                updateBar(elSdArmBar, width1, bar1Active, 1);
+                updateBar(elSdDefuseBar, width2, bar2Active, 2);
+
                 updateForceEndButton(payload.state);
             }
         }
@@ -532,7 +530,6 @@ document.addEventListener('DOMContentLoaded', () => {
         elMiniLog.prepend(div);
     }
     
-    // Debug
     window.sendCommand = function(cmdObj) {
         if (!activeInspectorId) return console.warn("No active inspector");
         socket.emit('send_command', { target_id: activeInspectorId, command: cmdObj });
