@@ -47,6 +47,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const elSdDefuseBar = document.getElementById('sd-defuse-bar');
     const elSdRulesList = document.getElementById('sd-rules-list');
 
+    const elLblProg1 = document.getElementById('lbl-prog-1');
+    const elLblProg2 = document.getElementById('lbl-prog-2');
+
     // Inspector
     const elInspTitle = document.getElementById('inspector-title');
     const elInspMode = document.getElementById('insp-mode');
@@ -206,7 +209,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!mode) return;
 
         if (mode === 'SEARCH_AND_DESTROY' || mode === 'DOMINATION') {
-            // Mostra widget tattici
             elWidgetSdTactical.classList.remove('hidden');
             elWidgetSdRules.classList.remove('hidden');
             elWidgetGenericMap.classList.add('hidden');
@@ -214,13 +216,21 @@ document.addEventListener('DOMContentLoaded', () => {
             // --- CONFIGURAZIONE SPECIFICA ---
             if (mode === 'SEARCH_AND_DESTROY') {
                 if(elTacticalTitle) elTacticalTitle.textContent = "TACTICAL FEED // BOMB STATUS";
-                if(elBombContainer) elBombContainer.classList.remove('hidden'); // MOSTRA TIMER
-                if(elDomScores) elDomScores.classList.add('hidden');            // NASCONDI PUNTEGGI
+                if(elBombContainer) elBombContainer.classList.remove('hidden');
+                if(elDomScores) elDomScores.classList.add('hidden');
+                
+                // MODIFICA TESTI BARRE PER S&D
+                if(elLblProg1) elLblProg1.textContent = "ARMING PROGRESS";
+                if(elLblProg2) elLblProg2.textContent = "DEFUSING PROGRESS";
             } 
             else if (mode === 'DOMINATION') {
                 if(elTacticalTitle) elTacticalTitle.textContent = "TACTICAL FEED // ZONE CONTROL";
-                if(elBombContainer) elBombContainer.classList.add('hidden');    // NASCONDI TIMER
-                if(elDomScores) elDomScores.classList.remove('hidden');         // MOSTRA PUNTEGGI
+                if(elBombContainer) elBombContainer.classList.add('hidden');
+                if(elDomScores) elDomScores.classList.remove('hidden');
+                
+                // MODIFICA TESTI BARRE PER DOMINIO
+                if(elLblProg1) elLblProg1.textContent = "ALPHA ACTION";
+                if(elLblProg2) elLblProg2.textContent = "BRAVO ACTION";
             }
 
             // Pulisci barre quando cambi modalità
@@ -422,8 +432,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     elGlobalTimer.textContent = `${m}:${s.toString().padStart(2, '0')}`;
                 } 
                 
-                if (payload.arm_prog !== undefined && elSdArmBar) elSdArmBar.style.width = `${payload.arm_prog}%`;
-                if (payload.def_prog !== undefined && elSdDefuseBar) elSdDefuseBar.style.width = `${payload.def_prog}%`;
+                if (payload.arm_prog !== undefined && elSdArmBar) {
+                    elSdArmBar.style.width = `${payload.arm_prog}%`;
+                }
+                if (payload.def_prog !== undefined && elSdDefuseBar) {
+                    elSdDefuseBar.style.width = `${payload.def_prog}%`;
+                }
                 
                 updateForceEndButton(payload.state);
             }
@@ -452,18 +466,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     elGlobalTimer.style.color = 'var(--sop-text)'; // Colore normale
                 }
 
-                const prog = payload.capture_prog || 0;
+                const prog = payload.capture_prog; // Può essere undefined
                 const state = payload.state || '';
 
-                if (state.includes('CAPTURING A')) {
-                    if(elSdArmBar) elSdArmBar.style.width = `${prog}%`;
-                    if(elSdDefuseBar) elSdDefuseBar.style.width = "0%";
-                } else if (state.includes('CAPTURING B')) {
-                    if(elSdArmBar) elSdArmBar.style.width = "0%";
-                    if(elSdDefuseBar) elSdDefuseBar.style.width = `${prog}%`;
-                } else {
-                    if(elSdArmBar) elSdArmBar.style.width = "0%";
-                    if(elSdDefuseBar) elSdDefuseBar.style.width = "0%";
+                if (prog !== undefined) {
+                    if (state.includes('CAPTURING A')) {
+                        if(elSdArmBar) elSdArmBar.style.width = `${prog}%`;
+                        if(elSdDefuseBar) elSdDefuseBar.style.width = "0%";
+                    } else if (state.includes('CAPTURING B')) {
+                        if(elSdArmBar) elSdArmBar.style.width = "0%";
+                        if(elSdDefuseBar) elSdDefuseBar.style.width = `${prog}%`;
+                    } else {
+                        // Se non stiamo catturando, resetta dolcemente
+                        if(elSdArmBar) elSdArmBar.style.width = "0%";
+                        if(elSdDefuseBar) elSdDefuseBar.style.width = "0%";
+                    }
                 }
                 
                 updateForceEndButton(payload.state);
