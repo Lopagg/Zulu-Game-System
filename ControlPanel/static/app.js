@@ -61,8 +61,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Stato Locale
     let activeInspectorId = null;
     let monitoredDeviceId = null;
-    let lastConfiguredMode = null; // Memorizza l'ultima modalità impostata
     let currentDevices = [];
+    let lastConfiguredMode = null; // Evita refresh inutili del layout
 
     // --- TIMERS PER ANTI-RIMBALZO GRAFICO ---
     let debounceTimer1 = null;
@@ -125,7 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if(viewName === 'hub') {
             activeInspectorId = null;
             monitoredDeviceId = null; 
-            lastConfiguredMode = null; // Reset per permettere il refresh se si rientra
+            lastConfiguredMode = null; // Reset stato layout
             document.querySelectorAll('.device-item').forEach(el => el.classList.remove('active'));
         }
     }
@@ -209,12 +209,10 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateMonitorLayout(mode) {
         if (!mode) return;
 
-        // *** FIX CRUCIALE ***
-        // Evita di ridisegnare e azzerare le barre se siamo già nella modalità giusta
+        // FIX: Se la modalità è la stessa di prima, non resettare nulla!
         if (mode === lastConfiguredMode) return;
         
         lastConfiguredMode = mode;
-        console.log("Layout changed to:", mode); // Debug per vedere che lo fa una volta sola
 
         if (mode === 'SEARCH_AND_DESTROY' || mode === 'DOMINATION') {
             elWidgetSdTactical.classList.remove('hidden');
@@ -336,10 +334,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 800); 
     });
 
-    // --- GESTIONE TELEMETRIA CON DEBUG E FIX BARRE ---
+    // --- GESTIONE TELEMETRIA ---
     function handleGameEvent(msg) {
         const raw = msg.parsed_data || {};
-        const senderId = raw.id || 'UNK'; // <<< ECCO LA VARIABILE CHE MANCAVA
+        const senderId = raw.id || 'UNK';
         const type = raw.type || 'UNKNOWN';
         const payload = raw.payload || {};
         const shortId = senderId.slice(-4);
@@ -351,7 +349,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // --- DEBUG LOGGER ---
         if (type === 'SD_UPDATE' || type === 'DOM_UPDATE') {
             const time = new Date().toLocaleTimeString().split(' ')[0];
-            // Log semplice, senza gruppi, visibile subito
             console.log(`[${time}] ${type} | State: ${payload.state} | Arm: ${payload.arm_prog}% | Def: ${payload.def_prog}% | Cap: ${payload.capture_prog}%`);
         }
         // --------------------
@@ -448,14 +445,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (payload.score_b !== undefined && elDomValB) elDomValB.textContent = payload.score_b;
                 }
 
+                // 4. Timer Globale (FIX COLORE)
                 if (payload.game_time && elGlobalTimer && payload.state !== 'STANDBY') {
                     const m = Math.floor(payload.game_time / 60);
                     const s = payload.game_time % 60;
                     elGlobalTimer.textContent = `${m}:${s.toString().padStart(2, '0')}`;
-                    elGlobalTimer.style.color = 'var(--sop-text)';
+                    // Prima era 'var(--sop-text)' (Bianco), ora forziamo CIANO.
+                    elGlobalTimer.style.color = 'var(--sop-primary)';
                 }
 
-                // 4. BARRE DI PROGRESSO CON DEBOUNCE (FIX RIMBALZI)
+                // 5. BARRE DI PROGRESSO CON DEBOUNCE
                 let width1 = 0;
                 let width2 = 0;
                 let bar1Active = false;
@@ -478,20 +477,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     if(!barElem) return;
                     
                     if (isActive) {
-                        // Se attivo, cancella timer di reset e aggiorna subito
                         if (timerRefName === 1) { clearTimeout(debounceTimer1); debounceTimer1 = null; }
                         else { clearTimeout(debounceTimer2); debounceTimer2 = null; }
                         barElem.style.width = `${width}%`;
                     } else {
-                        // Se inattivo (0%), non azzerare subito. Aspetta 200ms.
-                        // Se è già a 0, non fare nulla.
+                        // Se inattivo (0%), aspetta 200ms prima di azzerare
                         if (barElem.style.width !== '0%') {
                             if (timerRefName === 1) {
                                 if(!debounceTimer1) {
                                     debounceTimer1 = setTimeout(() => { 
                                         barElem.style.width = "0%"; 
                                         debounceTimer1 = null; 
-                                    }, 200); // Aumentato leggermente per sicurezza
+                                    }, 200); 
                                 }
                             } else {
                                 if(!debounceTimer2) {
