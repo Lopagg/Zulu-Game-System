@@ -437,3 +437,10 @@ body {
     font-weight: bold;
     font-style: italic;
 }
+/* --- GLOBAL TIMER DISPLAY (SOP HEADER) --- */
+#global-timer-display {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 2.5rem; /* O la dimensione che hai */
+    color: var(--sop-primary); /* <--- IMPORTANTE: Default Ciano */
+    text-shadow: 0 0 10px rgba(0, 255, 255, 0.5); /* Opzionale: bagliore ciano */
+}

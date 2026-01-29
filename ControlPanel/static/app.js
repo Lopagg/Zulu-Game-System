@@ -445,12 +445,25 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (payload.score_b !== undefined && elDomValB) elDomValB.textContent = payload.score_b;
                 }
 
-                // 4. Timer Globale (FIX COLORE)
-                if (payload.game_time && elGlobalTimer && payload.state !== 'STANDBY') {
+                // 4. Timer Globale (FIX COLORE DEFINITIVO)
+                // Gestione del testo del timer
+                if (payload.game_time !== undefined && elGlobalTimer) {
                     const m = Math.floor(payload.game_time / 60);
                     const s = payload.game_time % 60;
                     elGlobalTimer.textContent = `${m}:${s.toString().padStart(2, '0')}`;
-                    // Prima era 'var(--sop-text)' (Bianco), ora forziamo CIANO.
+                }
+
+                // Gestione separata del colore: Se non siamo in STANDBY, forza Ciano.
+                // Questo previene che il timer diventi bianco se manca il dato del tempo.
+                if (elGlobalTimer && payload.state !== 'STANDBY') {
+                    // Controlla se c'è un override attivo (es. Countdown arancione)
+                    // Se siamo in gioco normale, forza Ciano.
+                    if (!elGlobalTimer.style.color || elGlobalTimer.style.color === 'var(--sop-text)' || elGlobalTimer.style.color === 'white') {
+                         elGlobalTimer.style.color = 'var(--sop-primary)';
+                    }
+                    // Nota: Se era stato impostato a Arancione dal countdown, 
+                    // lo SD_UPDATE lo sovrascriverà qui a Ciano appena inizia il gioco vero. 
+                    // Va bene così.
                     elGlobalTimer.style.color = 'var(--sop-primary)';
                 }
 
