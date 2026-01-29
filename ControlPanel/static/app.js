@@ -64,8 +64,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentDevices = [];
 
     // --- TIMERS PER ANTI-RIMBALZO GRAFICO ---
-    // Questi timer impediscono alla barra di scendere a zero istantaneamente
-    // se c'è un micro-buco nella ricezione dati o un rimbalzo del tasto.
     let debounceTimer1 = null;
     let debounceTimer2 = null;
 
@@ -328,31 +326,25 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 800); 
     });
 
-    // --- GESTIONE TELEMETRIA ---
+    // --- GESTIONE TELEMETRIA CON DEBUG E FIX BARRE ---
     function handleGameEvent(msg) {
         const raw = msg.parsed_data || {};
+        const senderId = raw.id || 'UNK'; // <<< ECCO LA VARIABILE CHE MANCAVA
         const type = raw.type || 'UNKNOWN';
         const payload = raw.payload || {};
+        const shortId = senderId.slice(-4);
 
-        // Filtriamo solo gli eventi che ci interessano per il debug delle barre
-        if (type === 'SD_UPDATE' || type === 'DOM_UPDATE') {
-            
-            console.groupCollapsed(`[DEBUG] Pacchetto ${type} ricevuto`);
-            console.log("Stato:", payload.state);
-            console.log("Valori S&D:", "Arm:", payload.arm_prog, "Def:", payload.def_prog);
-            console.log("Valori DOM:", "Capture:", payload.capture_prog);
-            console.groupEnd();
-
-            // --- QUI INIZIA LA TUA LOGICA NORMALE ---
-            // (Incolla qui sotto il codice che gestisce l'interfaccia, 
-            //  come quello che hai già nel tuo file)
-            
-            // Esempio per farti capire dove guardare:
-            if (monitoredDeviceId && raw.id === monitoredDeviceId) {
-                 // ...tutto il resto della tua logica UI...
-                 // (Se vuoi ti rimando il blocco UI completo, ma l'importante ora è il log sopra)
-            }
+        if (type !== 'TIME_UPDATE' && type !== 'SD_UPDATE' && type !== 'DOM_UPDATE') {
+            logSystem(`[${shortId}] ${type}`);
         }
+
+        // --- DEBUG LOGGER ---
+        if (type === 'SD_UPDATE' || type === 'DOM_UPDATE') {
+            const time = new Date().toLocaleTimeString().split(' ')[0];
+            // Log semplice, senza gruppi, visibile subito
+            console.log(`[${time}] ${type} | State: ${payload.state} | Arm: ${payload.arm_prog}% | Def: ${payload.def_prog}% | Cap: ${payload.capture_prog}%`);
+        }
+        // --------------------
 
         if (type === 'TIME_UPDATE') {
             if (payload.time_left !== undefined && elGlobalTimer) {
@@ -404,7 +396,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderRules(payload);
             }
 
-            // --- GESTIONE UNIFICATA AGGIORNAMENTI (BARRE FLUIDE) ---
+            // --- GESTIONE UNIFICATA AGGIORNAMENTI ---
             if (type === 'SD_UPDATE' || type === 'DOM_UPDATE') {
                 const isDom = (type === 'DOM_UPDATE');
                 
@@ -481,7 +473,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         else { clearTimeout(debounceTimer2); debounceTimer2 = null; }
                         barElem.style.width = `${width}%`;
                     } else {
-                        // Se inattivo (0%), non azzerare subito. Aspetta 150ms.
+                        // Se inattivo (0%), non azzerare subito. Aspetta 200ms.
                         // Se è già a 0, non fare nulla.
                         if (barElem.style.width !== '0%') {
                             if (timerRefName === 1) {
@@ -489,14 +481,14 @@ document.addEventListener('DOMContentLoaded', () => {
                                     debounceTimer1 = setTimeout(() => { 
                                         barElem.style.width = "0%"; 
                                         debounceTimer1 = null; 
-                                    }, 150);
+                                    }, 200); // Aumentato leggermente per sicurezza
                                 }
                             } else {
                                 if(!debounceTimer2) {
                                     debounceTimer2 = setTimeout(() => { 
                                         barElem.style.width = "0%"; 
                                         debounceTimer2 = null; 
-                                    }, 150);
+                                    }, 200);
                                 }
                             }
                         }
