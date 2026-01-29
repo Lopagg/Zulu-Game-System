@@ -150,46 +150,59 @@ void DominationMode::loop() {
 // --- LOGICA TELEMETRIA ---
 void DominationMode::sendTelemetry() {
     JsonDocument doc;
-    // Il campo "type" viene passato come primo argomento a sendEvent, non serve qui
 
-    // Mappa lo stato interno in stringhe leggibili per l'interfaccia
-    if (_currentState == ModeState::IN_GAME_NEUTRAL) doc["state"] = "NEUTRAL";
-    else if (_currentState == ModeState::TEAM1_CAPTURED) doc["state"] = "OWNED ALPHA";
-    else if (_currentState == ModeState::TEAM2_CAPTURED) doc["state"] = "OWNED BRAVO";
-    else if (_currentState == ModeState::CAPTURING_TEAM1) doc["state"] = "CAPTURING A...";
-    else if (_currentState == ModeState::CAPTURING_TEAM2) doc["state"] = "CAPTURING B...";
-    else if (_currentState == ModeState::IN_GAME_COUNTDOWN) doc["state"] = "STANDBY";
-    else if (_currentState == ModeState::GAME_OVER) doc["state"] = _endGameStatus;
-    else doc["state"] = "CONFIG"; // Stati di menu
+    // --- 1. GESTIONE STATO E TEMPO ---
+    long timeToSend = 0;
+    String stateToSend = "";
 
-    // Punteggi (convertiti in secondi)
+    if (_currentState == ModeState::IN_GAME_COUNTDOWN) {
+        // --- FASE COUNTDOWN ---
+        stateToSend = "PREPARING"; // "PREPARING" attiva il colore arancione sul sito
+        
+        // Calcola quanto manca all'inizio
+        unsigned long elapsed = millis() - _countdownStartTime;
+        long totalCountdown = _settings->getCountdownDuration() * 1000;
+        timeToSend = (totalCountdown - elapsed) / 1000;
+        if (timeToSend < 0) timeToSend = 0;
+        
+    } else {
+        // --- FASE DI GIOCO O FINE ---
+        
+        // Mappa stati di gioco
+        if (_currentState == ModeState::IN_GAME_NEUTRAL) stateToSend = "NEUTRAL";
+        else if (_currentState == ModeState::TEAM1_CAPTURED) stateToSend = "OWNED ALPHA";
+        else if (_currentState == ModeState::TEAM2_CAPTURED) stateToSend = "OWNED BRAVO";
+        else if (_currentState == ModeState::CAPTURING_TEAM1) stateToSend = "CAPTURING A...";
+        else if (_currentState == ModeState::CAPTURING_TEAM2) stateToSend = "CAPTURING B...";
+        else if (_currentState == ModeState::GAME_OVER) stateToSend = _endGameStatus;
+        else stateToSend = "CONFIG"; 
+
+        // Calcolo Tempo Partita Rimanente
+        long totalSeconds = _settings->getGameDuration() * 60;
+        
+        if (_currentState != ModeState::MODE_SUB_MENU && 
+            _currentState != ModeState::MENU_SETTINGS && 
+            _currentState != ModeState::IN_GAME_CONFIRM) {
+                
+            TimeSpan elapsed = _hardware->getRTCTime() - _gameStartTime;
+            timeToSend = totalSeconds - elapsed.totalseconds();
+            if (timeToSend < 0) timeToSend = 0;
+        } else {
+            timeToSend = totalSeconds; // Prima dell'inizio mostra il totale
+        }
+    }
+
+    doc["state"] = stateToSend;
+    doc["game_time"] = timeToSend; // Invia numero INTERO (risolve NaN:NaN)
+
+    // --- 2. PUNTEGGI ---
     doc["score_a"] = _team1PossessionTime / 1000;
     doc["score_b"] = _team2PossessionTime / 1000;
 
-    // Calcolo Tempo Rimanente
-    long totalSeconds = _settings->getGameDuration() * 60;
-    long remainingSeconds = 0;
-    
-    // Calcola solo se la partita è effettivamente iniziata
-    if (_currentState != ModeState::MODE_SUB_MENU && 
-        _currentState != ModeState::MENU_SETTINGS && 
-        _currentState != ModeState::IN_GAME_CONFIRM &&
-        _currentState != ModeState::IN_GAME_COUNTDOWN) {
-            
-        TimeSpan elapsed = _hardware->getRTCTime() - _gameStartTime;
-        remainingSeconds = totalSeconds - elapsed.totalseconds();
-        if (remainingSeconds < 0) remainingSeconds = 0;
-    } else {
-        remainingSeconds = totalSeconds; // Prima dell'inizio mostra il totale
-    }
-    
-    // Formatta il tempo come MM:SS
-    char timeBuffer[10];
-    sprintf(timeBuffer, "%02ld:%02ld", remainingSeconds / 60, remainingSeconds % 60);
-    doc["game_time"] = timeBuffer;
-
-    // Calcolo Progresso Cattura (0-100%)
+    // --- 3. PROGRESSO CATTURA ---
     int progress = 0;
+    // Se siamo in fase di cattura, invia progresso reale.
+    // Altrimenti, se siamo in inserimento PIN (non usato qui ma per coerenza) o altro, 0.
     if (_currentState == ModeState::CAPTURING_TEAM1 || _currentState == ModeState::CAPTURING_TEAM2) {
         unsigned long elapsed = millis() - _captureStartTime;
         unsigned long total = _settings->getCaptureTime() * 1000;
@@ -200,7 +213,6 @@ void DominationMode::sendTelemetry() {
     }
     doc["capture_prog"] = progress;
 
-    // USARE sendEvent (definito in NetworkManager.h)
     _network->sendEvent("DOM_UPDATE", doc);
 }
 

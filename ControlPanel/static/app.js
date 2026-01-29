@@ -417,29 +417,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     elSdBombStatus.textContent = payload.state;
                     const s = payload.state;
                     
-                    // PRIORITÀ VERDE: Controlliamo PRIMA le condizioni "buone"
-                    // Questo risolve il problema di "CT WINS" che veniva catturato da "T WINS"
-                    if (s.includes('DEFUS') || s.includes('CT WINS') || s.includes('BRAVO')) 
-                        elSdBombStatus.style.color = '#55ff55'; // VERDE
-                    else if (s.includes('ARM') || s.includes('EXPLODED') || s.includes('T WINS') || s.includes('ALPHA')) 
-                        elSdBombStatus.style.color = 'var(--sop-alert)'; // ROSSO
-                    else if (s === 'STANDBY' || s === 'PREPARING') 
-                        elSdBombStatus.style.color = '#ff9900'; // ARANCIONE
-                    else 
-                        elSdBombStatus.style.color = 'var(--sop-primary)'; // CIANO (Default/Safe)
-                }
-
-                if (!isDom && payload.bomb_time !== undefined && elSdBombTimer) {
-                    const m = Math.floor(payload.bomb_time / 60);
-                    const s = payload.bomb_time % 60;
-                    elSdBombTimer.textContent = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
-                }
-                
-                if (isDom) {
-                    const elDomValA = document.getElementById('d-val-a');
-                    const elDomValB = document.getElementById('d-val-b');
-                    if (payload.score_a !== undefined && elDomValA) elDomValA.textContent = payload.score_a;
-                    if (payload.score_b !== undefined && elDomValB) elDomValB.textContent = payload.score_b;
+                    // --- REGOLE VERDI (CT / BRAVO) ---
+                    if (s.includes('DEFUS') || s.includes('CT WINS') || 
+                        s.includes('CAPTURING B') || s.includes('OWNED BRAVO') || s.includes('BRAVO WINS')) {
+                        elSdBombStatus.style.color = '#55ff55'; 
+                    }
+                    // --- REGOLE ROSSE (T / ALPHA) ---
+                    else if (s.includes('ARM') || s.includes('EXPLODED') || s.includes('T WINS') || 
+                             s.includes('CAPTURING A') || s.includes('OWNED ALPHA') || s.includes('ALPHA WINS')) {
+                        elSdBombStatus.style.color = 'var(--sop-alert)'; 
+                    }
+                    // --- REGOLE GIALLE/ARANCIONI (ATTESA) ---
+                    else if (s === 'STANDBY' || s === 'PREPARING') {
+                        elSdBombStatus.style.color = '#ff9900'; 
+                    }
+                    // --- DEFAULT (CIANO) ---
+                    else {
+                        elSdBombStatus.style.color = 'var(--sop-primary)';
+                    }
                 }
 
                 // FIX COLORE TIMER GLOBALE
