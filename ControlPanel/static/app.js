@@ -208,6 +208,10 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateMonitorLayout(mode) {
         if (!mode) return;
 
+        // Riferimenti alle etichette delle barre
+        const lbl1 = document.getElementById('lbl-prog-1');
+        const lbl2 = document.getElementById('lbl-prog-2');
+
         if (mode === 'SEARCH_AND_DESTROY' || mode === 'DOMINATION') {
             elWidgetSdTactical.classList.remove('hidden');
             elWidgetSdRules.classList.remove('hidden');
@@ -216,29 +220,28 @@ document.addEventListener('DOMContentLoaded', () => {
             // --- CONFIGURAZIONE SPECIFICA ---
             if (mode === 'SEARCH_AND_DESTROY') {
                 if(elTacticalTitle) elTacticalTitle.textContent = "TACTICAL FEED // BOMB STATUS";
-                if(elBombContainer) elBombContainer.classList.remove('hidden');
+                if(elBombContainer) elBombContainer.classList.remove('hidden'); 
                 if(elDomScores) elDomScores.classList.add('hidden');
                 
-                // MODIFICA TESTI BARRE PER S&D
-                if(elLblProg1) elLblProg1.textContent = "ARMING PROGRESS";
-                if(elLblProg2) elLblProg2.textContent = "DEFUSING PROGRESS";
+                // TESTI PER S&D
+                if(lbl1) lbl1.textContent = "ARMING PROGRESS";
+                if(lbl2) lbl2.textContent = "DEFUSING PROGRESS";
             } 
             else if (mode === 'DOMINATION') {
                 if(elTacticalTitle) elTacticalTitle.textContent = "TACTICAL FEED // ZONE CONTROL";
-                if(elBombContainer) elBombContainer.classList.add('hidden');
+                if(elBombContainer) elBombContainer.classList.add('hidden');    
                 if(elDomScores) elDomScores.classList.remove('hidden');
                 
-                // MODIFICA TESTI BARRE PER DOMINIO
-                if(elLblProg1) elLblProg1.textContent = "ALPHA ACTION";
-                if(elLblProg2) elLblProg2.textContent = "BRAVO ACTION";
+                // TESTI PER DOMINIO
+                if(lbl1) lbl1.textContent = "ALPHA ACTION";
+                if(lbl2) lbl2.textContent = "BRAVO ACTION";
             }
 
-            // Pulisci barre quando cambi modalità
+            // Reset barre solo al cambio layout
             if(elSdArmBar) elSdArmBar.style.width = "0%";
             if(elSdDefuseBar) elSdDefuseBar.style.width = "0%";
 
         } else {
-            // Modalità non tattiche
             elWidgetSdTactical.classList.add('hidden');
             elWidgetSdRules.classList.add('hidden');
             elWidgetGenericMap.classList.remove('hidden');
@@ -346,8 +349,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const payload = raw.payload || {};
         const shortId = senderId.slice(-4);
 
-        if (type !== 'TIME_UPDATE' && type !== 'SD_UPDATE') logSystem(`[${shortId}] ${type}`);
+        if (type !== 'TIME_UPDATE' && type !== 'SD_UPDATE' && type !== 'DOM_UPDATE') {
+            logSystem(`[${shortId}] ${type}`);
+        }
 
+        // Timer Globale (aggiornato da TIME_UPDATE o dai pacchetti specifici se TIME_UPDATE manca)
         if (type === 'TIME_UPDATE') {
             if (payload.time_left !== undefined && elGlobalTimer) {
                 const m = Math.floor(payload.time_left / 60);
@@ -360,129 +366,123 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (monitoredDeviceId && senderId === monitoredDeviceId) {
             
-            // Rilevamento automatico della modalità dal pacchetto
+            // Rilevamento automatico modalità
             let mode = payload.mode || (type === 'SD_UPDATE' ? 'SEARCH_AND_DESTROY' : (type === 'DOM_UPDATE' ? 'DOMINATION' : null));
             if (mode === 'SEARCH_DESTROY') mode = 'SEARCH_AND_DESTROY';
 
-            // 1. GESTIONE RESET SU CAMBIO MODALITÀ
+            // Eventi di sistema
             if (type === 'MODE_EXIT') {
-                resetMonitorData(); // Pulisce tutto quando esci
-                updateMonitorLayout(null); // (Opzionale) Nasconde i widget tattici
+                resetMonitorData();
+                updateMonitorLayout(null);
                 logSystem(`MODE EXIT DETECTED.`);
             }
-
             if (type === 'MODE_ENTER') {
-                resetMonitorData(); // Pulisce tutto quando entri in una nuova modalità
+                resetMonitorData();
                 updateMonitorLayout(mode);
+                if(elGlobalTimer) elGlobalTimer.textContent = "--:--"; // Reset visivo timer
                 logSystem(`MODE ENTER: ${mode}`);
             }
-
-            // 2. VISUALIZZAZIONE COUNTDOWN (PRE-PARTITA)
             if (type === 'COUNTDOWN_UPDATE') {
                 if (payload.time !== undefined && elGlobalTimer) {
-                    // Mostra "T-10", "T-9" sul timer principale
                     elGlobalTimer.textContent = `T-${payload.time}`;
-                    elGlobalTimer.style.color = '#ff9900'; // Arancione per attesa
+                    elGlobalTimer.style.color = '#ff9900'; 
                 }
+                // Reset visivo punteggi mentre contiamo
+                if(elDomValA) elDomValA.textContent = "0";
+                if(elDomValB) elDomValB.textContent = "0";
+                if(elScoreA) elScoreA.textContent = "0";
+                if(elScoreB) elScoreB.textContent = "0";
                 
-                // Aggiorna anche lo stato centrale per chiarezza
                 if(elSdBombStatus) {
                     elSdBombStatus.textContent = "PREPARING";
                     elSdBombStatus.style.color = "#ff9900"; 
                 }
             }
 
-            // Cambio layout al volo se necessario
+            // Aggiornamento Layout dinamico
             if (mode && (type === 'HEARTBEAT' || type === 'MODE_ENTER' || type === 'SD_UPDATE' || type === 'DOM_UPDATE' || type === 'SETTINGS_UPDATE')) {
                 updateMonitorLayout(mode);
             }
-
+            
+            // Aggiornamento Regole
             if (type === 'SETTINGS_UPDATE' || (type === 'MODE_ENTER' && payload.bomb_time)) {
                 renderRules(payload);
             }
 
-            // --- PACCHETTO S&D ---
-            if (type === 'SD_UPDATE') {
-                // Ridondanza: Assicura layout S&D
-                if (elBombContainer) elBombContainer.classList.remove('hidden');
-                if (elDomScores) elDomScores.classList.add('hidden');
+            // --- GESTIONE UNIFICATA BARRE E STATO ---
+            // Usiamo una logica comune per evitare duplicazioni e errori
+            if (type === 'SD_UPDATE' || type === 'DOM_UPDATE') {
                 
-                if (elSdBombTimer) elSdBombTimer.style.color = 'var(--sop-alert)'; // Forza Rosso
+                const isDom = (type === 'DOM_UPDATE');
+                
+                // 1. Visibilità Elementi (Ridondanza di sicurezza)
+                if (isDom) {
+                    if (elBombContainer) elBombContainer.classList.add('hidden');
+                    if (elDomScores) elDomScores.classList.remove('hidden');
+                } else {
+                    if (elBombContainer) elBombContainer.classList.remove('hidden');
+                    if (elDomScores) elDomScores.classList.add('hidden');
+                    if (elSdBombTimer) elSdBombTimer.style.color = 'var(--sop-alert)';
+                }
 
+                // 2. Stato Testuale
                 if (payload.state && elSdBombStatus) {
                     elSdBombStatus.textContent = payload.state;
                     const s = payload.state;
-                    if (['ARMED', 'ARMING...', 'EXPLODED', 'T WINS'].includes(s)) elSdBombStatus.style.color = 'var(--sop-alert)'; 
-                    else if (['DEFUSED', 'DEFUSING...', 'CT WINS'].includes(s)) elSdBombStatus.style.color = '#55ff55'; 
-                    else if (s === 'STANDBY') elSdBombStatus.style.color = '#ff9900';
-                    else elSdBombStatus.style.color = 'var(--sop-primary)';
+                    if (s.includes('ARM') || s.includes('EXPLODED') || s.includes('T WINS') || s.includes('ALPHA')) 
+                        elSdBombStatus.style.color = 'var(--sop-alert)'; 
+                    else if (s.includes('DEFUS') || s.includes('CT WINS') || s.includes('BRAVO')) 
+                        elSdBombStatus.style.color = '#55ff55'; 
+                    else if (s === 'STANDBY') 
+                        elSdBombStatus.style.color = '#ff9900';
+                    else 
+                        elSdBombStatus.style.color = 'var(--sop-primary)';
                 }
 
-                if (payload.bomb_time !== undefined && elSdBombTimer) {
+                // 3. Dati Specifici (Timer Bomba o Punteggi)
+                if (!isDom && payload.bomb_time !== undefined && elSdBombTimer) {
                     const m = Math.floor(payload.bomb_time / 60);
                     const s = payload.bomb_time % 60;
                     elSdBombTimer.textContent = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
-                } else if (elSdBombTimer) {
-                    elSdBombTimer.textContent = "00:00";
+                }
+                
+                if (isDom) {
+                    const elDomValA = document.getElementById('d-val-a');
+                    const elDomValB = document.getElementById('d-val-b');
+                    if (payload.score_a !== undefined && elDomValA) elDomValA.textContent = payload.score_a;
+                    if (payload.score_b !== undefined && elDomValB) elDomValB.textContent = payload.score_b;
                 }
 
-                if (payload.game_time !== undefined && elGlobalTimer) {
+                // 4. Timer Globale (Protezione durante countdown)
+                if (payload.game_time && elGlobalTimer && payload.state !== 'STANDBY') {
                     const m = Math.floor(payload.game_time / 60);
                     const s = payload.game_time % 60;
                     elGlobalTimer.textContent = `${m}:${s.toString().padStart(2, '0')}`;
-                } 
-                
-                if (payload.arm_prog !== undefined && elSdArmBar) {
-                    elSdArmBar.style.width = `${payload.arm_prog}%`;
-                }
-                if (payload.def_prog !== undefined && elSdDefuseBar) {
-                    elSdDefuseBar.style.width = `${payload.def_prog}%`;
-                }
-                
-                updateForceEndButton(payload.state);
-            }
-
-            // --- PACCHETTO DOMINIO ---
-            if (type === 'DOM_UPDATE') {
-                // Ridondanza: Assicura layout Dominio
-                if (elBombContainer) elBombContainer.classList.add('hidden');
-                if (elDomScores) elDomScores.classList.remove('hidden');
-
-                if (payload.state && elSdBombStatus) {
-                    elSdBombStatus.textContent = payload.state;
-                    const s = payload.state;
-                    if (s.includes('ALPHA') || s.includes('CAPTURING A')) elSdBombStatus.style.color = 'var(--sop-alert)'; 
-                    else if (s.includes('BRAVO') || s.includes('CAPTURING B')) elSdBombStatus.style.color = '#55ff55'; 
-                    else elSdBombStatus.style.color = '#fff';
+                    elGlobalTimer.style.color = 'var(--sop-text)';
                 }
 
-                const elDomValA = document.getElementById('d-val-a');
-                const elDomValB = document.getElementById('d-val-b');
-                if (payload.score_a !== undefined && elDomValA) elDomValA.textContent = payload.score_a;
-                if (payload.score_b !== undefined && elDomValB) elDomValB.textContent = payload.score_b;
+                // 5. BARRE DI PROGRESSO (LOGICA ANTI-SCATTI)
+                // Se 'state' manca, NON resettiamo le barre (evita glitch se arriva un pacchetto parziale)
+                if (payload.state) {
+                    // Normalizziamo le chiavi tra le due modalità
+                    // S&D usa arm_prog/def_prog. Dominio usa capture_prog e lo stato per decidere chi.
+                    
+                    let val1 = 0; // Rosso (Arming / Alpha)
+                    let val2 = 0; // Verde (Defusing / Bravo)
 
-                if (payload.game_time && elGlobalTimer && payload.state !== 'STANDBY') {
-                    elGlobalTimer.textContent = payload.game_time;
-                    elGlobalTimer.style.color = 'var(--sop-text)'; // Colore normale
-                }
-
-                const prog = payload.capture_prog; // Può essere undefined
-                const state = payload.state || '';
-
-                if (prog !== undefined) {
-                    if (state.includes('CAPTURING A')) {
-                        if(elSdArmBar) elSdArmBar.style.width = `${prog}%`;
-                        if(elSdDefuseBar) elSdDefuseBar.style.width = "0%";
-                    } else if (state.includes('CAPTURING B')) {
-                        if(elSdArmBar) elSdArmBar.style.width = "0%";
-                        if(elSdDefuseBar) elSdDefuseBar.style.width = `${prog}%`;
+                    if (!isDom) {
+                        val1 = payload.arm_prog || 0;
+                        val2 = payload.def_prog || 0;
                     } else {
-                        // Se non stiamo catturando, resetta dolcemente
-                        if(elSdArmBar) elSdArmBar.style.width = "0%";
-                        if(elSdDefuseBar) elSdDefuseBar.style.width = "0%";
+                        const prog = payload.capture_prog || 0;
+                        if (payload.state.includes('CAPTURING A')) val1 = prog;
+                        else if (payload.state.includes('CAPTURING B')) val2 = prog;
                     }
+
+                    if(elSdArmBar) elSdArmBar.style.width = `${val1}%`;
+                    if(elSdDefuseBar) elSdDefuseBar.style.width = `${val2}%`;
                 }
-                
+
                 updateForceEndButton(payload.state);
             }
         }
