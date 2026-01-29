@@ -130,6 +130,9 @@ public:
     // Funzione RFID
     String readRFID(uint16_t timeout = 1000);
 
+    /** @brief Ritorna l'ID univoco del chip (MAC Address). */
+    String getChipId();
+
 private:
 
     // Oggetti che rappresentano i componenti hardware fisici.

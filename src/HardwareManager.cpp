@@ -479,3 +479,15 @@ String HardwareManager::readRFID(uint16_t timeout) {
     // Se il ciclo finisce senza aver trovato nulla
     return "Nessuna card trovata";
 }
+
+String HardwareManager::getChipId() {
+    // Ottiene il MAC address univoco dell'ESP32
+    uint64_t chipid = ESP.getEfuseMac(); 
+    
+    // Converte i 6 byte del MAC in una stringa esadecimale pulita
+    uint16_t chip = (uint16_t)(chipid >> 32);
+    char hex[13];
+    snprintf(hex, sizeof(hex), "%04X%08X", chip, (uint32_t)chipid);
+    
+    return String(hex);
+}

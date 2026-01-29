@@ -895,13 +895,15 @@ void SearchDestroyMode::forceEndGame() {
 void SearchDestroyMode::sendTelemetry() {
     JsonDocument doc;
     
+    // --- Campi Base ---
+    doc["id"] = _hardware->getChipId();
+    doc["type"] = "SD_UPDATE";
+    doc["mode"] = "SEARCH_AND_DESTROY";
+
     // 1. STATO TESTUALE
-    
-    // A. Partita Finita -> Mostra Vincitore
     if (_currentState == ModeState::IN_GAME_ENDED || _currentState == ModeState::IN_GAME_DEFUSED) {
         doc["state"] = (_endGameStatus.length() > 0) ? _endGameStatus : "GAME OVER";
     }
-    // B. Azioni in corso (Alta priorità)
     else if (_currentState == ModeState::IN_GAME_IS_ARMING || _currentState == ModeState::IN_GAME_ENTER_ARM_PIN) {
         doc["state"] = "ARMING...";
     }
@@ -911,48 +913,59 @@ void SearchDestroyMode::sendTelemetry() {
     else if (_currentState == ModeState::IN_GAME_COUNTDOWN || _currentState == ModeState::IN_GAME_ARMED) {
         doc["state"] = "ARMED";
     }
-    // C. Partita non ancora iniziata
     else if (!_gameIsActive && !_bombIsActive) {
         doc["state"] = "STANDBY";
     }
-    // D. Partita in corso (Bomba non armata)
     else {
         doc["state"] = "SAFE";
     }
 
-    // 2. Percentuali Barre
+    // 2. PERCENTUALI BARRE (MODIFICA QUI)
+    
+    // --- GESTIONE INNESCO ---
     if (_currentState == ModeState::IN_GAME_IS_ARMING) {
+        // Calcolo normale mentre l'utente preme
         unsigned long total = _settings->getArmingTime() * 1000;
         unsigned long elapsed = millis() - _armingStartTime;
         doc["arm_prog"] = (total > 0) ? (elapsed * 100 / total) : 0;
-    } else doc["arm_prog"] = 0;
+    } 
+    else if (_currentState == ModeState::IN_GAME_ENTER_ARM_PIN) {
+        // FIX: Se siamo nella schermata PIN, diciamo al sito che è al 100%
+        doc["arm_prog"] = 100;
+    } 
+    else {
+        // Altrimenti zero
+        doc["arm_prog"] = 0;
+    }
     
+    // --- GESTIONE DISINNESCO ---
     if (_currentState == ModeState::IN_GAME_IS_DEFUSING) {
+        // Calcolo normale mentre l'utente preme
         unsigned long total = _settings->getDefuseTime() * 1000;
         unsigned long elapsed = millis() - _defusingStartTime;
         doc["def_prog"] = (total > 0) ? (elapsed * 100 / total) : 0;
-    } else doc["def_prog"] = 0;
+    } 
+    else if (_currentState == ModeState::IN_GAME_ENTER_DEFUSE_PIN) {
+        // FIX: Se siamo nella schermata PIN, diciamo al sito che è al 100%
+        doc["def_prog"] = 100;
+    } 
+    else {
+        // Altrimenti zero
+        doc["def_prog"] = 0;
+    }
     
-    // 3. TIMER BOMBA (Se attiva)
-    // Nota: _gameIsActive qui sotto si riferisce alla "fase bomba", 
-    // potresti voler rinominare la variabile membro in _bombTimerActive per chiarezza,
-    // ma per ora manteniamo la logica esistente per non rompere il codice.
-    // Se la bomba è armata, calcoliamo il tempo bomba.
-    bool bombArmed = (_currentState == ModeState::IN_GAME_COUNTDOWN || 
-                      _currentState == ModeState::IN_GAME_IS_DEFUSING || 
-                      _currentState == ModeState::IN_GAME_ENTER_DEFUSE_PIN);
-
+    // 3. TIMER BOMBA (Logica invariata)
     if (_bombIsActive) {
         long totalSeconds = _settings->getBombTime() * 60;
         TimeSpan elapsed = _hardware->getRTCTime() - _roundStartTime;
         long remaining = totalSeconds - elapsed.totalseconds();
         doc["bomb_time"] = (remaining > 0) ? remaining : 0;
     } else {
-        doc["bomb_time"] = 0; // O null
+        doc["bomb_time"] = 0; 
     }
 
-    // 4. TIMER PARTITA (Sempre attivo finché non finisce il gioco)
-    if (_gameIsActive) { // Assumendo che imposti _gameIsActive = true all'avvio
+    // 4. TIMER PARTITA (Logica invariata)
+    if (_gameIsActive) { 
         long totalMatch = _settings->getGameDuration() * 60;
         TimeSpan matchElapsed = _hardware->getRTCTime() - _gameMatchStartTime;
         long remainingMatch = totalMatch - matchElapsed.totalseconds();
@@ -961,5 +974,7 @@ void SearchDestroyMode::sendTelemetry() {
         doc["game_time"] = 0;
     }
 
-    _network->sendEvent("SD_UPDATE", doc);
+    String output;
+    serializeJson(doc, output);
+    _network->sendEvent(output);
 }
