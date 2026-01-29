@@ -61,6 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Stato Locale
     let activeInspectorId = null;
     let monitoredDeviceId = null;
+    let lastConfiguredMode = null; // Memorizza l'ultima modalità impostata
     let currentDevices = [];
 
     // --- TIMERS PER ANTI-RIMBALZO GRAFICO ---
@@ -124,6 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if(viewName === 'hub') {
             activeInspectorId = null;
             monitoredDeviceId = null; 
+            lastConfiguredMode = null; // Reset per permettere il refresh se si rientra
             document.querySelectorAll('.device-item').forEach(el => el.classList.remove('active'));
         }
     }
@@ -207,6 +209,13 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateMonitorLayout(mode) {
         if (!mode) return;
 
+        // *** FIX CRUCIALE ***
+        // Evita di ridisegnare e azzerare le barre se siamo già nella modalità giusta
+        if (mode === lastConfiguredMode) return;
+        
+        lastConfiguredMode = mode;
+        console.log("Layout changed to:", mode); // Debug per vedere che lo fa una volta sola
+
         if (mode === 'SEARCH_AND_DESTROY' || mode === 'DOMINATION') {
             elWidgetSdTactical.classList.remove('hidden');
             elWidgetSdRules.classList.remove('hidden');
@@ -229,6 +238,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(elLblProg2) elLblProg2.textContent = "BRAVO ACTION";
             }
 
+            // Reset barre (Eseguito solo UNA volta all'ingresso della modalità)
             if(elSdArmBar) elSdArmBar.style.width = "0%";
             if(elSdDefuseBar) elSdDefuseBar.style.width = "0%";
 
