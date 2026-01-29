@@ -109,7 +109,7 @@ void SearchDestroyMode::loop() {
 
     // --- GESTIONE TELEMETRIA ---
 
-    bool isHighAction = (_currentState == ModeState::IN_GAME_IS_ARMING || _currentState == ModeState::IN_GAME_IS_DEFUSING || _gameIsActive);
+    bool isHighAction = (_currentState == ModeState::IN_GAME_IS_ARMING || _currentState == ModeState::IN_GAME_IS_DEFUSING);
     unsigned long interval = isHighAction ? 100 : 1000;
     
     if (millis() - _lastTelemetryTime > interval) {

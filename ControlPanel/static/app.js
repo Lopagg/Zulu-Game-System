@@ -461,28 +461,39 @@ document.addEventListener('DOMContentLoaded', () => {
                     elGlobalTimer.style.color = 'var(--sop-text)';
                 }
 
-                // 5. BARRE DI PROGRESSO (LOGICA ANTI-SCATTI)
-                // Se 'state' manca, NON resettiamo le barre (evita glitch se arriva un pacchetto parziale)
-                if (payload.state) {
-                    // Normalizziamo le chiavi tra le due modalità
-                    // S&D usa arm_prog/def_prog. Dominio usa capture_prog e lo stato per decidere chi.
-                    
-                    let val1 = 0; // Rosso (Arming / Alpha)
-                    let val2 = 0; // Verde (Defusing / Bravo)
+                // 5. BARRE DI PROGRESSO (FIX RIMBALZO)
+                // Aggiorniamo la barra SOLO se il dato è presente nel pacchetto.
+                // Se è undefined, lasciamo la barra dov'è (evita il ritorno a 0).
 
-                    if (!isDom) {
-                        val1 = payload.arm_prog || 0;
-                        val2 = payload.def_prog || 0;
-                    } else {
-                        const prog = payload.capture_prog || 0;
-                        if (payload.state.includes('CAPTURING A')) val1 = prog;
-                        else if (payload.state.includes('CAPTURING B')) val2 = prog;
+                if (!isDom) {
+                    // --- SEARCH & DESTROY ---
+                    if (payload.arm_prog !== undefined && elSdArmBar) {
+                        elSdArmBar.style.width = `${payload.arm_prog}%`;
                     }
-
-                    if(elSdArmBar) elSdArmBar.style.width = `${val1}%`;
-                    if(elSdDefuseBar) elSdDefuseBar.style.width = `${val2}%`;
+                    if (payload.def_prog !== undefined && elSdDefuseBar) {
+                        elSdDefuseBar.style.width = `${payload.def_prog}%`;
+                    }
+                } else {
+                    // --- DOMINATION ---
+                    // Controlla anche qui che capture_prog esista
+                    if (payload.capture_prog !== undefined) {
+                        const prog = payload.capture_prog;
+                        
+                        if (payload.state.includes('CAPTURING A')) {
+                            if(elSdArmBar) elSdArmBar.style.width = `${prog}%`;
+                            if(elSdDefuseBar) elSdDefuseBar.style.width = "0%";
+                        } 
+                        else if (payload.state.includes('CAPTURING B')) {
+                            if(elSdArmBar) elSdArmBar.style.width = "0%";
+                            if(elSdDefuseBar) elSdDefuseBar.style.width = `${prog}%`;
+                        } 
+                        else {
+                            // Se nessuno cattura, resetta a 0
+                            if(elSdArmBar) elSdArmBar.style.width = "0%";
+                            if(elSdDefuseBar) elSdDefuseBar.style.width = "0%";
+                        }
+                    }
                 }
-
                 updateForceEndButton(payload.state);
             }
         }

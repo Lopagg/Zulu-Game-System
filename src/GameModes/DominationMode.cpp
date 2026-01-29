@@ -131,11 +131,16 @@ void DominationMode::loop() {
             break;
     }
 
-    // --- TELEMETRIA PERIODICA ---
-    // Invia lo stato al sito web ogni secondo se siamo in una fase attiva
+    long telemetryInterval = 1000;
+    
+    // Se stiamo CATTURANDO, aggiorna ogni 100ms per fluidità assoluta della barra
+    if (_currentState == ModeState::CAPTURING_TEAM1 || _currentState == ModeState::CAPTURING_TEAM2) {
+        telemetryInterval = 100; 
+    }
+
     if (_currentState != ModeState::MODE_SUB_MENU && 
         _currentState != ModeState::MENU_SETTINGS && 
-        millis() - _lastTelemetryTime > 1000) {
+        millis() - _lastTelemetryTime > telemetryInterval) {
         
         sendTelemetry();
         _lastTelemetryTime = millis();
