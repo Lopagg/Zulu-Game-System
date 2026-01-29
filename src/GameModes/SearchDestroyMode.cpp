@@ -48,18 +48,19 @@ void SearchDestroyMode::enter() {
     _bombIsActive = false;
     _endGameStatus = ""; // Reset vincitore
     displaySubMenu();
-    _hardware->setStripColor(255, 100, 0);  // Colore arancione tipico della modalità
+    _hardware->setStripColor(255, 100, 0);
+    
+    // --- MODIFICA QUI ---
+    // Inviamo solo il cambio di modalità. 
+    // I dati delle regole (timer, pin, ecc.) li lasciamo a sendSettingsStatus()
+    // per evitare che una lista parziale sovrascriva quella completa sul sito.
     
     JsonDocument doc;
     doc["mode"] = "SEARCH_AND_DESTROY";
-    doc["bomb_time"] = _settings->getBombTime();
-    // Inviamo anche i tempi di innesco/disinnesco per le regole lato web
-    doc["arm_time"] = _settings->getArmingTime();
-    doc["defuse_time"] = _settings->getDefuseTime();
-    
     _network->sendEvent("MODE_ENTER", doc);
+    // --------------------
 
-    sendSettingsStatus();
+    sendSettingsStatus(); // Questo invierà la lista completa delle impostazioni
 }
 
 /**
@@ -895,15 +896,13 @@ void SearchDestroyMode::forceEndGame() {
 void SearchDestroyMode::sendTelemetry() {
     JsonDocument doc;
     
-    // --- Campi Base ---
-    doc["id"] = _hardware->getChipId();
-    doc["type"] = "SD_UPDATE";
-    doc["mode"] = "SEARCH_AND_DESTROY";
-
-    // 1. STATO TESTUALE
+    // 1. STATO TESTUALE (INVARIATO)
+    
+    // A. Partita Finita -> Mostra Vincitore
     if (_currentState == ModeState::IN_GAME_ENDED || _currentState == ModeState::IN_GAME_DEFUSED) {
         doc["state"] = (_endGameStatus.length() > 0) ? _endGameStatus : "GAME OVER";
     }
+    // B. Azioni in corso (Alta priorità)
     else if (_currentState == ModeState::IN_GAME_IS_ARMING || _currentState == ModeState::IN_GAME_ENTER_ARM_PIN) {
         doc["state"] = "ARMING...";
     }
@@ -913,58 +912,56 @@ void SearchDestroyMode::sendTelemetry() {
     else if (_currentState == ModeState::IN_GAME_COUNTDOWN || _currentState == ModeState::IN_GAME_ARMED) {
         doc["state"] = "ARMED";
     }
+    // C. Partita non ancora iniziata
     else if (!_gameIsActive && !_bombIsActive) {
         doc["state"] = "STANDBY";
     }
+    // D. Partita in corso (Bomba non armata)
     else {
         doc["state"] = "SAFE";
     }
 
-    // 2. PERCENTUALI BARRE (MODIFICA QUI)
+    // 2. Percentuali Barre (MODIFICATO QUI)
     
-    // --- GESTIONE INNESCO ---
+    // --- GESTIONE BARRA ARMAMENTO ---
     if (_currentState == ModeState::IN_GAME_IS_ARMING) {
-        // Calcolo normale mentre l'utente preme
         unsigned long total = _settings->getArmingTime() * 1000;
         unsigned long elapsed = millis() - _armingStartTime;
         doc["arm_prog"] = (total > 0) ? (elapsed * 100 / total) : 0;
     } 
+    // NUOVO: Se siamo nella fase di inserimento PIN, invia 100% fisso
     else if (_currentState == ModeState::IN_GAME_ENTER_ARM_PIN) {
-        // FIX: Se siamo nella schermata PIN, diciamo al sito che è al 100%
         doc["arm_prog"] = 100;
-    } 
+    }
     else {
-        // Altrimenti zero
         doc["arm_prog"] = 0;
     }
     
-    // --- GESTIONE DISINNESCO ---
+    // --- GESTIONE BARRA DISINNESCO ---
     if (_currentState == ModeState::IN_GAME_IS_DEFUSING) {
-        // Calcolo normale mentre l'utente preme
         unsigned long total = _settings->getDefuseTime() * 1000;
         unsigned long elapsed = millis() - _defusingStartTime;
         doc["def_prog"] = (total > 0) ? (elapsed * 100 / total) : 0;
     } 
+    // NUOVO: Se siamo nella fase di inserimento PIN, invia 100% fisso
     else if (_currentState == ModeState::IN_GAME_ENTER_DEFUSE_PIN) {
-        // FIX: Se siamo nella schermata PIN, diciamo al sito che è al 100%
         doc["def_prog"] = 100;
-    } 
+    }
     else {
-        // Altrimenti zero
         doc["def_prog"] = 0;
     }
     
-    // 3. TIMER BOMBA (Logica invariata)
+    // 3. TIMER BOMBA (INVARIATO)
     if (_bombIsActive) {
         long totalSeconds = _settings->getBombTime() * 60;
         TimeSpan elapsed = _hardware->getRTCTime() - _roundStartTime;
         long remaining = totalSeconds - elapsed.totalseconds();
         doc["bomb_time"] = (remaining > 0) ? remaining : 0;
     } else {
-        doc["bomb_time"] = 0; 
+        doc["bomb_time"] = 0;
     }
 
-    // 4. TIMER PARTITA (Logica invariata)
+    // 4. TIMER PARTITA (INVARIATO)
     if (_gameIsActive) { 
         long totalMatch = _settings->getGameDuration() * 60;
         TimeSpan matchElapsed = _hardware->getRTCTime() - _gameMatchStartTime;
@@ -974,7 +971,5 @@ void SearchDestroyMode::sendTelemetry() {
         doc["game_time"] = 0;
     }
 
-    String output;
-    serializeJson(doc, output);
-    _network->sendEvent(output);
+    _network->sendEvent("SD_UPDATE", doc);
 }
