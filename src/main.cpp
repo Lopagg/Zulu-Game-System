@@ -26,6 +26,7 @@
 #include "GameModes/SearchDestroySettings.h"
 #include "GameModes/DominationMode.h"
 #include "GameModes/DominationSettings.h"
+#include "GameModes/FoxhuntMode.h"
 #include "GameModes/TerminalMode.h"
 
 /** --- Istanze Globali --- 
@@ -41,6 +42,7 @@ SearchDestroySettings* sdSettings = nullptr;
 SearchDestroyMode* sdMode = nullptr;
 DominationSettings* domSettings = nullptr;
 DominationMode* domMode = nullptr;
+FoxhuntMode* foxhuntMode = nullptr;
 MusicRoomMode* musicRoomMode = nullptr;
 TerminalMode* terminalMode = nullptr;
 
@@ -60,7 +62,7 @@ AppState* appState = &currentAppState;
 // --- Stato e Menu Globale ---
 // Variabili per la gestione del menu principale.
 int mainMenuIndex = 0;
-String mainMenuOptions[] = { "Cerca & Distruggi", "Dominio", "Stanza dei Suoni", "Mod. Terminale", "Test Hardware" };
+String mainMenuOptions[] = { "Cerca & Distruggi", "Dominio", "Foxhunt", "Mod. Terminale","Stanza dei Suoni", "Test Hardware" };
 int numMainMenuOptions = sizeof(mainMenuOptions) / sizeof(mainMenuOptions[0]);
 
 // --- Variabili per il sottomenu di Test Hardware ---
@@ -87,6 +89,7 @@ String getCurrentModeString() {
         case APP_STATE_SEARCH_DESTROY_MODE: return "SEARCH_AND_DESTROY";
         case APP_STATE_MUSIC_ROOM: return "MUSIC ROOM";
         case APP_STATE_TERMINAL_MODE: return "TERMINAL";
+        case APP_STATE_FOXHUNT: return "FOXHUNT";
         case APP_STATE_TEST_HARDWARE: return "HARDWARE TEST";
         default: return "UNKNOWN";
     }
@@ -120,6 +123,8 @@ void setup() {
     domMode = new DominationMode(&hardware, &networkManager, domSettings, &currentAppState, displayMainMenu);
 
     musicRoomMode = new MusicRoomMode(&hardware, &currentAppState, displayMainMenu);
+
+    foxhuntMode = new FoxhuntMode(&hardware, &networkManager, &currentAppState, displayMainMenu);
 
     terminalMode = new TerminalMode(&hardware, &networkManager, &currentAppState, displayMainMenu, domSettings, domMode, sdSettings, sdMode);
 
@@ -191,6 +196,9 @@ void loop() {
             break;
         case APP_STATE_TERMINAL_MODE:
             terminalMode->loop();   // Delega il controllo alla Modalità Terminale
+            break;
+        case APP_STATE_FOXHUNT:
+            foxhuntMode->loop(); // Delega il controllo alla Modalità Foxhunt
             break;
         case APP_STATE_TEST_HARDWARE:
             handleTestHardwareState();
@@ -314,48 +322,45 @@ void handleMainMenuState() {
             case 0:
                 Serial.println("TRANSIZIONE: Main Menu -> Cerca & Distruggi");
                 currentAppState = APP_STATE_SEARCH_DESTROY_MODE;
-
                 doc["new_mode"] = "SEARCH_AND_DESTROY";
                 networkManager.sendEvent("MODE_CHANGE", doc);
-
                 sdMode->enter();
                 break;
             case 1:
                 Serial.println("TRANSIZIONE: Main Menu -> Dominio");
                 currentAppState = APP_STATE_DOMINATION_MODE;
-
                 doc["new_mode"] = "DOMINATION";
                 networkManager.sendEvent("MODE_CHANGE", doc);
-
                 domMode->enter();
                 break;
-            case 2:
-                Serial.println("TRANSIZIONE: Main Menu -> Stanza dei Suoni");
-                currentAppState = APP_STATE_MUSIC_ROOM;
-
-                doc["new_mode"] = "MUSIC_ROOM";
+            case 2: // <--- FOXHUNT È ORA QUI (Indice 2)
+                Serial.println("TRANSIZIONE: Main Menu -> Foxhunt");
+                currentAppState = APP_STATE_FOXHUNT;
+                doc["new_mode"] = "FOXHUNT";
                 networkManager.sendEvent("MODE_CHANGE", doc);
-
-                musicRoomMode->enter();
+                foxhuntMode->enter();
                 break;
             case 3:
                 Serial.println("TRANSIZIONE: Main Menu -> Modalita' Terminale");
                 currentAppState = APP_STATE_TERMINAL_MODE;
-
                 doc["new_mode"] = "TERMINAL";
                 networkManager.sendEvent("MODE_CHANGE", doc);
-
                 terminalMode->enter();
                 break;
-            case 4:
+            case 4: // <--- STANZA DEI SUONI SPOSTATA QUI (Indice 4)
+                Serial.println("TRANSIZIONE: Main Menu -> Stanza dei Suoni");
+                currentAppState = APP_STATE_MUSIC_ROOM;
+                doc["new_mode"] = "MUSIC_ROOM";
+                networkManager.sendEvent("MODE_CHANGE", doc);
+                musicRoomMode->enter();
+                break;
+            case 5: // <--- TEST HARDWARE SPOSTATO QUI (Indice 5)
                 Serial.println("TRANSIZIONE: Main Menu -> Test Hardware");
                 currentAppState = APP_STATE_TEST_HARDWARE;
-
                 doc["new_mode"] = "TEST_HARDWARE";
                 networkManager.sendEvent("MODE_CHANGE", doc);
-
-                currentTestSubState = TEST_MAIN; // Imposta il sottomenu iniziale
-                displayTestHardwareMainMenu(); // Disegna il menu del test
+                currentTestSubState = TEST_MAIN; 
+                displayTestHardwareMainMenu(); 
                 break;
         }
     }

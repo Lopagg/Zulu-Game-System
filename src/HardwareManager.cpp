@@ -457,26 +457,21 @@ String HardwareManager::readRFID(uint16_t timeout) {
     uint8_t uid[] = { 0, 0, 0, 0, 0, 0, 0 };
     uint8_t uidLength;
 
-    unsigned long startTime = millis();
-    //Cicla finché non trova una card o scade il tempo
-    while (millis() - startTime < timeout) {
-        // Tenta di leggere una card con un breve timeout per non bloccare il ciclo
-        success = _nfc->readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &uidLength, 50);
+    // Passiamo il timeout direttamente alla libreria, eliminando il ciclo while bloccante.
+    // In questo modo il controllo torna immediatamente al loop() non appena scade il tempo.
+    success = _nfc->readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &uidLength, timeout);
 
-        if (success) {
-            String uidString = "";
-            for (uint8_t i = 0; i < uidLength; i++) {
-                if (uid[i] < 0x10) uidString += "0";
-                uidString += String(uid[i], HEX);
-                if (i < uidLength - 1) uidString += ":";
-            }
-            uidString.toUpperCase();
-            return uidString;
+    if (success) {
+        String uidString = "";
+        for (uint8_t i = 0; i < uidLength; i++) {
+            if (uid[i] < 0x10) uidString += "0";
+            uidString += String(uid[i], HEX);
+            if (i < uidLength - 1) uidString += ":";
         }
-        delay(10); // Piccola pausa per non sovraccaricare il bus I2C
+        uidString.toUpperCase();
+        return uidString;
     }
     
-    // Se il ciclo finisce senza aver trovato nulla
     return "Nessuna card trovata";
 }
 

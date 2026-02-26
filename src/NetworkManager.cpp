@@ -1,6 +1,9 @@
 #include "NetworkManager.h"
 #include "app_common.h"
 #include <ArduinoJson.h>
+#include <ArduinoOTA.h>
+#include <esp_wifi.h>
+#include <TelnetStream.h>
 
 String deviceId = "";   // Variabile globale per il MAC Address
 
@@ -34,7 +37,14 @@ void NetworkManager::initialize(HardwareManager* hardware) {
     hardware->clearLcd();
     hardware->printLcd(0, 0, "Scansione WiFi...");
 
+    // 1. Accendi l'antenna in modalità Station
     WiFi.mode(WIFI_STA);
+
+    // 2. FORZA IL MAC ADDRESS IMMEDIATAMENTE!
+    // uint8_t customMac[] = {0x20, 0x43, 0xA8, 0x64, 0xCA, 0x21};
+    // esp_wifi_set_mac(WIFI_IF_STA, customMac);
+
+    // 3. Ora puoi scollegarti da vecchie sessioni e avviare la scansione
     WiFi.disconnect();
     delay(100);
 
@@ -51,6 +61,8 @@ void NetworkManager::initialize(HardwareManager* hardware) {
                 hardware->clearLcd();
                 hardware->printLcd(0, 0, "Connessione a:");
                 hardware->printLcd(0, 1, knownNetworks[i].ssid);
+                
+                // NOTA: Qui ho tolto le righe del customMac che avevi messo tu!
                 
                 WiFi.begin(knownNetworks[i].ssid, knownNetworks[i].password);
                 
@@ -72,6 +84,11 @@ void NetworkManager::initialize(HardwareManager* hardware) {
 connection_success:
     if (connected) {
         deviceId = WiFi.macAddress();
+
+        TelnetStream.begin();
+        TelnetStream.println("\n\n=== LOG DI RETE ATTIVATI ===");
+        TelnetStream.printf("Dispositivo connesso: %s\n", WiFi.localIP().toString().c_str());
+
         hardware->clearLcd();
         hardware->printLcd(0, 0, "WiFi OK!");
         hardware->printLcd(0, 1, WiFi.localIP().toString());
@@ -98,6 +115,9 @@ connection_success:
     } else {
         hardware->printLcd(0, 0, "WiFi Fallita!");
     }
+
+    ArduinoOTA.setHostname("ZULU-TERMINAL"); // Opzionale
+    ArduinoOTA.begin();
 }
 
 void NetworkManager::resolveServerIP() {
@@ -117,6 +137,9 @@ void NetworkManager::resolveServerIP() {
 }
 
 void NetworkManager::update() {
+
+    ArduinoOTA.handle();
+
     int packetSize = _udp.parsePacket();
     if (packetSize) {
         char incomingPacket[512];
