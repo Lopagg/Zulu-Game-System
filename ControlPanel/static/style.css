@@ -383,6 +383,25 @@ body {
 .input-group-tactical label { display: block; color: var(--sop-primary); font-size: 10px; margin-bottom: 5px; letter-spacing: 1px; }
 .row-inputs { display: flex; gap: 10px; }
 .row-inputs input { flex: 1; background: rgba(0,0,0,0.3); border: 1px solid var(--sop-dim); color: var(--sop-text); padding: 5px 10px; font-family: inherit; }
+/* --- TACTICAL INPUTS FOR SETUP --- */
+.tactical-select {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid var(--sop-dim);
+    color: var(--sop-text);
+    padding: 8px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 14px;
+    outline: none;
+}
+.tactical-select:focus { border-color: var(--sop-primary); }
+
+.setup-params-group {
+    background: rgba(0, 255, 204, 0.02);
+    border-left: 2px solid var(--sop-primary);
+    padding: 15px;
+    margin-bottom: 20px;
+}
 .danger-zone { margin-top: 10px; }
 .danger-label { color: var(--sop-alert); font-size: 10px; font-weight: bold; }
 .warning-text { font-size: 10px; color: #666; margin-bottom: 10px; font-style: italic; }

@@ -281,9 +281,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if(elInspFwVer) elInspFwVer.textContent = `FW_VER: ${device.version || '--'}`;
     }
 
-    const btnModeSetup = document.getElementById('btn-mode-setup');
-    if(btnModeSetup) btnModeSetup.addEventListener('click', () => showView('setup'));
-
     const btnModeObserve = document.getElementById('btn-mode-observe');
     if(btnModeObserve) btnModeObserve.addEventListener('click', () => { renderTargetSelection(); showView('select-target'); });
 
@@ -562,4 +559,105 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!activeInspectorId) return console.warn("No active inspector");
         socket.emit('send_command', { target_id: activeInspectorId, command: cmdObj });
     };
+
+    // --- GESTIONE SCHERMATA SETUP (MODALITA' TERMINALE) ---
+    
+    const elSetupModeSelect = document.getElementById('setup-mode-select');
+    const elSetupSdParams = document.getElementById('setup-sd-params');
+    const elSetupDomParams = document.getElementById('setup-dom-params');
+    const elSetupTargetSelect = document.getElementById('setup-target-select');
+    const btnTransmitSetup = document.getElementById('btn-transmit-setup');
+    const btnStartMission = document.getElementById('btn-start-mission');
+
+    // Cambia le impostazioni visibili in base alla modalità selezionata
+    if (elSetupModeSelect) {
+        elSetupModeSelect.addEventListener('change', (e) => {
+            if (e.target.value === 'sd') {
+                elSetupSdParams.classList.remove('hidden');
+                elSetupDomParams.classList.add('hidden');
+            } else {
+                elSetupSdParams.classList.add('hidden');
+                elSetupDomParams.classList.remove('hidden');
+            }
+        });
+    }
+
+    // Popola il menu a tendina con i dispositivi in Modalità Terminale quando si apre la vista Setup
+    const btnModeSetup = document.getElementById('btn-mode-setup'); // Ri-dichiaro per sicurezza, se serve
+    if (btnModeSetup) {
+        btnModeSetup.addEventListener('click', () => {
+            elSetupTargetSelect.innerHTML = '<option value="">-- Seleziona un nodo ZGT --</option>';
+            // Filtra solo i dispositivi attualmente in stato TERMINAL
+            const terminalDevices = currentDevices.filter(d => d.mode === 'TERMINAL');
+            
+            terminalDevices.forEach(d => {
+                const opt = document.createElement('option');
+                opt.value = d.id;
+                opt.textContent = d.name || d.id;
+                elSetupTargetSelect.appendChild(opt);
+            });
+            
+            showView('setup');
+            logSystem("SETUP PANEL ACCESSED.");
+        });
+    }
+
+    // Invia la configurazione all'ESP32
+    if (btnTransmitSetup) {
+        btnTransmitSetup.addEventListener('click', () => {
+            const targetId = elSetupTargetSelect.value;
+            if (!targetId) { alert("Seleziona un nodo ZGT di destinazione."); return; }
+
+            const mode = elSetupModeSelect.value;
+            let commandData = {};
+
+            if (mode === 'sd') {
+                commandData = {
+                    cmd: "SET_SD_SETTINGS",
+                    game_duration: parseInt(document.getElementById('sd-game-dur').value),
+                    bomb_time: parseInt(document.getElementById('sd-bomb-time').value),
+                    arm_time: parseInt(document.getElementById('sd-arm-time').value),
+                    defuse_time: parseInt(document.getElementById('sd-defuse-time').value),
+                    use_arm_pin: document.getElementById('sd-use-arm-pin').value === 'true',
+                    use_defuse_pin: document.getElementById('sd-use-defuse-pin').value === 'true',
+                    arm_pin: document.getElementById('sd-arm-pin').value,
+                    defuse_pin: document.getElementById('sd-defuse-pin').value
+                };
+            } else {
+                commandData = {
+                    cmd: "SET_DOM_SETTINGS",
+                    duration: parseInt(document.getElementById('dom-game-dur').value),
+                    capture_time: parseInt(document.getElementById('dom-capture-time').value),
+                    countdown: parseInt(document.getElementById('dom-countdown').value)
+                };
+            }
+
+            socket.emit('send_command', { target_id: targetId, command: commandData });
+            logSystem(`CONFIGURATION TRANSMITTED TO ${targetId}.`);
+        });
+    }
+
+    // Avvia la missione
+    if (btnStartMission) {
+        btnStartMission.addEventListener('click', () => {
+            const targetId = elSetupTargetSelect.value;
+            if (!targetId) { alert("Seleziona un nodo ZGT di destinazione."); return; }
+
+            const mode = elSetupModeSelect.value;
+            let commandData = {
+                cmd: (mode === 'sd') ? "START_SD_GAME" : "START_DOM_GAME"
+            };
+
+            socket.emit('send_command', { target_id: targetId, command: commandData });
+            logSystem(`START MISSION SIGNAL SENT TO ${targetId}.`);
+            
+            // Passa automaticamente alla visualizzazione monitor per quel dispositivo
+            monitoredDeviceId = targetId;
+            elMonitorTargetId.textContent = elSetupTargetSelect.options[elSetupTargetSelect.selectedIndex].text;
+            resetMonitorData();
+            showView('monitor');
+            
+            // L'ESP32 dovrebbe rispondere cambiando modalità e inviando i primi dati di telemetria.
+        });
+    }
 });

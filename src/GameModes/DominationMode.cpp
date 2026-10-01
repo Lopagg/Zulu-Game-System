@@ -769,7 +769,7 @@ void DominationMode::forceEndGame() {
     else _winner = 0;
 
     _hardware->clearLcd();
-    _hardware->printLcd(3, 0, "PARTITA TERMINATA");
+    _hardware->printLcd(2, 0, "PARTITA TERMINATA");
     if (_winner == 1) _hardware->printLcd(2, 1, "VINCE SQUADRA 1!");
     else if (_winner == 2) _hardware->printLcd(2, 1, "VINCE SQUADRA 2!");
     else _hardware->printLcd(6, 1, "PAREGGIO!");
