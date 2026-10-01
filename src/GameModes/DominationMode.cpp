@@ -21,6 +21,8 @@ void DominationMode::enter() {
     Serial.println("Entrato in modalita' Dominio");
     _currentState = ModeState::MODE_SUB_MENU;
     _subMenuIndex = 0;
+    _team1PossessionTime = 0;
+    _team2PossessionTime = 0;
     _endGameStatus = ""; // Reset stato finale
     displaySubMenu();
     _hardware->setStripColor(0, 255, 255);
@@ -180,15 +182,23 @@ void DominationMode::sendTelemetry() {
         // Calcolo Tempo Partita Rimanente
         long totalSeconds = _settings->getGameDuration() * 60;
         
-        if (_currentState != ModeState::MODE_SUB_MENU && 
-            _currentState != ModeState::MENU_SETTINGS && 
-            _currentState != ModeState::IN_GAME_CONFIRM) {
-                
+        if (_currentState == ModeState::GAME_OVER) {
+            // FIX: PARTITA FINITA O INTERROTTA: blocchiamo il timer a 0
+            timeToSend = 0;
+        } 
+        else if (_currentState == ModeState::IN_GAME_NEUTRAL || 
+                 _currentState == ModeState::CAPTURING_TEAM1 || 
+                 _currentState == ModeState::CAPTURING_TEAM2 || 
+                 _currentState == ModeState::TEAM1_CAPTURED  || 
+                 _currentState == ModeState::TEAM2_CAPTURED) {
+            // PARTITA IN CORSO: calcoliamo il tempo che scorre
             TimeSpan elapsed = _hardware->getRTCTime() - _gameStartTime;
             timeToSend = totalSeconds - elapsed.totalseconds();
             if (timeToSend < 0) timeToSend = 0;
-        } else {
-            timeToSend = totalSeconds; // Prima dell'inizio mostra il totale
+        } 
+        else {
+            // MENU O PRE-PARTITA: mostra il timer pieno iniziale
+            timeToSend = totalSeconds; 
         }
     }
 

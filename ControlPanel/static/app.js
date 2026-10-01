@@ -40,6 +40,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const elSdBombTimer = document.getElementById('sd-bomb-timer');
     const elBombContainer = document.querySelector('.bomb-timer-container');
     const elDomScores = document.getElementById('domination-scores');
+    const elDomValA = document.getElementById('d-val-a');
+    const elDomValB = document.getElementById('d-val-b');
     
     const elTacticalTitle = document.getElementById('tactical-panel-title');
     
@@ -249,10 +251,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if(elSdBombStatus) elSdBombStatus.textContent = "WAITING...";
         if(elSdBombStatus) elSdBombStatus.style.color = "#fff";
         
-        const elDomValA = document.getElementById('d-val-a');
-        const elDomValB = document.getElementById('d-val-b');
-        if(elDomValA) elDomValA.textContent = "0";
-        if(elDomValB) elDomValB.textContent = "0";
+        // Usa le variabili globali formattate come orologio
+        if(elDomValA) elDomValA.textContent = "00:00";
+        if(elDomValB) elDomValB.textContent = "00:00";
 
         if(elSdArmBar) elSdArmBar.style.width = "0%";
         if(elSdDefuseBar) elSdDefuseBar.style.width = "0%";
@@ -346,7 +347,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // --- DEBUG LOGGER ---
         if (type === 'SD_UPDATE' || type === 'DOM_UPDATE') {
             const time = new Date().toLocaleTimeString().split(' ')[0];
-            console.log(`[${time}] ${type} | State: ${payload.state} | Arm: ${payload.arm_prog}% | Def: ${payload.def_prog}%`);
+            console.log(`[${time}] ${type} | State: ${payload.state} | Bomb: ${payload.bomb_time}s | Arm: ${payload.arm_prog}% | Def: ${payload.def_prog}%`);
         }
 
         if (type === 'TIME_UPDATE') {
@@ -453,6 +454,30 @@ document.addEventListener('DOMContentLoaded', () => {
                          elGlobalTimer.style.color = 'var(--sop-primary)';
                     }
                     elGlobalTimer.style.color = 'var(--sop-primary)';
+                }
+
+                if (elGlobalTimer && payload.state !== 'STANDBY') {
+                    if (!elGlobalTimer.style.color || elGlobalTimer.style.color === 'var(--sop-text)' || elGlobalTimer.style.color === 'white') {
+                         elGlobalTimer.style.color = 'var(--sop-primary)';
+                    }
+                    elGlobalTimer.style.color = 'var(--sop-primary)';
+                }
+
+                // --- NUOVO: AGGIORNAMENTO PUNTEGGI DOMINIO ---
+                if (isDom) {
+                    const formatScore = (s) => {
+                        if (s === undefined) return "00:00";
+                        const m = Math.floor(s / 60);
+                        const sec = s % 60;
+                        return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+                    };
+                    
+                    if (payload.score_a !== undefined && elDomValA) {
+                        elDomValA.textContent = formatScore(payload.score_a);
+                    }
+                    if (payload.score_b !== undefined && elDomValB) {
+                        elDomValB.textContent = formatScore(payload.score_b);
+                    }
                 }
 
                 // 5. BARRE DI PROGRESSO CON DEBOUNCE
