@@ -60,13 +60,45 @@ void FoxhuntMode::loop() {
     switch (_currentState) {
         
         case FoxhuntState::WAIT_NFC: {
-            // Timer non bloccante: scansioniamo la tessera solo ogni 150 millisecondi.
-            // Nel resto del tempo il processore "vola" e legge i tasti all'istante!
+            // --- 1. EFFETTO SONAR (Suono) ---
+            static unsigned long lastPing = 0;
+            if (millis() - lastPing > 3000) {
+                lastPing = millis();
+                _hardware->playTone(2000, 50); 
+            }
+
+            // --- 2. EFFETTO SCANNER RADAR "COMETA" (LED) ---
+            int totalLeds = _hardware->getStripLedCount();
+            if (totalLeds > 0) {
+                int speed = 60; 
+                int maxPos = totalLeds - 1;
+                int cycle = (millis() / speed) % (maxPos * 2);
+                int pos = cycle;
+                
+                if (cycle > maxPos) {
+                    pos = (maxPos * 2) - cycle; 
+                }
+
+                for(int i = 0; i < totalLeds; i++) {
+                    int distance = abs(i - pos);
+                    if (distance == 0) {
+                        _hardware->setPixelColor(i, 0, 255, 255); 
+                    } else if (distance == 1) {
+                        _hardware->setPixelColor(i, 0, 100, 100); 
+                    } else if (distance == 2) {
+                        _hardware->setPixelColor(i, 0, 20, 20);   
+                    } else {
+                        _hardware->setPixelColor(i, 0, 0, 0);     
+                    }
+                }
+                _hardware->showStrip();
+            }
+
+            // --- 3. LETTURA NFC (Non bloccante) ---
             static unsigned long lastNfcScan = 0;
             if (millis() - lastNfcScan > 150) {
                 lastNfcScan = millis();
                 
-                // Diamo al chip NFC solo 30 millisecondi di tempo per rispondere
                 String uid = _hardware->readRFID(30); 
                 
                 if (uid != "Nessuna card trovata" && uid != "") {
@@ -74,6 +106,10 @@ void FoxhuntMode::loop() {
                         
                         _hardware->clearOled1();
                         _hardware->clearOled2();
+                        
+                        // FEEDBACK VISIVO: STRISCIA VERDE
+                        for(int i = 0; i < totalLeds; i++) _hardware->setPixelColor(i, 0, 255, 0);
+                        _hardware->showStrip();
                         
                         _hardware->playTone(1500, 150);
                         _hardware->clearLcd();
@@ -88,6 +124,10 @@ void FoxhuntMode::loop() {
                         _prevKey1State = _hardware->isKey1Turned(); 
                         sendTelemetry();
                     } else {
+                        // FEEDBACK VISIVO: STRISCIA ROSSA
+                        for(int i = 0; i < totalLeds; i++) _hardware->setPixelColor(i, 255, 0, 0);
+                        _hardware->showStrip();
+                        
                         _hardware->printLcd(0, 3, "TESSERA NON VALIDA! ");
                         _hardware->playTone(200, 500); 
                         delay(1500);
@@ -110,6 +150,17 @@ void FoxhuntMode::loop() {
         }
 
         case FoxhuntState::WAIT_PIN: {
+            // --- ANIMAZIONE RESPIRO AZZURRO ---
+            // Un'onda sinusoidale morbida per indicare che il sistema è sbloccato e in attesa
+            float breath = (exp(sin(millis() / 2000.0 * PI)) - 0.36787944) * 108.0;
+            int intensity = constrain(breath, 0, 255);
+            int totalLeds = _hardware->getStripLedCount();
+            for(int i = 0; i < totalLeds; i++) {
+                _hardware->setPixelColor(i, 0, intensity / 2, intensity); // Azzurro soffuso
+            }
+            _hardware->showStrip();
+            // -----------------------------------
+
             char key = _hardware->getKey();
             if (key != NO_KEY) {
                 _hardware->playTone(700, 30); 
@@ -144,6 +195,11 @@ void FoxhuntMode::loop() {
                     } else {
                         _hardware->playTone(200, 500); 
                         _hardware->printLcd(0, 3, "ERRATO. RIPROVA.    ");
+                        
+                        // Lampeggio rosso per l'errore PIN
+                        for(int i=0; i<totalLeds; i++) _hardware->setPixelColor(i, 255, 0, 0);
+                        _hardware->showStrip();
+                        
                         delay(1500);
                         _enteredCode = "";
                         _hardware->printLcd(0, 3, "INPUT:              ");
@@ -169,12 +225,23 @@ void FoxhuntMode::loop() {
                 if ((millis() / 200) % 2 == 0) _hardware->setStripColor(255, 100, 0);
                 else _hardware->turnOffStrip();
                 
+                // --- EFFETTO SONORO "CARICAMENTO ENERGIA" ---
+                // La frequenza parte da un cupo 200 Hz e sale fino a un acuto 2500 Hz 
+                // in proporzione esatta ai 5000 millisecondi di pressione.
+                int currentFreq = map(elapsed, 0, 5000, 200, 2500);
+                _hardware->updateTone(currentFreq);
+                // --------------------------------------------
+                
                 if (elapsed >= 5000) { 
+                    
+                    _hardware->noTone(); // Ferma il suono di caricamento
                     
                     _hardware->clearOled1();
                     _hardware->clearOled2();
                     
-                    _hardware->playTone(1500, 150);
+                    // Un beep acuto e forte per confermare l'avvenuto innesco
+                    _hardware->playTone(3000, 200);
+                    
                     _currentState = FoxhuntState::ARMED_COUNTDOWN;
                     _countdownStartTime = millis();
                     _hardware->clearLcd();
@@ -183,8 +250,11 @@ void FoxhuntMode::loop() {
             } else {
                 if (_dualButtonStartTime != 0) {
                     _dualButtonStartTime = 0; 
+                    
+                    _hardware->noTone(); // Spegne immediatamente il suono se un tasto viene rilasciato
+                    
                     _hardware->printLcd(0, 3, "SEQUENZA INTERROTTA ");
-                    _hardware->playTone(200, 500); 
+                    _hardware->playTone(200, 500); // Suono di disattivazione/errore
                     _hardware->setStripColor(255, 100, 0); 
                     delay(1500);
                     _hardware->printLcd(0, 3, "TASTI PER 5 SECONDI ");
@@ -250,7 +320,9 @@ void FoxhuntMode::loop() {
 
 void FoxhuntMode::runSliderMinigame(int keyNumber, uint8_t r, uint8_t g, uint8_t b) {
     unsigned long elapsed = millis() - _animStartTime;
-    unsigned long cycleTime = ANIM_DURATION + WINDOW_DURATION;
+    
+    const unsigned long WINDOW_DURATION_FAST = 500; 
+    unsigned long cycleTime = ANIM_DURATION + WINDOW_DURATION_FAST;
     
     bool currentKey = (keyNumber == 1) ? _hardware->isKey1Turned() : _hardware->isKey2Turned();
     bool prevKey = (keyNumber == 1) ? _prevKey1State : _prevKey2State;
@@ -261,32 +333,50 @@ void FoxhuntMode::runSliderMinigame(int keyNumber, uint8_t r, uint8_t g, uint8_t
     else _prevKey2State = currentKey;
 
     int totalLeds = _hardware->getStripLedCount();
-    int centerLed = totalLeds / 2;
+    
+    // --- CALCOLO SIMMETRICO DEL BERSAGLIO ---
+    bool isEven = (totalLeds % 2 == 0);
+    int centerLeft = (totalLeds / 2) - (isEven ? 1 : 0);
+    int centerRight = totalLeds / 2;
+    // ----------------------------------------
     
     for(int i = 0; i < totalLeds; i++) {
         _hardware->setPixelColor(i, 0, 0, 0);
     }
     
-    _hardware->setPixelColor(centerLed, 0, 0, 255); 
+    // Disegna il bersaglio centrale (1 LED se dispari, 2 LED se pari)
+    _hardware->setPixelColor(centerLeft, 0, 0, 255);
+    _hardware->setPixelColor(centerRight, 0, 0, 255); 
 
     if (elapsed < ANIM_DURATION) {
         _hardware->printLcd(0, 1, (keyNumber == 1) ? "SBLOCCO CHIAVE 1... " : "SBLOCCO CHIAVE 2... ");
         _hardware->printLcd(0, 2, "ATTENDI IL SEGNALE! ");
         
         float progress = (float)elapsed / (float)ANIM_DURATION;
-        int ledsToLight = progress * centerLed; 
         
-        for (int i = 0; i <= ledsToLight; i++) {
-            _hardware->setPixelColor(i, r, g, b); 
-            _hardware->setPixelColor((totalLeds - 1) - i, r, g, b); 
+        // Calcoliamo i led da accendere partendo dai bordi verso il centro
+        int ledsToLight = progress * (centerLeft + 1); 
+        
+        for (int i = 0; i < ledsToLight; i++) {
+            _hardware->setPixelColor(i, r, g, b); // Onda da sinistra
+            _hardware->setPixelColor((totalLeds - 1) - i, r, g, b); // Onda da destra
         }
         
         _hardware->showStrip(); 
         
+        // --- SUONO DI CARICAMENTO TENSIONE ---
+        int tickInterval = map(elapsed, 0, ANIM_DURATION, 200, 30);
+        static unsigned long lastTick = 0;
+        if (millis() - lastTick > tickInterval) {
+            lastTick = millis();
+            _hardware->playTone(1000, 10); 
+        }
+        // -------------------------------------
+        
         if (justTurned) {
             _hardware->playTone(200, 500); 
             _hardware->printLcd(0, 2, "TROPPO PRESTO!      ");
-            delay(1500);
+            delay(1000); 
             _animStartTime = millis(); 
             
             if (keyNumber == 1) _prevKey1State = true; 
@@ -299,6 +389,12 @@ void FoxhuntMode::runSliderMinigame(int keyNumber, uint8_t r, uint8_t g, uint8_t
         for (int i = 0; i < totalLeds; i++) _hardware->setPixelColor(i, r, g, b);
         
         _hardware->showStrip();
+        
+        // --- SUONO DEL SEGNALE DI VIA ---
+        if (elapsed - ANIM_DURATION < 100) {
+             _hardware->playTone(2000, 50);
+        }
+        // --------------------------------
         
         if (justTurned) {
             _hardware->playTone(1200, 100); 
@@ -330,6 +426,8 @@ void FoxhuntMode::runSliderMinigame(int keyNumber, uint8_t r, uint8_t g, uint8_t
                 _hardware->printLcd(0, 2, padStr + targetStr + padStr);
                 
                 _hardware->printLcd(0, 3, "INPUT:              ");
+                
+                // Lasciamo la striscia spenta per un momento prima che inizi il "respiro"
                 _hardware->turnOffStrip(); 
                 sendTelemetry();
             }
@@ -339,7 +437,7 @@ void FoxhuntMode::runSliderMinigame(int keyNumber, uint8_t r, uint8_t g, uint8_t
         _hardware->playTone(200, 500); 
         _hardware->printLcd(0, 2, "TEMPO SCADUTO!      ");
         _hardware->turnOffStrip();
-        delay(1500);
+        delay(1000); 
         _animStartTime = millis(); 
     }
 }
