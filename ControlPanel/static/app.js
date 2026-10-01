@@ -443,6 +443,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     const s = payload.game_time % 60;
                     elGlobalTimer.textContent = `${m}:${s.toString().padStart(2, '0')}`;
                 }
+                if (!isDom && payload.bomb_time !== undefined && elSdBombTimer) {
+                    const bm = Math.floor(payload.bomb_time / 60);
+                    const bs = payload.bomb_time % 60;
+                    elSdBombTimer.textContent = `${bm.toString().padStart(2, '0')}:${bs.toString().padStart(2, '0')}`;
+}
                 if (elGlobalTimer && payload.state !== 'STANDBY') {
                     if (!elGlobalTimer.style.color || elGlobalTimer.style.color === 'var(--sop-text)' || elGlobalTimer.style.color === 'white') {
                          elGlobalTimer.style.color = 'var(--sop-primary)';
