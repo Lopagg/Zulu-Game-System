@@ -40,10 +40,6 @@ void NetworkManager::initialize(HardwareManager* hardware) {
     // 1. Accendi l'antenna in modalità Station
     WiFi.mode(WIFI_STA);
 
-    // 2. FORZA IL MAC ADDRESS IMMEDIATAMENTE!
-    // uint8_t customMac[] = {0x20, 0x43, 0xA8, 0x64, 0xCA, 0x21};
-    // esp_wifi_set_mac(WIFI_IF_STA, customMac);
-
     // 3. Ora puoi scollegarti da vecchie sessioni e avviare la scansione
     WiFi.disconnect();
     delay(100);
@@ -61,8 +57,6 @@ void NetworkManager::initialize(HardwareManager* hardware) {
                 hardware->clearLcd();
                 hardware->printLcd(0, 0, "Connessione a:");
                 hardware->printLcd(0, 1, knownNetworks[i].ssid);
-                
-                // NOTA: Qui ho tolto le righe del customMac che avevi messo tu!
                 
                 WiFi.begin(knownNetworks[i].ssid, knownNetworks[i].password);
                 
@@ -89,12 +83,17 @@ connection_success:
         TelnetStream.println("\n\n=== LOG DI RETE ATTIVATI ===");
         TelnetStream.printf("Dispositivo connesso: %s\n", WiFi.localIP().toString().c_str());
 
+        // --- STAMPA IP VISIBILE ---
         hardware->clearLcd();
         hardware->printLcd(0, 0, "WiFi OK!");
-        hardware->printLcd(0, 1, WiFi.localIP().toString());
+        hardware->printLcd(0, 1, "IP: " + WiFi.localIP().toString());
         Serial.printf("\nConnesso! IP: %s, MAC: %s\n", WiFi.localIP().toString().c_str(), deviceId.c_str());
+        
+        delay(2000); // Lascia l'IP a schermo per 2 secondi
 
         // --- SEZIONE NTP ---
+        hardware->clearLcd();
+        hardware->printLcd(0, 0, "WiFi OK!");
         hardware->printLcd(0, 1, "Sync Orario...");
         configTime(3600, 3600, "pool.ntp.org", "time.nist.gov");
         delay(2000); 
@@ -108,16 +107,18 @@ connection_success:
         // Invia evento di BOOT con la VERSIONE REALE
         JsonDocument bootDoc;
         bootDoc["mode"] = "MAIN MENU"; 
-        
-        // Qui usiamo la macro definita in app_common.h
         bootDoc["version"] = FIRMWARE_VERSION;
+        sendEvent("DEVICE_ONLINE", bootDoc);
+
+        // --- AVVIO OTA SOLO SE CONNESSO ---
+        ArduinoOTA.setHostname("ZULU-TERMINAL");
+        ArduinoOTA.begin();
 
     } else {
+        hardware->clearLcd();
         hardware->printLcd(0, 0, "WiFi Fallita!");
+        delay(2000);
     }
-
-    ArduinoOTA.setHostname("ZULU-TERMINAL"); // Opzionale
-    ArduinoOTA.begin();
 }
 
 void NetworkManager::resolveServerIP() {
@@ -137,7 +138,6 @@ void NetworkManager::resolveServerIP() {
 }
 
 void NetworkManager::update() {
-
     ArduinoOTA.handle();
 
     int packetSize = _udp.parsePacket();
@@ -161,7 +161,7 @@ void NetworkManager::update() {
             if (cmd && strcmp(cmd, "RESET") == 0) {
                 Serial.println("!!! GLOBAL SYSTEM RESET RECEIVED !!!");
                 
-                // Feedback visivo (ora funziona perché abbiamo salvato _hardware)
+                // Feedback visivo
                 if (_hardware) {
                     _hardware->clearLcd();
                     _hardware->printLcd(0, 0, "SYSTEM RESET");
@@ -197,8 +197,6 @@ void NetworkManager::sendEvent(const String& eventType, const JsonDocument& data
     _udp.beginPacket(_serverIP, _udpPort);
     _udp.print(jsonString);
     _udp.endPacket();
-    
-    // Serial.println("TX: " + jsonString); // Decommenta per debug intenso
 }
 
 // Override per eventi semplici
