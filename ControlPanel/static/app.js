@@ -141,6 +141,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderArenaRoster() {
         const listAlpha = document.getElementById('roster-alpha');
         const listBravo = document.getElementById('roster-bravo');
+        const headerAlpha = document.getElementById('header-alpha');
+        const headerBravo = document.getElementById('header-bravo');
+        const totalOpCount = document.getElementById('total-op-count');
         
         if(!listAlpha || !listBravo) return;
         
@@ -157,14 +160,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const nameSpan = document.createElement('span');
             nameSpan.textContent = player.name;
             nameSpan.style.fontWeight = 'bold';
+            nameSpan.style.fontSize = '20px'; // Nomi giocatori più grandi
             
             const controlsDiv = document.createElement('div');
-            controlsDiv.style.fontSize = '13px';
+            controlsDiv.style.fontSize = '18px'; // Font dei tasti comando più grandi
             controlsDiv.style.fontFamily = 'monospace';
             
             const btnRename = document.createElement('span');
-            btnRename.textContent = '[REN] ';
-            btnRename.style.cursor = 'pointer';
+            btnRename.textContent = '[REN]';
+            btnRename.className = 'action-btn';
             btnRename.style.color = 'var(--sop-primary)';
             btnRename.onclick = () => {
                 const newName = prompt("Inserisci nuovo nome operatore:", player.name);
@@ -175,8 +179,8 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             
             const btnSwap = document.createElement('span');
-            btnSwap.textContent = '[SWAP] ';
-            btnSwap.style.cursor = 'pointer';
+            btnSwap.textContent = '[SWAP]';
+            btnSwap.className = 'action-btn';
             btnSwap.style.color = 'var(--sop-secondary)';
             btnSwap.onclick = () => {
                 player.team = (player.team === 'ALPHA') ? 'BRAVO' : 'ALPHA';
@@ -185,7 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const btnDel = document.createElement('span');
             btnDel.textContent = '[DEL]';
-            btnDel.style.cursor = 'pointer';
+            btnDel.className = 'action-btn';
             btnDel.style.color = 'var(--sop-alert)';
             btnDel.onclick = () => {
                 if(confirm(`Rimuovere l'operatore ${player.name} dal roster?`)) {
@@ -212,6 +216,11 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if(alphaCount === 0) listAlpha.innerHTML = '<li class="placeholder-text" style="color:var(--sop-dim); text-align:center; margin-top:20px;">ATTESA SCANSIONE KIOSK...</li>';
         if(bravoCount === 0) listBravo.innerHTML = '<li class="placeholder-text" style="color:var(--sop-dim); text-align:center; margin-top:20px;">ATTESA SCANSIONE KIOSK...</li>';
+        
+        // Aggiorniamo i counter a schermo
+        if(headerAlpha) headerAlpha.textContent = `TEAM ALPHA (${alphaCount})`;
+        if(headerBravo) headerBravo.textContent = `TEAM BRAVO (${bravoCount})`;
+        if(totalOpCount) totalOpCount.textContent = (alphaCount + bravoCount);
     }
 
     // --- SIDEBAR ---

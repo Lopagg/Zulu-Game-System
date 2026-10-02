@@ -491,3 +491,23 @@ body {
     background: rgba(255,255,255,0.05);
     box-shadow: 0 0 10px currentColor;
 }
+
+.arena-header {
+    font-size: 20px !important;
+    font-weight: bold;
+    letter-spacing: 3px;
+    padding: 12px 10px !important;
+    text-align: center;
+}
+
+.action-btn {
+    cursor: pointer;
+    margin-left: 15px;
+    padding: 5px;
+    transition: all 0.2s;
+}
+
+.action-btn:hover {
+    color: #fff !important;
+    text-shadow: 0 0 10px currentColor;
+}
