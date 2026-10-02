@@ -349,6 +349,32 @@ document.addEventListener('DOMContentLoaded', () => {
             logSystem(`[${shortId}] ${type}`);
         }
 
+        // --- GESTIONE ACCETTAZIONE KIOSK ---
+        if (type === 'TAG_ASSIGN') {
+            const team = payload.team; // "ALPHA" o "BRAVO"
+            const uid = payload.uid;
+            
+            // Trova la colonna giusta nell'Arena Command
+            const listId = (team === 'ALPHA') ? 'roster-alpha' : 'roster-bravo';
+            const listEl = document.getElementById(listId);
+            
+            if(listEl) {
+                // Rimuove la scritta "ATTESA SCANSIONE" se presente
+                const placeholder = listEl.querySelector('.placeholder-text');
+                if(placeholder) placeholder.remove();
+                
+                // Crea l'elemento del giocatore e lo inserisce nella lista
+                const li = document.createElement('li');
+                li.className = 'roster-item in-field'; // Aggiunge il bordo verde (In Campo)
+                // Mostriamo le prime 4 cifre dell'UID come nome fittizio per ora
+                li.innerHTML = `<span>OP-${uid.substring(0,4)}</span> <span style="font-size:12px; color:#888;">[IN CAMPO]</span>`;
+                
+                listEl.appendChild(li);
+                logSystem(`OPERATORE OP-${uid.substring(0,4)} SCHIERATO IN ${team}`);
+            }
+            return; // Termina qui l'elaborazione di questo pacchetto
+        }
+
         // --- DEBUG LOGGER ---
         if (type === 'SD_UPDATE' || type === 'DOM_UPDATE') {
             const time = new Date().toLocaleTimeString().split(' ')[0];
@@ -394,31 +420,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(elSdBombStatus) {
                     elSdBombStatus.textContent = "PREPARING";
                     elSdBombStatus.style.color = "#ff9900"; 
-                }
-            }
-
-            // --- GESTIONE ACCETTAZIONE KIOSK ---
-            if (type === 'TAG_ASSIGN') {
-                const team = payload.team; // "ALPHA" o "BRAVO"
-                const uid = payload.uid;
-                
-                // Trova la colonna giusta nell'Arena Command
-                const listId = (team === 'ALPHA') ? 'roster-alpha' : 'roster-bravo';
-                const listEl = document.getElementById(listId);
-                
-                if(listEl) {
-                    // Rimuove la scritta "ATTESA SCANSIONE" se presente
-                    const placeholder = listEl.querySelector('.placeholder-text');
-                    if(placeholder) placeholder.remove();
-                    
-                    // Crea l'elemento del giocatore e lo inserisce nella lista
-                    const li = document.createElement('li');
-                    li.className = 'roster-item in-field'; // Aggiunge il bordo verde (In Campo)
-                    // Mostriamo le prime 4 cifre dell'UID come nome fittizio per ora
-                    li.innerHTML = `<span>OP-${uid.substring(0,4)}</span> <span style="font-size:12px; color:#888;">[IN CAMPO]</span>`;
-                    
-                    listEl.appendChild(li);
-                    logSystem(`OPERATORE OP-${uid.substring(0,4)} SCHIERATO IN ${team}`);
                 }
             }
 
