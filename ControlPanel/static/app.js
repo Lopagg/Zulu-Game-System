@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const elViewSetup = document.getElementById('view-setup');
     const elViewMonitor = document.getElementById('view-monitor'); 
     const elViewInspector = document.getElementById('view-inspector');
-    const elViewArena = document.getElementById('view-arena'); // <--- Aggiunto
+    const elViewArena = document.getElementById('view-arena');
 
     const views = {
         'hub': elViewHub,
@@ -19,7 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
         'setup': elViewSetup,
         'monitor': elViewMonitor,
         'inspector': elViewInspector,
-        'arena': elViewArena // <--- Aggiunto
+        'arena': elViewArena
     };
     
     // Header
@@ -67,6 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let monitoredDeviceId = null;
     let currentDevices = [];
     let lastConfiguredMode = null; 
+    let arenaRoster = {}; // <--- Gestore di stato per i giocatori
 
     // --- TIMERS PER ANTI-RIMBALZO GRAFICO ---
     let debounceTimer1 = null;
@@ -134,6 +135,83 @@ document.addEventListener('DOMContentLoaded', () => {
             lastConfiguredMode = null;
             document.querySelectorAll('.device-item').forEach(el => el.classList.remove('active'));
         }
+    }
+
+    // --- RENDER ARENA ROSTER ---
+    function renderArenaRoster() {
+        const listAlpha = document.getElementById('roster-alpha');
+        const listBravo = document.getElementById('roster-bravo');
+        
+        if(!listAlpha || !listBravo) return;
+        
+        listAlpha.innerHTML = '';
+        listBravo.innerHTML = '';
+        
+        let alphaCount = 0;
+        let bravoCount = 0;
+        
+        Object.values(arenaRoster).forEach(player => {
+            const li = document.createElement('li');
+            li.className = `roster-item ${player.status === 'IN CAMPO' ? 'in-field' : 'eliminated'}`;
+            
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = player.name;
+            nameSpan.style.fontWeight = 'bold';
+            
+            const controlsDiv = document.createElement('div');
+            controlsDiv.style.fontSize = '13px';
+            controlsDiv.style.fontFamily = 'monospace';
+            
+            const btnRename = document.createElement('span');
+            btnRename.textContent = '[REN] ';
+            btnRename.style.cursor = 'pointer';
+            btnRename.style.color = 'var(--sop-primary)';
+            btnRename.onclick = () => {
+                const newName = prompt("Inserisci nuovo nome operatore:", player.name);
+                if (newName && newName.trim() !== '') {
+                    player.name = newName.trim().toUpperCase();
+                    renderArenaRoster();
+                }
+            };
+            
+            const btnSwap = document.createElement('span');
+            btnSwap.textContent = '[SWAP] ';
+            btnSwap.style.cursor = 'pointer';
+            btnSwap.style.color = 'var(--sop-secondary)';
+            btnSwap.onclick = () => {
+                player.team = (player.team === 'ALPHA') ? 'BRAVO' : 'ALPHA';
+                renderArenaRoster();
+            };
+            
+            const btnDel = document.createElement('span');
+            btnDel.textContent = '[DEL]';
+            btnDel.style.cursor = 'pointer';
+            btnDel.style.color = 'var(--sop-alert)';
+            btnDel.onclick = () => {
+                if(confirm(`Rimuovere l'operatore ${player.name} dal roster?`)) {
+                    delete arenaRoster[player.uid];
+                    renderArenaRoster();
+                }
+            };
+            
+            controlsDiv.appendChild(btnRename);
+            controlsDiv.appendChild(btnSwap);
+            controlsDiv.appendChild(btnDel);
+            
+            li.appendChild(nameSpan);
+            li.appendChild(controlsDiv);
+            
+            if(player.team === 'ALPHA') {
+                listAlpha.appendChild(li);
+                alphaCount++;
+            } else {
+                listBravo.appendChild(li);
+                bravoCount++;
+            }
+        });
+        
+        if(alphaCount === 0) listAlpha.innerHTML = '<li class="placeholder-text" style="color:var(--sop-dim); text-align:center; margin-top:20px;">ATTESA SCANSIONE KIOSK...</li>';
+        if(bravoCount === 0) listBravo.innerHTML = '<li class="placeholder-text" style="color:var(--sop-dim); text-align:center; margin-top:20px;">ATTESA SCANSIONE KIOSK...</li>';
     }
 
     // --- SIDEBAR ---
@@ -255,7 +333,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if(elSdBombStatus) elSdBombStatus.textContent = "WAITING...";
         if(elSdBombStatus) elSdBombStatus.style.color = "#fff";
         
-        // Usa le variabili globali formattate come orologio
         if(elDomValA) elDomValA.textContent = "00:00";
         if(elDomValB) elDomValB.textContent = "00:00";
 
@@ -288,7 +365,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnModeObserve = document.getElementById('btn-mode-observe');
     if(btnModeObserve) btnModeObserve.addEventListener('click', () => { renderTargetSelection(); showView('select-target'); });
     
-    // Listener per il nuovo bottone Arena
     const btnModeArena = document.getElementById('btn-mode-arena');
     if(btnModeArena) btnModeArena.addEventListener('click', () => { showView('arena'); logSystem("ARENA COMMAND ACCESSED."); });
 
@@ -349,30 +425,27 @@ document.addEventListener('DOMContentLoaded', () => {
             logSystem(`[${shortId}] ${type}`);
         }
 
-        // --- GESTIONE ACCETTAZIONE KIOSK ---
+        // --- GESTIONE ACCETTAZIONE KIOSK CON STATO LOCALE ---
         if (type === 'TAG_ASSIGN') {
-            const team = payload.team; // "ALPHA" o "BRAVO"
+            const team = payload.team; 
             const uid = payload.uid;
             
-            // Trova la colonna giusta nell'Arena Command
-            const listId = (team === 'ALPHA') ? 'roster-alpha' : 'roster-bravo';
-            const listEl = document.getElementById(listId);
-            
-            if(listEl) {
-                // Rimuove la scritta "ATTESA SCANSIONE" se presente
-                const placeholder = listEl.querySelector('.placeholder-text');
-                if(placeholder) placeholder.remove();
-                
-                // Crea l'elemento del giocatore e lo inserisce nella lista
-                const li = document.createElement('li');
-                li.className = 'roster-item in-field'; // Aggiunge il bordo verde (In Campo)
-                // Mostriamo le prime 4 cifre dell'UID come nome fittizio per ora
-                li.innerHTML = `<span>OP-${uid.substring(0,4)}</span> <span style="font-size:12px; color:#888;">[IN CAMPO]</span>`;
-                
-                listEl.appendChild(li);
-                logSystem(`OPERATORE OP-${uid.substring(0,4)} SCHIERATO IN ${team}`);
+            // Crea l'operatore se non esiste, altrimenti aggiorna il team
+            if (!arenaRoster[uid]) {
+                arenaRoster[uid] = { 
+                    uid: uid, 
+                    name: `OP-${uid.substring(0,4)}`, 
+                    team: team, 
+                    status: 'IN CAMPO' 
+                };
+            } else {
+                arenaRoster[uid].team = team;
+                arenaRoster[uid].status = 'IN CAMPO';
             }
-            return; // Termina qui l'elaborazione di questo pacchetto
+            
+            renderArenaRoster();
+            logSystem(`OPERATORE ${arenaRoster[uid].name} SCHIERATO IN ${team}`);
+            return; 
         }
 
         // --- DEBUG LOGGER ---
@@ -444,32 +517,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (elSdBombTimer) elSdBombTimer.style.color = 'var(--sop-alert)';
                 }
 
-                // 2. STATO TESTUALE (FIX COLORI DEFINITIVO)
                 if (payload.state && elSdBombStatus) {
                     elSdBombStatus.textContent = payload.state;
                     const s = payload.state;
                     
-                    // --- REGOLE VERDI (CT / BRAVO) ---
                     if (s.includes('DEFUS') || s.includes('CT WINS') || 
                         s.includes('CAPTURING B') || s.includes('OWNED BRAVO') || s.includes('BRAVO WINS')) {
                         elSdBombStatus.style.color = '#55ff55'; 
                     }
-                    // --- REGOLE ROSSE (T / ALPHA) ---
                     else if (s.includes('ARM') || s.includes('EXPLODED') || s.includes('T WINS') || 
                              s.includes('CAPTURING A') || s.includes('OWNED ALPHA') || s.includes('ALPHA WINS')) {
                         elSdBombStatus.style.color = 'var(--sop-alert)'; 
                     }
-                    // --- REGOLE GIALLE/ARANCIONI (ATTESA) ---
                     else if (s === 'STANDBY' || s === 'PREPARING') {
                         elSdBombStatus.style.color = '#ff9900'; 
                     }
-                    // --- DEFAULT (CIANO) ---
                     else {
                         elSdBombStatus.style.color = 'var(--sop-primary)';
                     }
                 }
 
-                // FIX COLORE TIMER GLOBALE E FORMATTAZIONE
                 if (payload.game_time !== undefined && elGlobalTimer) {
                     const m = Math.floor(payload.game_time / 60);
                     const s = payload.game_time % 60;
@@ -487,7 +554,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     elGlobalTimer.style.color = 'var(--sop-primary)';
                 }
 
-                // --- AGGIORNAMENTO PUNTEGGI DOMINIO ---
                 if (isDom) {
                     const formatScore = (s) => {
                         if (s === undefined) return "00:00";
@@ -504,7 +570,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
 
-                // 5. BARRE DI PROGRESSO CON DEBOUNCE
                 let width1 = 0;
                 let width2 = 0;
                 let bar1Active = false;
@@ -693,10 +758,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// Funzione globale per i comandi ambientali (sirene, luci, ecc.)
 window.sendEnvCommand = function(envCmd) {
     if(confirm("Eseguire override ambientale: " + envCmd + "?")) {
-        // Inviamo il comando in broadcast ai Relay Node (che configureremo in futuro)
         socket.emit('send_command', { target_id: "BROADCAST_ENV", command: { cmd: envCmd } });
         console.log(`> SYS_OVERRIDE: ${envCmd}`);
         const miniLog = document.getElementById('mini-log');
