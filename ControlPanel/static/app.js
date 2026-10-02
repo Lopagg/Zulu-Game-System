@@ -99,6 +99,8 @@ document.addEventListener('DOMContentLoaded', () => {
             renderTargetSelection();
         }
 
+        updateSetupDropdown();
+
         if (monitoredDeviceId) {
             const dev = devices.find(d => d.id === monitoredDeviceId);
             if (dev && dev.mode) {
@@ -351,7 +353,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (payload.time_left !== undefined && elGlobalTimer) {
                 const m = Math.floor(payload.time_left / 60);
                 const s = payload.time_left % 60;
-                elGlobalTimer.textContent = `${m}:${s.toString().padStart(2, '0')}`;
+                elGlobalTimer.textContent = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
             }
             if (payload.t1_poss !== undefined && elScoreA) elScoreA.textContent = payload.t1_poss;
             if (payload.t2_poss !== undefined && elScoreB) elScoreB.textContent = payload.t2_poss;
@@ -435,17 +437,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
 
-                // FIX COLORE TIMER GLOBALE
+                // FIX COLORE TIMER GLOBALE E FORMATTAZIONE
                 if (payload.game_time !== undefined && elGlobalTimer) {
                     const m = Math.floor(payload.game_time / 60);
                     const s = payload.game_time % 60;
-                    elGlobalTimer.textContent = `${m}:${s.toString().padStart(2, '0')}`;
+                    elGlobalTimer.textContent = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
                 }
                 if (!isDom && payload.bomb_time !== undefined && elSdBombTimer) {
                     const bm = Math.floor(payload.bomb_time / 60);
                     const bs = payload.bomb_time % 60;
                     elSdBombTimer.textContent = `${bm.toString().padStart(2, '0')}:${bs.toString().padStart(2, '0')}`;
-}
+                }
                 if (elGlobalTimer && payload.state !== 'STANDBY') {
                     if (!elGlobalTimer.style.color || elGlobalTimer.style.color === 'var(--sop-text)' || elGlobalTimer.style.color === 'white') {
                          elGlobalTimer.style.color = 'var(--sop-primary)';
@@ -453,14 +455,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     elGlobalTimer.style.color = 'var(--sop-primary)';
                 }
 
-                if (elGlobalTimer && payload.state !== 'STANDBY') {
-                    if (!elGlobalTimer.style.color || elGlobalTimer.style.color === 'var(--sop-text)' || elGlobalTimer.style.color === 'white') {
-                         elGlobalTimer.style.color = 'var(--sop-primary)';
-                    }
-                    elGlobalTimer.style.color = 'var(--sop-primary)';
-                }
-
-                // --- NUOVO: AGGIORNAMENTO PUNTEGGI DOMINIO ---
+                // --- AGGIORNAMENTO PUNTEGGI DOMINIO ---
                 if (isDom) {
                     const formatScore = (s) => {
                         if (s === undefined) return "00:00";
@@ -583,20 +578,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Popola il menu a tendina con i dispositivi in Modalità Terminale quando si apre la vista Setup
-    const btnModeSetup = document.getElementById('btn-mode-setup'); // Ri-dichiaro per sicurezza, se serve
+    const btnModeSetup = document.getElementById('btn-mode-setup');
     if (btnModeSetup) {
         btnModeSetup.addEventListener('click', () => {
-            elSetupTargetSelect.innerHTML = '<option value="">-- Seleziona un nodo ZGT --</option>';
-            // Filtra solo i dispositivi attualmente in stato TERMINAL
-            const terminalDevices = currentDevices.filter(d => d.mode === 'TERMINAL');
-            
-            terminalDevices.forEach(d => {
-                const opt = document.createElement('option');
-                opt.value = d.id;
-                opt.textContent = d.name || d.id;
-                elSetupTargetSelect.appendChild(opt);
-            });
-            
+            updateSetupDropdown(); // Popola forzatamente all'apertura
             showView('setup');
             logSystem("SETUP PANEL ACCESSED.");
         });
@@ -659,5 +644,28 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // L'ESP32 dovrebbe rispondere cambiando modalità e inviando i primi dati di telemetria.
         });
+    }
+
+    function updateSetupDropdown() {
+        const elSetupTargetSelect = document.getElementById('setup-target-select');
+        if (!elSetupTargetSelect) return;
+        
+        // Salva l'eventuale selezione dell'utente per non cancellarla durante l'aggiornamento
+        const currentSelection = elSetupTargetSelect.value;
+        
+        elSetupTargetSelect.innerHTML = '<option value="">-- Seleziona un nodo ZGT --</option>';
+        const terminalDevices = currentDevices.filter(d => d.mode === 'TERMINAL');
+        
+        terminalDevices.forEach(d => {
+            const opt = document.createElement('option');
+            opt.value = d.id;
+            opt.textContent = d.name || d.id;
+            elSetupTargetSelect.appendChild(opt);
+        });
+        
+        // Ripristina la selezione se il dispositivo è ancora online
+        if (currentSelection && terminalDevices.find(d => d.id === currentSelection)) {
+            elSetupTargetSelect.value = currentSelection;
+        }
     }
 });

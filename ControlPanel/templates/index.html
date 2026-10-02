@@ -8,9 +8,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
     
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=6">
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-    <script src="{{ url_for('static', filename='app.js') }}?v=3" defer></script>
+    <script src="{{ url_for('static', filename='app.js') }}?v=6" defer></script>
 </head>
 <body class="sop-theme">
 
@@ -115,17 +116,17 @@
                         <button class="back-btn deck-btn">[ CANCEL ]</button>
                     </div>
                     <div class="panel-body">
-                        <!-- Selezione Target per l'avvio della missione -->
-                        <div class="input-group-tactical" style="margin-bottom: 20px;">
-                            <label>SELECT TARGET TERMINAL:</label>
+                        <!-- Selezione Target -->
+                        <div class="input-group-tactical" style="margin-bottom: 25px;">
+                            <label class="setup-label">SELECT TARGET TERMINAL:</label>
                             <select id="setup-target-select" class="tactical-select">
                                 <option value="">-- Seleziona un nodo ZGT in Modalità Terminale --</option>
                             </select>
                         </div>
 
                         <!-- Selezione Modalità -->
-                        <div class="input-group-tactical" style="margin-bottom: 20px;">
-                            <label>SELECT OPERATION MODE:</label>
+                        <div class="input-group-tactical" style="margin-bottom: 25px;">
+                            <label class="setup-label">SELECT OPERATION MODE:</label>
                             <select id="setup-mode-select" class="tactical-select">
                                 <option value="sd">SEARCH & DESTROY</option>
                                 <option value="dom">DOMINATION</option>
@@ -136,37 +137,37 @@
 
                         <!-- Impostazioni Cerca & Distruggi -->
                         <div id="setup-sd-params" class="setup-params-group">
-                            <h3 style="color: var(--sop-primary); margin-bottom: 15px;">S&D PARAMETERS</h3>
-                            <div class="row-inputs" style="margin-bottom: 10px;">
+                            <h3 style="color: var(--sop-primary); margin-bottom: 20px;">S&D PARAMETERS</h3>
+                            <div class="row-inputs" style="margin-bottom: 15px;">
                                 <div style="flex:1;">
-                                    <label class="prog-label" style="font-size: 10px; margin-top:0;">GAME DURATION (MIN)</label>
-                                    <input type="number" id="sd-game-dur" value="15" min="1">
+                                    <label class="setup-label">GAME DURATION (MIN)</label>
+                                    <input type="number" id="sd-game-dur" class="setup-input" value="20" min="1">
                                 </div>
                                 <div style="flex:1;">
-                                    <label class="prog-label" style="font-size: 10px; margin-top:0;">BOMB TIMER (MIN)</label>
-                                    <input type="number" id="sd-bomb-time" value="5" min="1">
-                                </div>
-                            </div>
-                            <div class="row-inputs" style="margin-bottom: 10px;">
-                                <div style="flex:1;">
-                                    <label class="prog-label" style="font-size: 10px; margin-top:0;">ARM TIME (SEC)</label>
-                                    <input type="number" id="sd-arm-time" value="5" min="1">
-                                </div>
-                                <div style="flex:1;">
-                                    <label class="prog-label" style="font-size: 10px; margin-top:0;">DEFUSE TIME (SEC)</label>
-                                    <input type="number" id="sd-defuse-time" value="5" min="1">
+                                    <label class="setup-label">BOMB TIMER (MIN)</label>
+                                    <input type="number" id="sd-bomb-time" class="setup-input" value="10" min="1">
                                 </div>
                             </div>
-                            <div class="row-inputs" style="margin-bottom: 10px;">
+                            <div class="row-inputs" style="margin-bottom: 15px;">
                                 <div style="flex:1;">
-                                    <label class="prog-label" style="font-size: 10px; margin-top:0;">USE ARM PIN</label>
+                                    <label class="setup-label">ARM TIME (SEC)</label>
+                                    <input type="number" id="sd-arm-time" class="setup-input" value="5" min="1">
+                                </div>
+                                <div style="flex:1;">
+                                    <label class="setup-label">DEFUSE TIME (SEC)</label>
+                                    <input type="number" id="sd-defuse-time" class="setup-input" value="10" min="1">
+                                </div>
+                            </div>
+                            <div class="row-inputs" style="margin-bottom: 15px;">
+                                <div style="flex:1;">
+                                    <label class="setup-label">USE ARM PIN</label>
                                     <select id="sd-use-arm-pin" class="tactical-select">
                                         <option value="true">YES</option>
                                         <option value="false">NO</option>
                                     </select>
                                 </div>
                                 <div style="flex:1;">
-                                    <label class="prog-label" style="font-size: 10px; margin-top:0;">USE DEFUSE PIN</label>
+                                    <label class="setup-label">USE DEFUSE PIN</label>
                                     <select id="sd-use-defuse-pin" class="tactical-select">
                                         <option value="true">YES</option>
                                         <option value="false">NO</option>
@@ -175,38 +176,38 @@
                             </div>
                             <div class="row-inputs" style="margin-bottom: 20px;">
                                 <div style="flex:1;">
-                                    <label class="prog-label" style="font-size: 10px; margin-top:0;">ARM PIN</label>
-                                    <input type="text" id="sd-arm-pin" value="7355608">
+                                    <label class="setup-label">ARM PIN</label>
+                                    <input type="number" id="sd-arm-pin" class="setup-input" value="1234">
                                 </div>
                                 <div style="flex:1;">
-                                    <label class="prog-label" style="font-size: 10px; margin-top:0;">DEFUSE PIN</label>
-                                    <input type="text" id="sd-defuse-pin" value="7355608">
+                                    <label class="setup-label">DEFUSE PIN</label>
+                                    <input type="number" id="sd-defuse-pin" class="setup-input" value="4321">
                                 </div>
                             </div>
                         </div>
 
                         <!-- Impostazioni Dominio -->
                         <div id="setup-dom-params" class="setup-params-group hidden">
-                            <h3 style="color: var(--sop-primary); margin-bottom: 15px;">DOMINATION PARAMETERS</h3>
-                            <div class="row-inputs" style="margin-bottom: 10px;">
+                            <h3 style="color: var(--sop-primary); margin-bottom: 20px;">DOMINATION PARAMETERS</h3>
+                            <div class="row-inputs" style="margin-bottom: 15px;">
                                 <div style="flex:1;">
-                                    <label class="prog-label" style="font-size: 10px; margin-top:0;">GAME DURATION (MIN)</label>
-                                    <input type="number" id="dom-game-dur" value="15" min="1">
+                                    <label class="setup-label">GAME DURATION (MIN)</label>
+                                    <input type="number" id="dom-game-dur" class="setup-input" value="15" min="1">
                                 </div>
                                 <div style="flex:1;">
-                                    <label class="prog-label" style="font-size: 10px; margin-top:0;">CAPTURE TIME (SEC)</label>
-                                    <input type="number" id="dom-capture-time" value="5" min="1">
+                                    <label class="setup-label">CAPTURE TIME (SEC)</label>
+                                    <input type="number" id="dom-capture-time" class="setup-input" value="10" min="1">
                                 </div>
                                 <div style="flex:1;">
-                                    <label class="prog-label" style="font-size: 10px; margin-top:0;">COUNTDOWN (SEC)</label>
-                                    <input type="number" id="dom-countdown" value="10" min="1">
+                                    <label class="setup-label">COUNTDOWN (SEC)</label>
+                                    <input type="number" id="dom-countdown" class="setup-input" value="10" min="1">
                                 </div>
                             </div>
                         </div>
 
                         <div class="setup-actions" style="margin-top: 30px; text-align: right;">
                             <button id="btn-transmit-setup" class="deck-btn" style="border-color: var(--sop-secondary); color: var(--sop-secondary);">[ TRANSMIT CONFIG ]</button>
-                            <button id="btn-start-mission" class="deck-btn" style="border-color: var(--sop-primary); color: var(--sop-primary); font-weight:bold;">[ INITIATE MISSION ]</button>
+                            <button id="btn-start-mission" class="deck-btn" style="border-color: var(--sop-primary); color: var(--sop-primary); font-weight:bold; font-size: 16px; padding: 10px 20px;">[ INITIATE MISSION ]</button>
                         </div>
 
                     </div>

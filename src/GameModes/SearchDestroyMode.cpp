@@ -73,6 +73,10 @@ void SearchDestroyMode::enterInGame() {
     
     sendSettingsStatus();
     Serial.println("Entrato in Cerca & Distruggi (remoto)");
+
+    _gameMatchStartTime = _hardware->getRTCTime();
+    _gameIsActive = true;
+    _bombIsActive = false;
     
     // Opzionale: notifica avvio gioco immediato
     // _network->sendEvent("GAME_START");

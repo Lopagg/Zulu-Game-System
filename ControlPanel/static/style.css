@@ -463,3 +463,59 @@ body {
     color: var(--sop-primary); /* <--- IMPORTANTE: Default Ciano */
     text-shadow: 0 0 10px rgba(0, 255, 255, 0.5); /* Opzionale: bagliore ciano */
 }
+
+/* --- TACTICAL SETUP PANEL --- */
+.setup-label {
+    display: block;
+    text-align: left;
+    font-size: 13px;
+    color: #888;
+    margin-bottom: 8px;
+    letter-spacing: 1.5px;
+    font-weight: bold;
+}
+
+.setup-input, .tactical-select {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid var(--sop-dim);
+    color: var(--sop-text);
+    padding: 12px 15px; /* Padding più ampio per renderli ben cliccabili */
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 18px; /* Numeri e testi più grandi e leggibili */
+    outline: none;
+    transition: all 0.3s ease;
+    box-sizing: border-box;
+}
+
+.setup-input:focus, .tactical-select:focus {
+    border-color: var(--sop-primary);
+    box-shadow: 0 0 10px rgba(0, 255, 204, 0.2);
+    background: rgba(0, 255, 204, 0.05);
+    color: var(--sop-primary);
+}
+
+.setup-params-group {
+    background: rgba(0, 255, 204, 0.02);
+    border: 1px solid var(--sop-dim);
+    border-left: 3px solid var(--sop-primary);
+    padding: 25px;
+    margin-bottom: 20px;
+}
+
+.setup-params-group h3 {
+    font-size: 20px;
+    letter-spacing: 2px;
+    text-shadow: 0 0 5px rgba(0, 255, 204, 0.3);
+}
+
+.row-inputs {
+    display: flex;
+    gap: 20px; /* Più respiro tra le colonne */
+}
+
+.tactical-select option {
+    background-color: var(--sop-bg); /* Forza lo sfondo nero scuro del tema */
+    color: var(--sop-text);          /* Usa il testo grigio chiaro */
+    padding: 10px;                   /* Dà un po' di respiro alle voci */
+}

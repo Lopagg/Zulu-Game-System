@@ -26,6 +26,7 @@ class User(UserMixin):
     def __init__(self, id):
         self.id = id
         self.name = USERS[id]['name']
+        
     @staticmethod
     def get(user_id):
         if user_id in USERS: return User(user_id)
@@ -40,13 +41,13 @@ class DeviceRegistry:
     def __init__(self):
         self.devices = {}
         self.timeout_seconds = 15 
-        self.lock = Lock() # Fondamentale per evitare conflitti
+        self.lock = Lock()
 
     def update_device(self, device_id, ip_info, msg_type, mode=None, version=None):
         now = time.time()
         changed = False
         
-        with self.lock: # Blocca la lista mentre scriviamo
+        with self.lock:
             if device_id not in self.devices:
                 self.devices[device_id] = {
                     "id": device_id,
@@ -91,15 +92,13 @@ class DeviceRegistry:
         active_list = []
         needs_update = False
 
-        with self.lock: # Blocca la lista mentre leggiamo/puliamo
-            # 1. Identifica i morti
+        with self.lock:
             for d_id, data in self.devices.items():
                 if now - data["last_seen"] > self.timeout_seconds:
                     to_remove.append(d_id)
                 else:
                     active_list.append(data)
             
-            # 2. Rimuovi i morti
             for d_id in to_remove:
                 del self.devices[d_id]
                 needs_update = True
@@ -107,38 +106,23 @@ class DeviceRegistry:
         return active_list, needs_update
 
 registry = DeviceRegistry()
-
 background_thread_started = False
 
 def background_cleanup():
-    """Gira in background. Pulisce la lista e stampa debug nella console."""
-    print("[DEBUG SYSTEM] Task di Pulizia AVVIATO.")
+    """Gira in background e pulisce la lista dai dispositivi offline."""
+    logger.info("[SYSTEM] Task di Pulizia AVVIATO.")
     
     while True:
-        # Usiamo socketio.sleep per non bloccare il server asincrono
         socketio.sleep(2) 
-        
         try:
-            # Stampiamo quanti dispositivi ci sono prima del controllo
-            count_before = len(registry.devices)
-            
-            # Eseguiamo la pulizia
             active_devs, removed_something = registry.get_active_devices()
-            
-            # Se abbiamo rimosso qualcosa, lo stampiamo e inviamo l'update
             if removed_something:
-                print(f"[DEBUG SYSTEM] Rilevato dispositivo morto! Rimasti: {len(active_devs)}")
-                print("[DEBUG SYSTEM] Invio aggiornamento 'devices_update' ai client...")
+                logger.info(f"[SYSTEM] Dispositivo disconnesso. Nodi rimasti: {len(active_devs)}")
                 socketio.emit('devices_update', active_devs)
-            
-            # (Opzionale) Decommenta questa riga se vuoi vedere che il loop gira anche se non fa niente
-            # else:
-            #    print(f"[DEBUG SYSTEM] Loop pulizia OK. Dispositivi attivi: {len(active_devs)}")
-
         except Exception as e:
-            print(f"[ERROR CRITICAL] Errore nel thread di pulizia: {e}")
+            logger.error(f"[CRITICAL] Errore nel thread di pulizia: {e}")
 
-# --- ROUTES ---
+# --- ROUTES & WEBSOCKETS ---
 
 @socketio.on('connect')
 def handle_connect():
@@ -146,14 +130,11 @@ def handle_connect():
     if not background_thread_started:
         socketio.start_background_task(background_cleanup)
         background_thread_started = True
-        print("[SYSTEM] Background Cleanup Task Started (on connect)")
     
     # Invia subito la lista al nuovo client
     active_devs, _ = registry.get_active_devices()
     emit('devices_update', active_devs)
-    
-    # Log di conferma
-    print(f"[SYSTEM] Client connected: {request.sid}")
+    logger.info(f"[SYSTEM] Client connesso alla dashboard: {request.sid}")
 
 @app.route('/')
 @login_required
@@ -181,6 +162,7 @@ def logout():
 
 @app.route('/internal/forward_data', methods=['POST'])
 def receive_data_from_bridge():
+    """Webhook che riceve i dati dal Bridge UDP e li inoltra alla Dashboard."""
     try:
         data = request.json
         if not data: return jsonify({"status": "error"}), 400
@@ -202,7 +184,7 @@ def receive_data_from_bridge():
             # Invia evento al frontend
             socketio.emit('esp_event', data)
             
-            # Se ci sono modifiche visive (es. cambio modalità), aggiorna la lista
+            # Aggiorna la sidebar se ci sono cambi di stato/modalità
             if has_changed:
                 active_devs, _ = registry.get_active_devices()
                 socketio.emit('devices_update', active_devs)
@@ -212,25 +194,6 @@ def receive_data_from_bridge():
     except Exception as e:
         logger.error(f"Errore forward: {e}")
         return jsonify({"status": "error"}), 500
-
-@app.route('/api/send_command', methods=['POST'])
-@login_required
-def send_command():
-    BRIDGE_IP, BRIDGE_PORT = '127.0.0.1', 1234
-    try:
-        req = request.json
-        target_id = req.get('target_id')
-        command_obj = req.get('command')
-        
-        cmd_str = json.dumps(command_obj) if isinstance(command_obj, dict) else command_obj
-        payload = { "target_id": target_id, "command": cmd_str }
-        
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.sendto(json.dumps(payload).encode('utf-8'), (BRIDGE_IP, BRIDGE_PORT))
-        
-        return jsonify({"status": "sent"}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
 
 @socketio.on('rename_device')
 def handle_rename(data):
@@ -248,17 +211,19 @@ def handle_manual_scan():
 
 @socketio.on('send_command')
 def handle_socket_command(data):
+    """Inoltra i comandi dalla Dashboard web al Bridge UDP."""
     BRIDGE_IP, BRIDGE_PORT = '127.0.0.1', 1234
     try:
         target_id = data.get('target_id')
         command_obj = data.get('command')
         cmd_str = json.dumps(command_obj) if isinstance(command_obj, dict) else command_obj
+        
         payload = {"target_id": target_id, "command": cmd_str}
+        
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.sendto(json.dumps(payload).encode('utf-8'), (BRIDGE_IP, BRIDGE_PORT))
     except Exception as e:
-        print(f"[ERROR SOCKET] {e}")
+        logger.error(f"[ERROR SOCKET] {e}")
 
 if __name__ == '__main__':
-    # Rimuovi start_background_task da qui
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
