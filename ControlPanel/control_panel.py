@@ -7,6 +7,8 @@ import socket
 import time
 import threading
 from threading import Lock
+import sqlite3
+import os
 
 # --- CONFIGURAZIONE ---
 logging.basicConfig(level=logging.INFO)
@@ -36,6 +38,23 @@ class User(UserMixin):
 def load_user(user_id):
     return User.get(user_id)
 
+# --- DATABASE SETUP (PHILANTHROPY) ---
+DB_PATH = 'philanthropy_arena.db'
+
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    # Tabella dell'anagrafica globale dei giocatori
+    c.execute('''CREATE TABLE IF NOT EXISTS players
+                 (uid TEXT PRIMARY KEY, alias TEXT, games_played INTEGER, wins INTEGER)''')
+    # Tabella temporanea per i giocatori attualmente in campo
+    c.execute('''CREATE TABLE IF NOT EXISTS active_roster
+                 (uid TEXT PRIMARY KEY, team TEXT, status TEXT)''')
+    conn.commit()
+    conn.close()
+
+init_db()
+
 # --- DEVICE REGISTRY (Thread-Safe) ---
 class DeviceRegistry:
     def __init__(self):
@@ -52,7 +71,7 @@ class DeviceRegistry:
                 self.devices[device_id] = {
                     "id": device_id,
                     "name": device_id,
-                    "type": "ZGT",
+                    "type": "NODE",
                     "mode": "BOOTING...",
                     "version": "Unknown"
                 }

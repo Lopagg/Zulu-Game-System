@@ -1,5 +1,5 @@
 /* ==========================================================================
-   ZULU SYSTEM - SOP NODE STYLESHEET
+   PHILANTHROPY SYSTEM - SOP NODE STYLESHEET
    ========================================================================== */
 
 /* --- VARIABLES --- */
@@ -418,3 +418,76 @@ body {
 .input-group input:focus { border-color: var(--sop-primary); box-shadow: 0 0 10px rgba(0, 255, 204, 0.2); background: rgba(0, 255, 204, 0.05); }
 .login-btn { width: 100%; padding: 15px; font-size: 18px; font-weight: bold; border-color: var(--sop-primary); color: var(--sop-primary); background: rgba(0, 255, 204, 0.1); margin: 0; }
 .login-btn:hover { background: var(--sop-primary); color: #000; box-shadow: 0 0 20px var(--sop-primary); }
+
+/* --- ARENA COMMAND CENTER --- */
+.arena-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: minmax(300px, 1fr) auto;
+    gap: 15px;
+    height: 100%;
+}
+
+.roster-box {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.roster-list {
+    list-style: none;
+    padding: 10px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.roster-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--sop-dim);
+    padding: 10px 15px;
+    margin-bottom: 8px;
+    font-size: 18px;
+}
+
+/* Stili per quando il giocatore è in campo o eliminato */
+.roster-item.in-field { border-left: 3px solid #55ff55; }
+.roster-item.eliminated { 
+    border-left: 3px solid var(--sop-dim); 
+    opacity: 0.4; 
+    text-decoration: line-through; 
+}
+
+.env-controls {
+    grid-column: 1 / -1; /* Occupa tutta la larghezza in basso */
+    display: flex;
+    flex-direction: column;
+}
+
+.override-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    padding: 15px;
+}
+
+.override-btn {
+    background: rgba(0,0,0,0.5);
+    border: 1px solid var(--sop-dim);
+    color: var(--sop-text);
+    padding: 20px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 1px;
+}
+
+.override-btn:hover {
+    border-color: currentColor;
+    background: rgba(255,255,255,0.05);
+    box-shadow: 0 0 10px currentColor;
+}

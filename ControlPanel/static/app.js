@@ -11,13 +11,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const elViewSetup = document.getElementById('view-setup');
     const elViewMonitor = document.getElementById('view-monitor'); 
     const elViewInspector = document.getElementById('view-inspector');
+    const elViewArena = document.getElementById('view-arena'); // <--- Aggiunto
 
     const views = {
         'hub': elViewHub,
         'select-target': elViewSelectTarget,
         'setup': elViewSetup,
         'monitor': elViewMonitor,
-        'inspector': elViewInspector
+        'inspector': elViewInspector,
+        'arena': elViewArena // <--- Aggiunto
     };
     
     // Header
@@ -154,7 +156,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (device.id === activeInspectorId) li.classList.add('active'); 
             
             li.innerHTML = `
-                <div class="device-icon">ZGT</div>
+                <div class="device-icon">N</div>
                 <div class="device-info">
                     <span class="device-id">${displayName}</span>
                     <span class="device-mode">${device.mode || 'UNKNOWN'}</span>
@@ -273,7 +275,7 @@ document.addEventListener('DOMContentLoaded', () => {
         elInspAliasInput.value = (device.name === device.id) ? "" : device.name;
         updateInspectorData(device);
         showView('inspector');
-        logSystem(`ACCESSING ZGT NODE: ${device.id}`);
+        logSystem(`ACCESSING NODE: ${device.id}`);
     }
 
     function updateInspectorData(device) {
@@ -285,6 +287,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const btnModeObserve = document.getElementById('btn-mode-observe');
     if(btnModeObserve) btnModeObserve.addEventListener('click', () => { renderTargetSelection(); showView('select-target'); });
+    
+    // Listener per il nuovo bottone Arena
+    const btnModeArena = document.getElementById('btn-mode-arena');
+    if(btnModeArena) btnModeArena.addEventListener('click', () => { showView('arena'); logSystem("ARENA COMMAND ACCESSED."); });
 
     document.querySelectorAll('.back-btn').forEach(btn => btn.addEventListener('click', () => showView('hub')));
     document.querySelector('.close-inspector-btn').addEventListener('click', () => { showView('hub'); logSystem("RETURNING TO HUB."); });
@@ -564,7 +570,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnTransmitSetup = document.getElementById('btn-transmit-setup');
     const btnStartMission = document.getElementById('btn-start-mission');
 
-    // Cambia le impostazioni visibili in base alla modalità selezionata
     if (elSetupModeSelect) {
         elSetupModeSelect.addEventListener('change', (e) => {
             if (e.target.value === 'sd') {
@@ -577,21 +582,19 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Popola il menu a tendina con i dispositivi in Modalità Terminale quando si apre la vista Setup
     const btnModeSetup = document.getElementById('btn-mode-setup');
     if (btnModeSetup) {
         btnModeSetup.addEventListener('click', () => {
-            updateSetupDropdown(); // Popola forzatamente all'apertura
+            updateSetupDropdown(); 
             showView('setup');
             logSystem("SETUP PANEL ACCESSED.");
         });
     }
 
-    // Invia la configurazione all'ESP32
     if (btnTransmitSetup) {
         btnTransmitSetup.addEventListener('click', () => {
             const targetId = elSetupTargetSelect.value;
-            if (!targetId) { alert("Seleziona un nodo ZGT di destinazione."); return; }
+            if (!targetId) { alert("Seleziona un nodo di destinazione."); return; }
 
             const mode = elSetupModeSelect.value;
             let commandData = {};
@@ -622,11 +625,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Avvia la missione
     if (btnStartMission) {
         btnStartMission.addEventListener('click', () => {
             const targetId = elSetupTargetSelect.value;
-            if (!targetId) { alert("Seleziona un nodo ZGT di destinazione."); return; }
+            if (!targetId) { alert("Seleziona un nodo di destinazione."); return; }
 
             const mode = elSetupModeSelect.value;
             let commandData = {
@@ -636,13 +638,10 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.emit('send_command', { target_id: targetId, command: commandData });
             logSystem(`START MISSION SIGNAL SENT TO ${targetId}.`);
             
-            // Passa automaticamente alla visualizzazione monitor per quel dispositivo
             monitoredDeviceId = targetId;
             elMonitorTargetId.textContent = elSetupTargetSelect.options[elSetupTargetSelect.selectedIndex].text;
             resetMonitorData();
             showView('monitor');
-            
-            // L'ESP32 dovrebbe rispondere cambiando modalità e inviando i primi dati di telemetria.
         });
     }
 
@@ -650,10 +649,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const elSetupTargetSelect = document.getElementById('setup-target-select');
         if (!elSetupTargetSelect) return;
         
-        // Salva l'eventuale selezione dell'utente per non cancellarla durante l'aggiornamento
         const currentSelection = elSetupTargetSelect.value;
         
-        elSetupTargetSelect.innerHTML = '<option value="">-- Seleziona un nodo ZGT --</option>';
+        elSetupTargetSelect.innerHTML = '<option value="">-- Seleziona un nodo --</option>';
         const terminalDevices = currentDevices.filter(d => d.mode === 'TERMINAL');
         
         terminalDevices.forEach(d => {
@@ -663,9 +661,23 @@ document.addEventListener('DOMContentLoaded', () => {
             elSetupTargetSelect.appendChild(opt);
         });
         
-        // Ripristina la selezione se il dispositivo è ancora online
         if (currentSelection && terminalDevices.find(d => d.id === currentSelection)) {
             elSetupTargetSelect.value = currentSelection;
         }
     }
 });
+
+// Funzione globale per i comandi ambientali (sirene, luci, ecc.)
+window.sendEnvCommand = function(envCmd) {
+    if(confirm("Eseguire override ambientale: " + envCmd + "?")) {
+        // Inviamo il comando in broadcast ai Relay Node (che configureremo in futuro)
+        socket.emit('send_command', { target_id: "BROADCAST_ENV", command: { cmd: envCmd } });
+        console.log(`> SYS_OVERRIDE: ${envCmd}`);
+        const miniLog = document.getElementById('mini-log');
+        if(miniLog) {
+            const div = document.createElement('div');
+            div.textContent = `> SYS_OVERRIDE: ${envCmd}`;
+            miniLog.prepend(div);
+        }
+    }
+};
