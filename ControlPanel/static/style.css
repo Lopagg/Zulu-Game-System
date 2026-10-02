@@ -4,14 +4,13 @@
 
 /* --- VARIABLES --- */
 :root {
-    --sop-bg: #050505;          /* Nero profondo */
-    --sop-panel: #0a0a0a;       /* Pannelli leggermente più chiari */
-    --sop-primary: #00ffcc;     /* Ciano Tattico */
-    --sop-secondary: #ff9900;   /* Ambra Militare */
-    --sop-alert: #ff3333;       /* Rosso Allarme */
-    --sop-dim: #333333;         /* Elementi disattivati */
-    --sop-text: #e0e0e0;        /* Testo principale */
-    
+    --sop-bg: #050505;
+    --sop-panel: #0a0a0a;
+    --sop-primary: #00ffcc;
+    --sop-secondary: #ff9900;
+    --sop-alert: #ff3333;
+    --sop-dim: #333333;
+    --sop-text: #e0e0e0;
     --grid-gap: 10px;
     --scanline-color: rgba(0, 255, 204, 0.05);
 }
@@ -167,100 +166,40 @@ body {
 
 /* --- TACTICAL SETUP PANEL --- */
 .setup-label {
-    display: block;
-    text-align: left;
-    font-size: 13px;
-    color: #888;
-    margin-bottom: 8px;
-    letter-spacing: 1.5px;
-    font-weight: bold;
+    display: block; text-align: left; font-size: 13px; color: #888;
+    margin-bottom: 8px; letter-spacing: 1.5px; font-weight: bold;
 }
-
 .setup-input, .tactical-select {
-    width: 100%;
-    background: rgba(0, 0, 0, 0.6);
-    border: 1px solid var(--sop-dim);
-    color: var(--sop-text);
-    padding: 12px 15px;
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 18px;
-    outline: none;
-    transition: all 0.3s ease;
-    box-sizing: border-box;
+    width: 100%; background: rgba(0, 0, 0, 0.6); border: 1px solid var(--sop-dim);
+    color: var(--sop-text); padding: 12px 15px; font-family: 'Share Tech Mono', monospace;
+    font-size: 18px; outline: none; transition: all 0.3s ease; box-sizing: border-box;
 }
+.setup-input:focus, .tactical-select:focus { border-color: var(--sop-primary); box-shadow: 0 0 10px rgba(0, 255, 204, 0.2); background: rgba(0, 255, 204, 0.05); color: var(--sop-primary); }
+.tactical-select option { background-color: var(--sop-bg); color: var(--sop-text); padding: 10px; }
 
-.setup-input:focus, .tactical-select:focus {
-    border-color: var(--sop-primary);
-    box-shadow: 0 0 10px rgba(0, 255, 204, 0.2);
-    background: rgba(0, 255, 204, 0.05);
-    color: var(--sop-primary);
-}
-
-.tactical-select option {
-    background-color: var(--sop-bg);
-    color: var(--sop-text);
-    padding: 10px;
-}
-
-.setup-params-group {
-    background: rgba(0, 255, 204, 0.02);
-    border: 1px solid var(--sop-dim);
-    border-left: 3px solid var(--sop-primary);
-    padding: 25px;
-    margin-bottom: 20px;
-}
-
-.setup-params-group h3 {
-    font-size: 20px;
-    letter-spacing: 2px;
-    text-shadow: 0 0 5px rgba(0, 255, 204, 0.3);
-}
-
-.row-inputs {
-    display: flex;
-    gap: 20px;
-}
+.setup-params-group { background: rgba(0, 255, 204, 0.02); border: 1px solid var(--sop-dim); border-left: 3px solid var(--sop-primary); padding: 25px; margin-bottom: 20px; }
+.setup-params-group h3 { font-size: 20px; letter-spacing: 2px; text-shadow: 0 0 5px rgba(0, 255, 204, 0.3); }
+.row-inputs { display: flex; gap: 20px; }
 
 /* --- MONITOR DASHBOARD --- */
 .monitor-controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding: 0 10px; }
 .monitor-label { float: right; font-size: 12px; letter-spacing: 1px; color: #888; margin-top: 5px; }
 
 .grid-dashboard {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    grid-template-rows: 150px minmax(0, 1fr);
+    display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 150px minmax(0, 1fr);
     gap: 15px; height: calc(100% - 45px);
 }
 
-.widget {
-    background: rgba(0, 0, 0, 0.3); border: 1px solid var(--sop-dim);
-    display: flex; flex-direction: column;
-    overflow: hidden;
-}
-.widget-header {
-    background: var(--sop-dim); color: var(--sop-text); padding: 5px 10px;
-    font-size: 12px; letter-spacing: 1px; text-transform: uppercase;
-    flex-shrink: 0;
-}
-.widget-body {
-    flex: 1; display: flex; justify-content: center; align-items: center; position: relative;
-    overflow: hidden;
-}
+.widget { background: rgba(0, 0, 0, 0.3); border: 1px solid var(--sop-dim); display: flex; flex-direction: column; overflow: hidden; }
+.widget-header { background: var(--sop-dim); color: var(--sop-text); padding: 5px 10px; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; flex-shrink: 0; }
+.widget-body { flex: 1; display: flex; justify-content: center; align-items: center; position: relative; overflow: hidden; }
 
 .widget-timer    { grid-column: 1 / 2; grid-row: 1 / 2; }
 .widget-factions { grid-column: 2 / 3; grid-row: 1 / 2; }
 .widget-tactical, .widget-map { grid-column: 1 / 2; grid-row: 2 / 3; }
 .widget-rules    { grid-column: 2 / 3; grid-row: 2 / 3; }
 
-/* Global Timer Display */
-#global-timer-display {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 5rem;
-    color: var(--sop-primary);
-    text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
-}
-
-/* Factions */
+#global-timer-display { font-family: 'Share Tech Mono', monospace; font-size: 5rem; color: var(--sop-primary); text-shadow: 0 0 10px rgba(0, 255, 255, 0.5); }
 .faction-grid { width: 100%; display: flex; justify-content: space-around; }
 .faction { text-align: center; }
 .faction-score { display: block; font-size: 48px; font-weight: bold; }
@@ -269,65 +208,24 @@ body {
 .vs-divider { font-size: 24px; color: #666; align-self: center; }
 
 /* --- TACTICAL FEED (S&D) --- */
-.tactical-body {
-    display: flex; flex-direction: column; justify-content: space-around;
-    padding: 20px; height: 100%; width: 100%;
-    overflow-y: auto;
-}
-
-.bomb-status-box {
-    display: flex; justify-content: space-between; align-items: center;
-    border-bottom: 2px solid var(--sop-dim); padding-bottom: 10px; width: 100%;
-    font-size: 40px; font-weight: bold; letter-spacing: 3px; color: var(--sop-text);
-}
+.tactical-body { display: flex; flex-direction: column; justify-content: space-around; padding: 20px; height: 100%; width: 100%; overflow-y: auto; }
+.bomb-status-box { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--sop-dim); padding-bottom: 10px; width: 100%; font-size: 40px; font-weight: bold; letter-spacing: 3px; color: var(--sop-text); }
 #sd-bomb-status { text-transform: uppercase; }
 
-.detonation-title {
-    display: block !important; width: 100% !important; text-align: center !important;
-    font-size: 26px !important; font-weight: bold; color: #aaa;
-    text-transform: uppercase; letter-spacing: 4px;
-    margin-bottom: 10px; margin-top: 15px;
-}
+.detonation-title { display: block !important; width: 100% !important; text-align: center !important; font-size: 26px !important; font-weight: bold; color: #aaa; text-transform: uppercase; letter-spacing: 4px; margin-bottom: 10px; margin-top: 15px; }
+.digital-clock { font-family: 'Share Tech Mono', monospace; font-size: 100px; font-weight: bold; color: var(--sop-alert); text-align: center; letter-spacing: 8px; text-shadow: 0 0 20px rgba(255, 51, 51, 0.8); background: rgba(0, 0, 0, 0.6); border: 2px solid var(--sop-alert); border-radius: 10px; margin: 0 auto; padding: 10px 0; width: 100%; display: block; }
 
-.digital-clock {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 100px; font-weight: bold; color: var(--sop-alert);
-    text-align: center; letter-spacing: 8px;
-    text-shadow: 0 0 20px rgba(255, 51, 51, 0.8);
-    background: rgba(0, 0, 0, 0.6);
-    border: 2px solid var(--sop-alert); border-radius: 10px;
-    margin: 0 auto; padding: 10px 0; width: 100%; display: block;
-}
-
-/* Barre Progresso */
 .progress-section { margin-top: 20px; width: 100%; }
 .prog-group { margin-bottom: 15px; }
-.prog-label {
-    font-size: 18px; color: #aaa; display: block; width: 100%; text-align: center;
-    margin-bottom: 8px; margin-top: 15px;
-    text-transform: uppercase; letter-spacing: 3px; font-weight: bold;
-}
-.progress-track {
-    width: 100%; height: 25px; background: #0a0a0a;
-    border: 1px solid var(--sop-dim); position: relative; overflow: hidden; border-radius: 2px;
-}
-.progress-fill {
-    height: 100%; width: 0%; transition: width 0.3s linear;
-}
-.progress-fill::after {
-    content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-    background-image: linear-gradient(45deg,rgba(0,0,0,.15) 25%,transparent 25%,transparent 50%,rgba(0,0,0,.15) 50%,rgba(0,0,0,.15) 75%,transparent 75%,transparent);
-    background-size: 1rem 1rem; animation: progress-stripe 1s linear infinite;
-}
+.prog-label { font-size: 18px; color: #aaa; display: block; width: 100%; text-align: center; margin-bottom: 8px; margin-top: 15px; text-transform: uppercase; letter-spacing: 3px; font-weight: bold; }
+.progress-track { width: 100%; height: 25px; background: #0a0a0a; border: 1px solid var(--sop-dim); position: relative; overflow: hidden; border-radius: 2px; }
+.progress-fill { height: 100%; width: 0%; transition: width 0.3s linear; }
+.progress-fill::after { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-image: linear-gradient(45deg,rgba(0,0,0,.15) 25%,transparent 25%,transparent 50%,rgba(0,0,0,.15) 50%,rgba(0,0,0,.15) 75%,transparent 75%,transparent); background-size: 1rem 1rem; animation: progress-stripe 1s linear infinite; }
 .fill-red { background-color: var(--sop-alert); box-shadow: 0 0 10px var(--sop-alert); }
 .fill-green { background-color: #55ff55; box-shadow: 0 0 10px #55ff55; }
 
 /* --- DOMINATION SCORES --- */
-.dom-scores-box {
-    display: flex; justify-content: space-around; align-items: center;
-    width: 100%; margin: 20px 0; padding: 10px 0; background: rgba(0, 0, 0, 0.3);
-    border-radius: 8px; border: 1px solid var(--sop-dim);
-}
+.dom-scores-box { display: flex; justify-content: space-around; align-items: center; width: 100%; margin: 20px 0; padding: 10px 0; background: rgba(0, 0, 0, 0.3); border-radius: 8px; border: 1px solid var(--sop-dim); }
 .d-score { display: flex; flex-direction: column; align-items: center; width: 40%; }
 .d-label { font-size: 14px; color: #888; letter-spacing: 2px; margin-bottom: 5px; font-weight: bold; }
 .d-val-red, .d-val-green { font-size: 60px; font-weight: bold; font-family: 'Share Tech Mono', monospace; line-height: 1; }
@@ -336,31 +234,13 @@ body {
 .d-vs { font-size: 24px; color: #444; font-weight: bold; font-style: italic; }
 
 /* --- RULES WIDGET --- */
-.rules-body {
-    display: flex !important; flex-direction: column !important; flex: 1 !important;          
-    min-height: 0 !important; justify-content: flex-start !important;
-    padding: 0 !important; position: relative; overflow: hidden !important;
-}
-.rules-list {
-    flex: 1; overflow-y: auto; padding: 20px !important; margin: 0; min-height: 0; width: 100%;
-}
-.rules-list li {
-    display: flex; justify-content: space-between; border-bottom: 1px dashed var(--sop-dim);
-    padding: 12px 0; font-size: 18px; color: var(--sop-text);
-}
+.rules-body { display: flex !important; flex-direction: column !important; flex: 1 !important; min-height: 0 !important; justify-content: flex-start !important; padding: 0 !important; position: relative; overflow: hidden !important; }
+.rules-list { flex: 1; overflow-y: auto; padding: 20px !important; margin: 0; min-height: 0; width: 100%; }
+.rules-list li { display: flex; justify-content: space-between; border-bottom: 1px dashed var(--sop-dim); padding: 12px 0; font-size: 18px; color: var(--sop-text); }
 .rule-key { color: var(--sop-primary); font-weight: bold; font-size: 18px; }
 .rule-val { color: #fff; }
-
-.rules-footer {
-    flex-shrink: 0; padding: 15px !important; margin-bottom: 80px !important; 
-    border-top: 1px solid var(--sop-dim); background: rgba(255, 0, 0, 0.05);
-    z-index: 100 !important; position: relative; 
-}
-.full-width {
-    width: 100%; font-size: 16px; padding: 12px; font-weight: bold; letter-spacing: 2px; 
-    text-transform: uppercase; cursor: pointer; background: rgba(255, 51, 51, 0.1); 
-    border: 1px solid var(--sop-alert); color: var(--sop-alert); transition: all 0.2s;
-}
+.rules-footer { flex-shrink: 0; padding: 15px !important; margin-bottom: 80px !important; border-top: 1px solid var(--sop-dim); background: rgba(255, 0, 0, 0.05); z-index: 100 !important; position: relative; }
+.full-width { width: 100%; font-size: 16px; padding: 12px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; cursor: pointer; background: rgba(255, 51, 51, 0.1); border: 1px solid var(--sop-alert); color: var(--sop-alert); transition: all 0.2s; }
 .full-width:hover { background: var(--sop-alert); color: #000; box-shadow: 0 0 15px var(--sop-alert); }
 
 /* --- INSPECTOR STYLES --- */
@@ -374,10 +254,7 @@ body {
 .specs { font-size: 10px; color: var(--sop-secondary); display: flex; gap: 15px; }
 .separator { border: 0; border-top: 1px dashed var(--sop-dim); margin: 15px 0; }
 .input-group-tactical label { display: block; color: var(--sop-primary); font-size: 10px; margin-bottom: 5px; letter-spacing: 1px; }
-
-/* Input specifici per ispettore */
 .row-inputs input { flex: 1; background: rgba(0,0,0,0.3); border: 1px solid var(--sop-dim); color: var(--sop-text); padding: 5px 10px; font-family: inherit; }
-
 .danger-zone { margin-top: 10px; }
 .danger-label { color: var(--sop-alert); font-size: 10px; font-weight: bold; }
 .warning-text { font-size: 10px; color: #666; margin-bottom: 10px; font-style: italic; }
@@ -397,8 +274,6 @@ body {
 .hidden { display: none !important; }
 .blink { animation: blinker 1s linear infinite; }
 @keyframes blinker { 50% { opacity: 0; } }
-
-/* Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; background: var(--sop-bg); }
 ::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.3); border-left: 1px solid var(--sop-dim); }
 ::-webkit-scrollbar-thumb { background: var(--sop-dim); border: 1px solid var(--sop-bg); }
@@ -427,70 +302,16 @@ body {
     gap: 15px;
     height: calc(100% - 45px);
 }
-
-.roster-box {
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-}
-
-.roster-list {
-    list-style: none;
-    padding: 10px;
-    overflow-y: auto;
-    flex: 1;
-}
-
-.roster-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid var(--sop-dim);
-    padding: 10px 15px;
-    margin-bottom: 8px;
-    font-size: 18px;
-}
-
-/* Stili per quando il giocatore è in campo o eliminato */
+.roster-box { display: flex; flex-direction: column; overflow: hidden; }
+.roster-list { list-style: none; padding: 10px; overflow-y: auto; flex: 1; }
+.roster-item { display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--sop-dim); padding: 10px 15px; margin-bottom: 8px; font-size: 18px; }
 .roster-item.in-field { border-left: 3px solid #55ff55; }
-.roster-item.eliminated { 
-    border-left: 3px solid var(--sop-dim); 
-    opacity: 0.4; 
-    text-decoration: line-through; 
-}
+.roster-item.eliminated { border-left: 3px solid var(--sop-dim); opacity: 0.4; text-decoration: line-through; }
 
-.env-controls {
-    grid-column: 1 / -1; /* Occupa tutta la larghezza in basso */
-    display: flex;
-    flex-direction: column;
-}
-
-.override-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 10px;
-    padding: 15px;
-}
-
-.override-btn {
-    background: rgba(0,0,0,0.5);
-    border: 1px solid var(--sop-dim);
-    color: var(--sop-text);
-    padding: 15px 5px;
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 15px;
-    font-weight: bold;
-    cursor: pointer;
-    transition: all 0.2s;
-    letter-spacing: 1px;
-}
-
-.override-btn:hover {
-    border-color: currentColor;
-    background: rgba(255,255,255,0.05);
-    box-shadow: 0 0 10px currentColor;
-}
+.env-controls { grid-column: 1 / -1; display: flex; flex-direction: column; }
+.override-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 15px; }
+.override-btn { background: rgba(0,0,0,0.5); border: 1px solid var(--sop-dim); color: var(--sop-text); padding: 15px 5px; font-family: 'Share Tech Mono', monospace; font-size: 15px; font-weight: bold; cursor: pointer; transition: all 0.2s; letter-spacing: 1px; }
+.override-btn:hover { border-color: currentColor; background: rgba(255,255,255,0.05); box-shadow: 0 0 10px currentColor; }
 
 .arena-header {
     font-size: 20px !important;
@@ -506,7 +327,6 @@ body {
     padding: 5px;
     transition: all 0.2s;
 }
-
 .action-btn:hover {
     color: #fff !important;
     text-shadow: 0 0 10px currentColor;

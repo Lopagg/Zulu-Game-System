@@ -1,33 +1,39 @@
 document.addEventListener('DOMContentLoaded', () => {
     const socket = io();
     
-    // --- RIFERIMENTI DOM ---
     const elDeviceList = document.getElementById('device-list');
     const elMiniLog = document.getElementById('mini-log');
     
-    // Viste
-    const elViewHub = document.getElementById('view-hub');
-    const elViewSelectTarget = document.getElementById('view-select-target');
-    const elViewSetup = document.getElementById('view-setup');
-    const elViewMonitor = document.getElementById('view-monitor'); 
-    const elViewInspector = document.getElementById('view-inspector');
-    const elViewArena = document.getElementById('view-arena');
-
     const views = {
-        'hub': elViewHub,
-        'select-target': elViewSelectTarget,
-        'setup': elViewSetup,
-        'monitor': elViewMonitor,
-        'inspector': elViewInspector,
-        'arena': elViewArena
+        'hub': document.getElementById('view-hub'),
+        'select-target': document.getElementById('view-select-target'),
+        'setup': document.getElementById('view-setup'),
+        'monitor': document.getElementById('view-monitor'),
+        'inspector': document.getElementById('view-inspector'),
+        'arena-menu': document.getElementById('view-arena-menu'),
+        'arena-manage': document.getElementById('view-arena-manage'),
+        'arena-tracking': document.getElementById('view-arena-tracking')
     };
     
-    // Header
+    window.showView = function(viewName) {
+        Object.values(views).forEach(el => {
+            if(el) { el.classList.remove('active'); el.classList.add('hidden'); }
+        });
+        const target = views[viewName];
+        if(target) { target.classList.remove('hidden'); target.classList.add('active'); }
+        
+        if(viewName === 'hub') {
+            activeInspectorId = null;
+            monitoredDeviceId = null; 
+            lastConfiguredMode = null;
+            document.querySelectorAll('.device-item').forEach(el => el.classList.remove('active'));
+        }
+    };
+
     const elAssetCount = document.getElementById('asset-count');
     const elGlobalStatus = document.getElementById('global-status');
     const elMissionClock = document.getElementById('mission-clock');
 
-    // --- MONITOR WIDGETS ---
     const elWidgetSdTactical = document.getElementById('widget-sd-tactical');
     const elWidgetSdRules = document.getElementById('widget-sd-rules');
     const elWidgetGenericMap = document.getElementById('widget-generic-map');
@@ -37,7 +43,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const elScoreB = document.getElementById('score-b');
     const elMonitorTargetId = document.getElementById('monitoring-target-id');
 
-    // Specifici S&D e Dominio
     const elSdBombStatus = document.getElementById('sd-bomb-status');
     const elSdBombTimer = document.getElementById('sd-bomb-timer');
     const elBombContainer = document.querySelector('.bomb-timer-container');
@@ -54,7 +59,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const elLblProg1 = document.getElementById('lbl-prog-1');
     const elLblProg2 = document.getElementById('lbl-prog-2');
 
-    // Inspector
     const elInspTitle = document.getElementById('inspector-title');
     const elInspMode = document.getElementById('insp-mode');
     const elInspState = document.getElementById('insp-state');
@@ -62,24 +66,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const elInspAliasInput = document.getElementById('insp-alias-input');
     const elInspFwVer = document.getElementById('insp-fw-ver');
     
-    // Stato Locale
     let activeInspectorId = null;
     let monitoredDeviceId = null;
     let currentDevices = [];
     let lastConfiguredMode = null; 
-    let arenaRoster = {}; // <--- Gestore di stato per i giocatori
+    let arenaRoster = {}; 
 
-    // --- TIMERS PER ANTI-RIMBALZO GRAFICO ---
     let debounceTimer1 = null;
     let debounceTimer2 = null;
 
-    // Orologio Locale
     setInterval(() => {
         const now = new Date();
         elMissionClock.textContent = now.toLocaleTimeString('it-IT', { hour12: false });
     }, 1000);
 
-    // --- SOCKET IO ---
     socket.on('connect', () => {
         logSystem("LINK ESTABLISHED WITH SOP SERVER.");
         elGlobalStatus.textContent = "ONLINE";
@@ -98,17 +98,14 @@ document.addEventListener('DOMContentLoaded', () => {
         currentDevices = devices;
         updateDeviceList(devices);
         
-        if (!elViewSelectTarget.classList.contains('hidden')) {
+        if (!views['select-target'].classList.contains('hidden')) {
             renderTargetSelection();
         }
-
         updateSetupDropdown();
 
         if (monitoredDeviceId) {
             const dev = devices.find(d => d.id === monitoredDeviceId);
-            if (dev && dev.mode) {
-                updateMonitorLayout(dev.mode);
-            }
+            if (dev && dev.mode) updateMonitorLayout(dev.mode);
         }
     });
 
@@ -116,55 +113,50 @@ document.addEventListener('DOMContentLoaded', () => {
         handleGameEvent(msg);
     });
 
-    // --- NAVIGAZIONE ---
-    function showView(viewName) {
-        Object.values(views).forEach(el => {
-            if(el) {
-                el.classList.remove('active');
-                el.classList.add('hidden');
-            }
-        });
-        const target = views[viewName];
-        if(target) {
-            target.classList.remove('hidden');
-            target.classList.add('active');
-        }
-        if(viewName === 'hub') {
-            activeInspectorId = null;
-            monitoredDeviceId = null; 
-            lastConfiguredMode = null;
-            document.querySelectorAll('.device-item').forEach(el => el.classList.remove('active'));
-        }
-    }
-
-    // --- RENDER ARENA ROSTER ---
+    // --- RENDER UNIFICATO ARENA ROSTER ---
     function renderArenaRoster() {
-        const listAlpha = document.getElementById('roster-alpha');
-        const listBravo = document.getElementById('roster-bravo');
-        const headerAlpha = document.getElementById('header-alpha');
-        const headerBravo = document.getElementById('header-bravo');
-        const totalOpCount = document.getElementById('total-op-count');
+        // Liste Manage
+        const listAlphaManage = document.getElementById('roster-alpha-manage');
+        const listBravoManage = document.getElementById('roster-bravo-manage');
+        // Liste Track
+        const listAlphaIn = document.getElementById('track-alpha-in');
+        const listAlphaOut = document.getElementById('track-alpha-out');
+        const listBravoIn = document.getElementById('track-bravo-in');
+        const listBravoOut = document.getElementById('track-bravo-out');
         
-        if(!listAlpha || !listBravo) return;
+        if(!listAlphaManage || !listAlphaIn) return;
         
-        listAlpha.innerHTML = '';
-        listBravo.innerHTML = '';
+        // Pulisci tutte le 6 liste
+        [listAlphaManage, listBravoManage, listAlphaIn, listAlphaOut, listBravoIn, listBravoOut].forEach(el => el.innerHTML = '');
         
-        let alphaCount = 0;
-        let bravoCount = 0;
+        let alphaCount = 0, bravoCount = 0, inFieldCount = 0;
+        let alphaInCount = 0, alphaOutCount = 0;
+        let bravoInCount = 0, bravoOutCount = 0;
         
         Object.values(arenaRoster).forEach(player => {
-            const li = document.createElement('li');
-            li.className = `roster-item ${player.status === 'IN CAMPO' ? 'in-field' : 'eliminated'}`;
+            const isAlpha = player.team === 'ALPHA';
+            const isInField = player.status === 'IN';
             
-            const nameSpan = document.createElement('span');
-            nameSpan.textContent = player.name;
-            nameSpan.style.fontWeight = 'bold';
-            nameSpan.style.fontSize = '20px'; // Nomi giocatori più grandi
+            if(isAlpha) alphaCount++; else bravoCount++;
+            if(isInField) {
+                inFieldCount++;
+                if(isAlpha) alphaInCount++; else bravoInCount++;
+            } else {
+                if(isAlpha) alphaOutCount++; else bravoOutCount++;
+            }
+
+            // 1. CREAZIONE ELEMENTO PER LA SCHERMATA MANAGEMENT
+            const liManage = document.createElement('li');
+            liManage.className = `roster-item ${isInField ? 'in-field' : 'eliminated'}`;
             
-            const controlsDiv = document.createElement('div');
-            controlsDiv.style.fontSize = '18px'; // Font dei tasti comando più grandi
-            controlsDiv.style.fontFamily = 'monospace';
+            const nameSpanMng = document.createElement('span');
+            nameSpanMng.textContent = player.name;
+            nameSpanMng.style.fontWeight = 'bold';
+            nameSpanMng.style.fontSize = '20px'; 
+            
+            const controlsMng = document.createElement('div');
+            controlsMng.style.fontSize = '18px'; 
+            controlsMng.style.fontFamily = 'monospace';
             
             const btnRename = document.createElement('span');
             btnRename.textContent = '[REN]';
@@ -183,7 +175,7 @@ document.addEventListener('DOMContentLoaded', () => {
             btnSwap.className = 'action-btn';
             btnSwap.style.color = 'var(--sop-secondary)';
             btnSwap.onclick = () => {
-                player.team = (player.team === 'ALPHA') ? 'BRAVO' : 'ALPHA';
+                player.team = isAlpha ? 'BRAVO' : 'ALPHA';
                 renderArenaRoster();
             };
             
@@ -198,50 +190,89 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             };
             
-            controlsDiv.appendChild(btnRename);
-            controlsDiv.appendChild(btnSwap);
-            controlsDiv.appendChild(btnDel);
+            controlsMng.appendChild(btnRename);
+            controlsMng.appendChild(btnSwap);
+            controlsMng.appendChild(btnDel);
+            liManage.appendChild(nameSpanMng);
+            liManage.appendChild(controlsMng);
             
-            li.appendChild(nameSpan);
-            li.appendChild(controlsDiv);
+            if(isAlpha) listAlphaManage.appendChild(liManage);
+            else listBravoManage.appendChild(liManage);
+
+
+            // 2. CREAZIONE ELEMENTO PER LA SCHERMATA TRACKING
+            const liTrack = document.createElement('li');
+            liTrack.className = `roster-item ${isInField ? 'in-field' : 'eliminated'}`;
             
-            if(player.team === 'ALPHA') {
-                listAlpha.appendChild(li);
-                alphaCount++;
-            } else {
-                listBravo.appendChild(li);
-                bravoCount++;
-            }
+            const nameSpanTrk = document.createElement('span');
+            nameSpanTrk.textContent = player.name;
+            nameSpanTrk.style.fontWeight = 'bold';
+            nameSpanTrk.style.fontSize = '20px'; 
+            
+            const controlsTrk = document.createElement('div');
+            controlsTrk.style.fontSize = '18px'; 
+            controlsTrk.style.fontFamily = 'monospace';
+
+            const btnToggle = document.createElement('span');
+            btnToggle.textContent = isInField ? '[RECALL]' : '[DEPLOY]';
+            btnToggle.className = 'action-btn';
+            btnToggle.style.color = isInField ? 'var(--sop-alert)' : '#55ff55';
+            btnToggle.onclick = () => {
+                player.status = isInField ? 'FUORI' : 'IN';
+                renderArenaRoster();
+            };
+
+            controlsTrk.appendChild(btnToggle);
+            liTrack.appendChild(nameSpanTrk);
+            liTrack.appendChild(controlsTrk);
+
+            // Smistamento Tracking
+            if(isAlpha && isInField) listAlphaIn.appendChild(liTrack);
+            if(isAlpha && !isInField) listAlphaOut.appendChild(liTrack);
+            if(!isAlpha && isInField) listBravoIn.appendChild(liTrack);
+            if(!isAlpha && !isInField) listBravoOut.appendChild(liTrack);
         });
         
-        if(alphaCount === 0) listAlpha.innerHTML = '<li class="placeholder-text" style="color:var(--sop-dim); text-align:center; margin-top:20px;">ATTESA SCANSIONE KIOSK...</li>';
-        if(bravoCount === 0) listBravo.innerHTML = '<li class="placeholder-text" style="color:var(--sop-dim); text-align:center; margin-top:20px;">ATTESA SCANSIONE KIOSK...</li>';
+        // Aggiornamento testi di fallback Management
+        if(alphaCount === 0) listAlphaManage.innerHTML = '<li class="placeholder-text" style="color:var(--sop-dim); text-align:center; margin-top:20px;">NESSUN OPERATORE REGISTRATO</li>';
+        if(bravoCount === 0) listBravoManage.innerHTML = '<li class="placeholder-text" style="color:var(--sop-dim); text-align:center; margin-top:20px;">NESSUN OPERATORE REGISTRATO</li>';
         
-        // Aggiorniamo i counter a schermo
-        if(headerAlpha) headerAlpha.textContent = `TEAM ALPHA (${alphaCount})`;
-        if(headerBravo) headerBravo.textContent = `TEAM BRAVO (${bravoCount})`;
+        // Aggiornamento Header Counters Management
+        const headerAlphaMng = document.getElementById('header-alpha-manage');
+        const headerBravoMng = document.getElementById('header-bravo-manage');
+        const totalOpCount = document.getElementById('total-op-count');
+        if(headerAlphaMng) headerAlphaMng.textContent = `TEAM ALPHA (${alphaCount})`;
+        if(headerBravoMng) headerBravoMng.textContent = `TEAM BRAVO (${bravoCount})`;
         if(totalOpCount) totalOpCount.textContent = (alphaCount + bravoCount);
+
+        // Aggiornamento Header Counters Tracking
+        const headerAlphaIn = document.getElementById('header-alpha-track-in');
+        const headerAlphaOut = document.getElementById('header-alpha-track-out');
+        const headerBravoIn = document.getElementById('header-bravo-track-in');
+        const headerBravoOut = document.getElementById('header-bravo-track-out');
+        const trackInCount = document.getElementById('track-in-count');
+        
+        if(headerAlphaIn) headerAlphaIn.textContent = `ALPHA IN CAMPO (${alphaInCount})`;
+        if(headerAlphaOut) headerAlphaOut.textContent = `ALPHA FUORI (${alphaOutCount})`;
+        if(headerBravoIn) headerBravoIn.textContent = `BRAVO IN CAMPO (${bravoInCount})`;
+        if(headerBravoOut) headerBravoOut.textContent = `BRAVO FUORI (${bravoOutCount})`;
+        if(trackInCount) trackInCount.textContent = inFieldCount;
     }
 
-    // --- SIDEBAR ---
     function updateDeviceList(devices) {
         elDeviceList.innerHTML = ''; 
         elAssetCount.textContent = devices.length;
-
         if (devices.length === 0) {
             elDeviceList.innerHTML = '<li class="placeholder-msg">SCANNING NETWORK...</li>';
             return;
         }
-
         devices.forEach(device => {
             const isOnline = device.status === 'ONLINE';
             const cssClass = isOnline ? 'status-online' : 'status-offline';
             const displayName = device.name || device.id;
-
             const li = document.createElement('li');
             li.className = `device-item ${cssClass}`;
             if (device.id === activeInspectorId) li.classList.add('active'); 
-            
             li.innerHTML = `
                 <div class="device-icon">N</div>
                 <div class="device-info">
@@ -251,23 +282,17 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
             li.addEventListener('click', () => openInspector(device));
             elDeviceList.appendChild(li);
-            
-            if (device.id === activeInspectorId) {
-                updateInspectorData(device);
-            }
+            if (device.id === activeInspectorId) updateInspectorData(device);
         });
     }
 
-    // --- TARGET SELECTION ---
     function renderTargetSelection() {
         const grid = document.getElementById('target-grid');
         grid.innerHTML = '';
-
         if (currentDevices.length === 0) {
             grid.innerHTML = '<p class="placeholder-text blink">NO ACTIVE SIGNALS DETECTED.</p>';
             return;
         }
-
         currentDevices.forEach(device => {
             const displayName = device.name || device.id;
             const card = document.createElement('div');
@@ -278,33 +303,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="target-ip">${device.ip}</div>
                 <div class="target-status">${device.mode || 'IDLE'}</div>
             `;
-            
             card.addEventListener('click', () => {
                 monitoredDeviceId = device.id;
                 elMonitorTargetId.textContent = displayName;
-                
                 resetMonitorData(); 
                 updateMonitorLayout(device.mode);
-                
                 showView('monitor');
                 logSystem(`LINKING TELEMETRY TO: ${displayName}`);
-
-                socket.emit('send_command', { 
-                    target_id: device.id, 
-                    command: { cmd: "GET_STATUS" } 
-                });
+                socket.emit('send_command', { target_id: device.id, command: { cmd: "GET_STATUS" } });
             });
             grid.appendChild(card);
         });
     }
     
-    // --- GESTIONE LAYOUT INTELLIGENTE ---
     function updateMonitorLayout(mode) {
-        if (!mode) return;
-
-        if (mode === lastConfiguredMode) return;
+        if (!mode || mode === lastConfiguredMode) return;
         lastConfiguredMode = mode;
-
         if (mode === 'SEARCH_AND_DESTROY' || mode === 'DOMINATION') {
             elWidgetSdTactical.classList.remove('hidden');
             elWidgetSdRules.classList.remove('hidden');
@@ -314,22 +328,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(elTacticalTitle) elTacticalTitle.textContent = "TACTICAL FEED // BOMB STATUS";
                 if(elBombContainer) elBombContainer.classList.remove('hidden'); 
                 if(elDomScores) elDomScores.classList.add('hidden');
-                
                 if(elLblProg1) elLblProg1.textContent = "ARMING PROGRESS";
                 if(elLblProg2) elLblProg2.textContent = "DEFUSING PROGRESS";
-            } 
-            else if (mode === 'DOMINATION') {
+            } else if (mode === 'DOMINATION') {
                 if(elTacticalTitle) elTacticalTitle.textContent = "TACTICAL FEED // ZONE CONTROL";
                 if(elBombContainer) elBombContainer.classList.add('hidden');    
                 if(elDomScores) elDomScores.classList.remove('hidden');
-                
                 if(elLblProg1) elLblProg1.textContent = "ALPHA ACTION";
                 if(elLblProg2) elLblProg2.textContent = "BRAVO ACTION";
             }
-
             if(elSdArmBar) elSdArmBar.style.width = "0%";
             if(elSdDefuseBar) elSdDefuseBar.style.width = "0%";
-
         } else {
             elWidgetSdTactical.classList.add('hidden');
             elWidgetSdRules.classList.add('hidden');
@@ -341,14 +350,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if(elSdBombTimer) elSdBombTimer.textContent = "00:00";
         if(elSdBombStatus) elSdBombStatus.textContent = "WAITING...";
         if(elSdBombStatus) elSdBombStatus.style.color = "#fff";
-        
         if(elDomValA) elDomValA.textContent = "00:00";
         if(elDomValB) elDomValB.textContent = "00:00";
-
         if(elSdArmBar) elSdArmBar.style.width = "0%";
         if(elSdDefuseBar) elSdDefuseBar.style.width = "0%";
         if(elSdRulesList) elSdRulesList.innerHTML = '<li>WAITING FOR TELEMETRY...</li>';
-
         if(elGlobalTimer) elGlobalTimer.textContent = "--:--";
         if(elScoreA) elScoreA.textContent = "0";
         if(elScoreB) elScoreB.textContent = "0";
@@ -375,10 +381,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if(btnModeObserve) btnModeObserve.addEventListener('click', () => { renderTargetSelection(); showView('select-target'); });
     
     const btnModeArena = document.getElementById('btn-mode-arena');
-    if(btnModeArena) btnModeArena.addEventListener('click', () => { showView('arena'); logSystem("ARENA COMMAND ACCESSED."); });
-
-    document.querySelectorAll('.back-btn').forEach(btn => btn.addEventListener('click', () => showView('hub')));
-    document.querySelector('.close-inspector-btn').addEventListener('click', () => { showView('hub'); logSystem("RETURNING TO HUB."); });
+    if(btnModeArena) btnModeArena.addEventListener('click', () => { showView('arena-menu'); logSystem("ARENA COMMAND ACCESSED."); });
 
     const btnSaveAlias = document.getElementById('save-alias-btn');
     if(btnSaveAlias) btnSaveAlias.addEventListener('click', () => {
@@ -422,7 +425,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 800); 
     });
 
-    // --- GESTIONE TELEMETRIA ---
     function handleGameEvent(msg) {
         const raw = msg.parsed_data || {};
         const senderId = raw.id || 'UNK';
@@ -434,22 +436,22 @@ document.addEventListener('DOMContentLoaded', () => {
             logSystem(`[${shortId}] ${type}`);
         }
 
-        // --- GESTIONE ACCETTAZIONE KIOSK CON STATO LOCALE ---
+        // --- GESTIONE ACCETTAZIONE KIOSK ---
         if (type === 'TAG_ASSIGN') {
             const team = payload.team; 
             const uid = payload.uid;
             
-            // Crea l'operatore se non esiste, altrimenti aggiorna il team
+            // Impostiamo lo stato di default su FUORI
             if (!arenaRoster[uid]) {
                 arenaRoster[uid] = { 
                     uid: uid, 
                     name: `OP-${uid.substring(0,4)}`, 
                     team: team, 
-                    status: 'IN CAMPO' 
+                    status: 'FUORI' 
                 };
             } else {
                 arenaRoster[uid].team = team;
-                arenaRoster[uid].status = 'IN CAMPO';
+                arenaRoster[uid].status = 'FUORI';
             }
             
             renderArenaRoster();
@@ -457,7 +459,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return; 
         }
 
-        // --- DEBUG LOGGER ---
         if (type === 'SD_UPDATE' || type === 'DOM_UPDATE') {
             const time = new Date().toLocaleTimeString().split(' ')[0];
             console.log(`[${time}] ${type} | State: ${payload.state} | Bomb: ${payload.bomb_time}s | Arm: ${payload.arm_prog}% | Def: ${payload.def_prog}%`);
@@ -474,7 +475,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (monitoredDeviceId && senderId === monitoredDeviceId) {
-            
             let mode = payload.mode || (type === 'SD_UPDATE' ? 'SEARCH_AND_DESTROY' : (type === 'DOM_UPDATE' ? 'DOMINATION' : null));
             if (mode === 'SEARCH_DESTROY') mode = 'SEARCH_AND_DESTROY';
 
@@ -513,7 +513,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderRules(payload);
             }
 
-            // --- GESTIONE UNIFICATA AGGIORNAMENTI ---
             if (type === 'SD_UPDATE' || type === 'DOM_UPDATE') {
                 const isDom = (type === 'DOM_UPDATE');
                 
@@ -529,19 +528,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (payload.state && elSdBombStatus) {
                     elSdBombStatus.textContent = payload.state;
                     const s = payload.state;
-                    
-                    if (s.includes('DEFUS') || s.includes('CT WINS') || 
-                        s.includes('CAPTURING B') || s.includes('OWNED BRAVO') || s.includes('BRAVO WINS')) {
+                    if (s.includes('DEFUS') || s.includes('CT WINS') || s.includes('CAPTURING B') || s.includes('OWNED BRAVO') || s.includes('BRAVO WINS')) {
                         elSdBombStatus.style.color = '#55ff55'; 
-                    }
-                    else if (s.includes('ARM') || s.includes('EXPLODED') || s.includes('T WINS') || 
-                             s.includes('CAPTURING A') || s.includes('OWNED ALPHA') || s.includes('ALPHA WINS')) {
+                    } else if (s.includes('ARM') || s.includes('EXPLODED') || s.includes('T WINS') || s.includes('CAPTURING A') || s.includes('OWNED ALPHA') || s.includes('ALPHA WINS')) {
                         elSdBombStatus.style.color = 'var(--sop-alert)'; 
-                    }
-                    else if (s === 'STANDBY' || s === 'PREPARING') {
+                    } else if (s === 'STANDBY' || s === 'PREPARING') {
                         elSdBombStatus.style.color = '#ff9900'; 
-                    }
-                    else {
+                    } else {
                         elSdBombStatus.style.color = 'var(--sop-primary)';
                     }
                 }
@@ -570,19 +563,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         const sec = s % 60;
                         return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
                     };
-                    
-                    if (payload.score_a !== undefined && elDomValA) {
-                        elDomValA.textContent = formatScore(payload.score_a);
-                    }
-                    if (payload.score_b !== undefined && elDomValB) {
-                        elDomValB.textContent = formatScore(payload.score_b);
-                    }
+                    if (payload.score_a !== undefined && elDomValA) elDomValA.textContent = formatScore(payload.score_a);
+                    if (payload.score_b !== undefined && elDomValB) elDomValB.textContent = formatScore(payload.score_b);
                 }
 
-                let width1 = 0;
-                let width2 = 0;
-                let bar1Active = false;
-                let bar2Active = false;
+                let width1 = 0, width2 = 0, bar1Active = false, bar2Active = false;
 
                 if (!isDom) {
                     if(payload.arm_prog !== undefined) { width1 = payload.arm_prog; bar1Active = width1 > 0; }
@@ -603,13 +588,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else {
                         if (barElem.style.width !== '0%') {
                             if (timerRefName === 1) {
-                                if(!debounceTimer1) {
-                                    debounceTimer1 = setTimeout(() => { barElem.style.width = "0%"; debounceTimer1 = null; }, 200); 
-                                }
+                                if(!debounceTimer1) debounceTimer1 = setTimeout(() => { barElem.style.width = "0%"; debounceTimer1 = null; }, 200); 
                             } else {
-                                if(!debounceTimer2) {
-                                    debounceTimer2 = setTimeout(() => { barElem.style.width = "0%"; debounceTimer2 = null; }, 200);
-                                }
+                                if(!debounceTimer2) debounceTimer2 = setTimeout(() => { barElem.style.width = "0%"; debounceTimer2 = null; }, 200);
                             }
                         }
                     }
@@ -617,7 +598,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 updateBar(elSdArmBar, width1, bar1Active, 1);
                 updateBar(elSdDefuseBar, width2, bar2Active, 2);
-
                 updateForceEndButton(payload.state);
             }
         }
@@ -661,8 +641,6 @@ document.addEventListener('DOMContentLoaded', () => {
         socket.emit('send_command', { target_id: activeInspectorId, command: cmdObj });
     };
 
-    // --- GESTIONE SCHERMATA SETUP (MODALITA' TERMINALE) ---
-    
     const elSetupModeSelect = document.getElementById('setup-mode-select');
     const elSetupSdParams = document.getElementById('setup-sd-params');
     const elSetupDomParams = document.getElementById('setup-dom-params');
@@ -695,7 +673,6 @@ document.addEventListener('DOMContentLoaded', () => {
         btnTransmitSetup.addEventListener('click', () => {
             const targetId = elSetupTargetSelect.value;
             if (!targetId) { alert("Seleziona un nodo di destinazione."); return; }
-
             const mode = elSetupModeSelect.value;
             let commandData = {};
 
@@ -719,7 +696,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     countdown: parseInt(document.getElementById('dom-countdown').value)
                 };
             }
-
             socket.emit('send_command', { target_id: targetId, command: commandData });
             logSystem(`CONFIGURATION TRANSMITTED TO ${targetId}.`);
         });
@@ -729,11 +705,8 @@ document.addEventListener('DOMContentLoaded', () => {
         btnStartMission.addEventListener('click', () => {
             const targetId = elSetupTargetSelect.value;
             if (!targetId) { alert("Seleziona un nodo di destinazione."); return; }
-
             const mode = elSetupModeSelect.value;
-            let commandData = {
-                cmd: (mode === 'sd') ? "START_SD_GAME" : "START_DOM_GAME"
-            };
+            let commandData = { cmd: (mode === 'sd') ? "START_SD_GAME" : "START_DOM_GAME" };
 
             socket.emit('send_command', { target_id: targetId, command: commandData });
             logSystem(`START MISSION SIGNAL SENT TO ${targetId}.`);
@@ -750,7 +723,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!elSetupTargetSelect) return;
         
         const currentSelection = elSetupTargetSelect.value;
-        
         elSetupTargetSelect.innerHTML = '<option value="">-- Seleziona un nodo --</option>';
         const terminalDevices = currentDevices.filter(d => d.mode === 'TERMINAL');
         
