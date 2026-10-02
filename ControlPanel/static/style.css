@@ -306,7 +306,7 @@ body {
 .roster-list { list-style: none; padding: 10px; overflow-y: auto; flex: 1; }
 .roster-item { display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--sop-dim); padding: 10px 15px; margin-bottom: 8px; font-size: 18px; }
 .roster-item.in-field { border-left: 3px solid #55ff55; }
-.roster-item.eliminated { border-left: 3px solid var(--sop-dim); opacity: 0.4; text-decoration: line-through; }
+.roster-item.eliminated { border-left: 3px solid var(--sop-dim); opacity: 0.4; } /* Rimossa barratura */
 
 .env-controls { grid-column: 1 / -1; display: flex; flex-direction: column; }
 .override-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 15px; }

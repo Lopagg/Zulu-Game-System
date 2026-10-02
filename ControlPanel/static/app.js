@@ -115,10 +115,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- RENDER UNIFICATO ARENA ROSTER ---
     function renderArenaRoster() {
-        // Liste Manage
         const listAlphaManage = document.getElementById('roster-alpha-manage');
         const listBravoManage = document.getElementById('roster-bravo-manage');
-        // Liste Track
         const listAlphaIn = document.getElementById('track-alpha-in');
         const listAlphaOut = document.getElementById('track-alpha-out');
         const listBravoIn = document.getElementById('track-bravo-in');
@@ -126,7 +124,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if(!listAlphaManage || !listAlphaIn) return;
         
-        // Pulisci tutte le 6 liste
         [listAlphaManage, listBravoManage, listAlphaIn, listAlphaOut, listBravoIn, listBravoOut].forEach(el => el.innerHTML = '');
         
         let alphaCount = 0, bravoCount = 0, inFieldCount = 0;
@@ -145,9 +142,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(isAlpha) alphaOutCount++; else bravoOutCount++;
             }
 
-            // 1. CREAZIONE ELEMENTO PER LA SCHERMATA MANAGEMENT
+            // 1. CREAZIONE ELEMENTO PER LA SCHERMATA MANAGEMENT (Sempre opaco e visibile, senza stati IN/OUT)
             const liManage = document.createElement('li');
-            liManage.className = `roster-item ${isInField ? 'in-field' : 'eliminated'}`;
+            liManage.className = 'roster-item'; // Stile base, non usa 'in-field' o 'eliminated'
             
             const nameSpanMng = document.createElement('span');
             nameSpanMng.textContent = player.name;
@@ -226,18 +223,15 @@ document.addEventListener('DOMContentLoaded', () => {
             liTrack.appendChild(nameSpanTrk);
             liTrack.appendChild(controlsTrk);
 
-            // Smistamento Tracking
             if(isAlpha && isInField) listAlphaIn.appendChild(liTrack);
             if(isAlpha && !isInField) listAlphaOut.appendChild(liTrack);
             if(!isAlpha && isInField) listBravoIn.appendChild(liTrack);
             if(!isAlpha && !isInField) listBravoOut.appendChild(liTrack);
         });
         
-        // Aggiornamento testi di fallback Management
         if(alphaCount === 0) listAlphaManage.innerHTML = '<li class="placeholder-text" style="color:var(--sop-dim); text-align:center; margin-top:20px;">NESSUN OPERATORE REGISTRATO</li>';
         if(bravoCount === 0) listBravoManage.innerHTML = '<li class="placeholder-text" style="color:var(--sop-dim); text-align:center; margin-top:20px;">NESSUN OPERATORE REGISTRATO</li>';
         
-        // Aggiornamento Header Counters Management
         const headerAlphaMng = document.getElementById('header-alpha-manage');
         const headerBravoMng = document.getElementById('header-bravo-manage');
         const totalOpCount = document.getElementById('total-op-count');
@@ -245,7 +239,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if(headerBravoMng) headerBravoMng.textContent = `TEAM BRAVO (${bravoCount})`;
         if(totalOpCount) totalOpCount.textContent = (alphaCount + bravoCount);
 
-        // Aggiornamento Header Counters Tracking
         const headerAlphaIn = document.getElementById('header-alpha-track-in');
         const headerAlphaOut = document.getElementById('header-alpha-track-out');
         const headerBravoIn = document.getElementById('header-bravo-track-in');
@@ -441,7 +434,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const team = payload.team; 
             const uid = payload.uid;
             
-            // Impostiamo lo stato di default su FUORI
             if (!arenaRoster[uid]) {
                 arenaRoster[uid] = { 
                     uid: uid, 
