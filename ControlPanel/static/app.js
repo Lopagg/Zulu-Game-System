@@ -67,7 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const elInspFwVer = document.getElementById('insp-fw-ver');
     
     let activeInspectorId = null;
-    let activeGameNodeId = null; // Traccia automaticamente chi è l'Host della partita
+    let activeGameNodeId = null; 
     let currentDevices = [];
     let lastConfiguredMode = null; 
     let arenaRoster = {}; 
@@ -161,7 +161,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('devices_update', (devices) => {
         currentDevices = devices;
         updateDeviceList(devices);
-        updateSetupDropdown(); // Ripristinato: ora si aggiornerà senza crash
+        updateSetupDropdown();
     });
 
     socket.on('esp_event', (msg) => {
@@ -454,7 +454,6 @@ document.addEventListener('DOMContentLoaded', () => {
             logSystem(`[${shortId}] ${type}`);
         }
 
-        // Traccia chi è l'Host della partita per fargli arrivare i segnali di stop
         if (['MODE_ENTER', 'COUNTDOWN_UPDATE', 'SD_UPDATE', 'DOM_UPDATE', 'TIME_UPDATE'].includes(type)) {
             activeGameNodeId = senderId;
         }
@@ -704,6 +703,21 @@ document.addEventListener('DOMContentLoaded', () => {
         btnStartMission.addEventListener('click', () => {
             const targetId = elSetupTargetSelect.value;
             if (!targetId) { alert("Seleziona un nodo di destinazione."); return; }
+
+            // --- NUOVO CONTROLLO SUI GIOCATORI ---
+            const players = Object.values(arenaRoster);
+            const playersOut = players.filter(p => p.status !== 'IN');
+            
+            if (players.length > 0 && playersOut.length > 0) {
+                alert(`OPERAZIONE INTERROTTA: Ci sono ${playersOut.length} operatori fuori dal campo.\nTutti i giocatori registrati devono essere schierati ("IN CAMPO") per poter avviare la missione.`);
+                return;
+            } else if (players.length === 0) {
+                if(!confirm("ATTENZIONE: Il Roster è completamente vuoto. Vuoi avviare la missione comunque?")) {
+                    return;
+                }
+            }
+            // -------------------------------------
+
             const mode = elSetupModeSelect.value;
             let commandData = { cmd: (mode === 'sd') ? "START_SD_GAME" : "START_DOM_GAME" };
 
