@@ -106,6 +106,11 @@ void SearchDestroyMode::loop() {
         forceEndGame();
     }
 
+    if (command.indexOf("FORCE_WIN") >= 0) {
+        if (command.indexOf("ALPHA") >= 0) forceWin("ALPHA");
+        else if (command.indexOf("BRAVO") >= 0) forceWin("BRAVO");
+    }
+
     // Risponde alla richiesta del pannello di controllo inviando tutti i dati
     if (command.indexOf("GET_STATUS") >= 0) {
         sendSettingsStatus(); // Aggiorna il pannello Regole (Destra)
@@ -887,6 +892,45 @@ void SearchDestroyMode::forceEndGame() {
     _hardware->clearLcd();
     _hardware->printLcd(1, 1, "PARTITA TERMINATA"); 
     _hardware->printLcd(0, 2, "Vince la squadra CT!");
+    
+    _hardware->playTone(1500, 80); 
+    delay(100);
+    _hardware->playTone(1800, 80); 
+    delay(100);
+    _hardware->playTone(2200, 100);
+
+    sendTelemetry();
+}
+
+void SearchDestroyMode::forceWin(String winnerTeam) {
+    if (_currentState == ModeState::IN_GAME_DEFUSED || _currentState == ModeState::IN_GAME_ENDED) {
+        return;
+    }
+
+    JsonDocument doc;
+    if (winnerTeam == "ALPHA") {
+        doc["winner"] = "TERRORISTS";
+        _endGameStatus = "T WINS"; // Alpha = Terroristi
+    } else {
+        doc["winner"] = "COUNTER_TERRORISTS";
+        _endGameStatus = "CT WINS"; // Bravo = Counter-Terroristi
+    }
+    
+    doc["reason"] = "TEAM_ELIMINATED";
+    _network->sendEvent("GAME_END", doc);
+    
+    _currentState = ModeState::IN_GAME_ENDED; 
+    _gameIsActive = false; 
+    _bombIsActive = false; 
+    _hardware->noTone();
+
+    _hardware->clearLcd();
+    _hardware->printLcd(1, 1, "SQUADRA ELIMINATA!"); 
+    if (winnerTeam == "ALPHA") {
+        _hardware->printLcd(0, 2, "Vince la squadra T!");
+    } else {
+        _hardware->printLcd(0, 2, "Vince la squadra CT!");
+    }
     
     _hardware->playTone(1500, 80); 
     delay(100);

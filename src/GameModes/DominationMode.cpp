@@ -90,6 +90,11 @@ void DominationMode::loop() {
     if (command.indexOf("FORCE_END_GAME") >= 0) { 
         forceEndGame();
     }
+
+    if (command.indexOf("FORCE_WIN") >= 0) {
+        if (command.indexOf("ALPHA") >= 0) forceWin("ALPHA");
+        else if (command.indexOf("BRAVO") >= 0) forceWin("BRAVO");
+    }
     
     // 2. NUOVO: Richiesta Stato (Appena il sito si connette)
     if (command.indexOf("GET_STATUS") >= 0) {
@@ -773,6 +778,46 @@ void DominationMode::forceEndGame() {
     if (_winner == 1) _hardware->printLcd(2, 1, "VINCE SQUADRA 1!");
     else if (_winner == 2) _hardware->printLcd(2, 1, "VINCE SQUADRA 2!");
     else _hardware->printLcd(6, 1, "PAREGGIO!");
+    
+    char scoreBuffer[20];
+    sprintf(scoreBuffer, "S1: %02lu:%02lu", (_team1PossessionTime / 1000) / 60, (_team1PossessionTime / 1000) % 60);
+    _hardware->printLcd(6, 2, scoreBuffer);
+    sprintf(scoreBuffer, "S2: %02lu:%02lu", (_team2PossessionTime / 1000) / 60, (_team2PossessionTime / 1000) % 60);
+    _hardware->printLcd(6, 3, scoreBuffer);
+
+    _hardware->printOled1("ESCI", 2, 35, 25);
+    _hardware->printOled2("ESCI", 2, 35, 25);
+    
+    sendTelemetry();
+}
+
+void DominationMode::forceWin(String winnerTeam) {
+    if (_currentState == ModeState::GAME_OVER) return;
+
+    _currentState = ModeState::GAME_OVER;
+    _hardware->playTone(400, 1000);
+    _hardware->noTone();
+
+    // Congela i tempi di possesso attuali
+    unsigned long now = millis();
+    if (_lastZoneState == ModeState::TEAM1_CAPTURED) {
+        _team1PossessionTime += now - _lastPossessionUpdateTime;
+    } else if (_lastZoneState == ModeState::TEAM2_CAPTURED) {
+        _team2PossessionTime += now - _lastPossessionUpdateTime;
+    }
+
+    if (winnerTeam == "ALPHA") {
+        _endGameStatus = "ALPHA WINS";
+        _winner = 1;
+    } else {
+        _endGameStatus = "BRAVO WINS";
+        _winner = 2;
+    }
+
+    _hardware->clearLcd();
+    _hardware->printLcd(0, 0, "SQUADRA ELIMINATA!");
+    if (_winner == 1) _hardware->printLcd(2, 1, "VINCE SQUADRA 1!");
+    else if (_winner == 2) _hardware->printLcd(2, 1, "VINCE SQUADRA 2!");
     
     char scoreBuffer[20];
     sprintf(scoreBuffer, "S1: %02lu:%02lu", (_team1PossessionTime / 1000) / 60, (_team1PossessionTime / 1000) % 60);

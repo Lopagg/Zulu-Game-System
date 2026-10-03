@@ -19,6 +19,7 @@ public:
     void sendSettingsStatus();
     void enterInGame();
     void forceEndGame();
+    void forceWin(String winnerTeam); // <-- NUOVO METODO AGGIUNTO
     void sendTelemetry();
 
 private:

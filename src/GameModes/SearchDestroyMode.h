@@ -41,6 +41,7 @@ public:
     void sendSettingsStatus();
     void enterInGame();
     void forceEndGame();
+    void forceWin(String winnerTeam);
 
 private:
     // Puntatori agli oggetti principali
