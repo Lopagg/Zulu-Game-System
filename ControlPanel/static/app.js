@@ -6,7 +6,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const views = {
         'hub': document.getElementById('view-hub'),
-        'select-target': document.getElementById('view-select-target'),
         'setup': document.getElementById('view-setup'),
         'monitor': document.getElementById('view-monitor'),
         'inspector': document.getElementById('view-inspector'),
@@ -25,12 +24,10 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if(viewName === 'hub') {
             activeInspectorId = null;
-            monitoredDeviceId = null; 
             lastConfiguredMode = null;
             document.querySelectorAll('.device-item').forEach(el => el.classList.remove('active'));
         }
         
-        // --- CARICA IL DB QUANDO SI APRE L'ARCHIVIO ---
         if(viewName === 'arena-db') {
             socket.emit('request_database');
         }
@@ -47,7 +44,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const elGlobalTimer = document.getElementById('global-timer-display');
     const elScoreA = document.getElementById('score-a');
     const elScoreB = document.getElementById('score-b');
-    const elMonitorTargetId = document.getElementById('monitoring-target-id');
 
     const elSdBombStatus = document.getElementById('sd-bomb-status');
     const elSdBombTimer = document.getElementById('sd-bomb-timer');
@@ -69,7 +65,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const elInspFwVer = document.getElementById('insp-fw-ver');
     
     let activeInspectorId = null;
-    let monitoredDeviceId = null;
     let currentDevices = [];
     let lastConfiguredMode = null; 
     let arenaRoster = {}; 
@@ -102,7 +97,6 @@ document.addEventListener('DOMContentLoaded', () => {
         renderArenaRoster();
     });
 
-    // --- RICEZIONE AGGIORNAMENTI DATABASE STORICO ---
     socket.on('database_update', (players) => {
         const dbList = document.getElementById('db-list');
         const dbCount = document.getElementById('db-total-count');
@@ -163,16 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('devices_update', (devices) => {
         currentDevices = devices;
         updateDeviceList(devices);
-        
-        if (!views['select-target'].classList.contains('hidden')) {
-            renderTargetSelection();
-        }
         updateSetupDropdown();
-
-        if (monitoredDeviceId) {
-            const dev = devices.find(d => d.id === monitoredDeviceId);
-            if (dev && dev.mode) updateMonitorLayout(dev.mode);
-        }
     });
 
     socket.on('esp_event', (msg) => {
@@ -339,36 +324,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (device.id === activeInspectorId) updateInspectorData(device);
         });
     }
-
-    function renderTargetSelection() {
-        const grid = document.getElementById('target-grid');
-        grid.innerHTML = '';
-        if (currentDevices.length === 0) {
-            grid.innerHTML = '<p class="placeholder-text blink">NO ACTIVE SIGNALS DETECTED.</p>';
-            return;
-        }
-        currentDevices.forEach(device => {
-            const displayName = device.name || device.id;
-            const card = document.createElement('div');
-            card.className = 'target-card';
-            card.innerHTML = `
-                <div class="target-icon">🎯</div>
-                <div class="target-name">${displayName}</div>
-                <div class="target-ip">${device.ip}</div>
-                <div class="target-status">${device.mode || 'IDLE'}</div>
-            `;
-            card.addEventListener('click', () => {
-                monitoredDeviceId = device.id;
-                elMonitorTargetId.textContent = displayName;
-                resetMonitorData(); 
-                updateMonitorLayout(device.mode);
-                showView('monitor');
-                logSystem(`LINKING TELEMETRY TO: ${displayName}`);
-                socket.emit('send_command', { target_id: device.id, command: { cmd: "GET_STATUS" } });
-            });
-            grid.appendChild(card);
-        });
-    }
     
     function updateMonitorLayout(mode) {
         if (!mode || mode === lastConfiguredMode) return;
@@ -432,7 +387,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const btnModeObserve = document.getElementById('btn-mode-observe');
-    if(btnModeObserve) btnModeObserve.addEventListener('click', () => { renderTargetSelection(); showView('select-target'); });
+    if(btnModeObserve) btnModeObserve.addEventListener('click', () => { showView('monitor'); });
     
     const btnModeArena = document.getElementById('btn-mode-arena');
     if(btnModeArena) btnModeArena.addEventListener('click', () => { showView('arena-menu'); logSystem("ARENA COMMAND ACCESSED."); });
@@ -458,10 +413,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const btnForceEnd = document.getElementById('btn-force-end');
     if(btnForceEnd) btnForceEnd.addEventListener('click', () => {
-        if(!monitoredDeviceId) { alert("Nessun dispositivo selezionato."); return; }
         if(confirm("ATTENZIONE: Terminare forzatamente la partita?")) {
-            socket.emit('send_command', { target_id: monitoredDeviceId, command: { cmd: "FORCE_END_GAME" } });
-            logSystem(`SENDING TERMINATION SIGNAL...`);
+            // Inviamo il comando in broadcast, o logghiamo se implementato in seguito
+            logSystem(`SENDING GLOBAL TERMINATION SIGNAL...`);
         }
     });
 
@@ -510,132 +464,131 @@ document.addEventListener('DOMContentLoaded', () => {
             if (payload.t2_poss !== undefined && elScoreB) elScoreB.textContent = payload.t2_poss;
         }
 
-        if (monitoredDeviceId && senderId === monitoredDeviceId) {
-            let mode = payload.mode || (type === 'SD_UPDATE' ? 'SEARCH_AND_DESTROY' : (type === 'DOM_UPDATE' ? 'DOMINATION' : null));
-            if (mode === 'SEARCH_DESTROY') mode = 'SEARCH_AND_DESTROY';
+        // --- GESTIONE EVENTI GLOBALI (senza filtrare per monitoredDeviceId) ---
+        let mode = payload.mode || (type === 'SD_UPDATE' ? 'SEARCH_AND_DESTROY' : (type === 'DOM_UPDATE' ? 'DOMINATION' : null));
+        if (mode === 'SEARCH_DESTROY') mode = 'SEARCH_AND_DESTROY';
 
-            if (type === 'MODE_EXIT') {
-                resetMonitorData();
-                updateMonitorLayout(null);
-                logSystem(`MODE EXIT DETECTED.`);
+        if (type === 'MODE_EXIT') {
+            resetMonitorData();
+            updateMonitorLayout(null);
+            logSystem(`GLOBAL MODE EXIT DETECTED.`);
+        }
+        if (type === 'MODE_ENTER') {
+            resetMonitorData();
+            updateMonitorLayout(mode);
+            if(elGlobalTimer) elGlobalTimer.textContent = "--:--"; 
+            logSystem(`GLOBAL MODE ENTER: ${mode}`);
+        }
+        if (type === 'COUNTDOWN_UPDATE') {
+            if (payload.time !== undefined && elGlobalTimer) {
+                elGlobalTimer.textContent = `T-${payload.time}`;
+                elGlobalTimer.style.color = '#ff9900'; 
             }
-            if (type === 'MODE_ENTER') {
-                resetMonitorData();
-                updateMonitorLayout(mode);
-                if(elGlobalTimer) elGlobalTimer.textContent = "--:--"; 
-                logSystem(`MODE ENTER: ${mode}`);
-            }
-            if (type === 'COUNTDOWN_UPDATE') {
-                if (payload.time !== undefined && elGlobalTimer) {
-                    elGlobalTimer.textContent = `T-${payload.time}`;
-                    elGlobalTimer.style.color = '#ff9900'; 
-                }
-                if(elDomValA) elDomValA.textContent = "0";
-                if(elDomValB) elDomValB.textContent = "0";
-                if(elScoreA) elScoreA.textContent = "0";
-                if(elScoreB) elScoreB.textContent = "0";
-                
-                if(elSdBombStatus) {
-                    elSdBombStatus.textContent = "PREPARING";
-                    elSdBombStatus.style.color = "#ff9900"; 
-                }
-            }
-
-            if (mode && (type === 'HEARTBEAT' || type === 'MODE_ENTER' || type === 'SD_UPDATE' || type === 'DOM_UPDATE' || type === 'SETTINGS_UPDATE')) {
-                updateMonitorLayout(mode);
-            }
+            if(elDomValA) elDomValA.textContent = "0";
+            if(elDomValB) elDomValB.textContent = "0";
+            if(elScoreA) elScoreA.textContent = "0";
+            if(elScoreB) elScoreB.textContent = "0";
             
-            if (type === 'SETTINGS_UPDATE' || (type === 'MODE_ENTER' && payload.bomb_time)) {
-                renderRules(payload);
+            if(elSdBombStatus) {
+                elSdBombStatus.textContent = "PREPARING";
+                elSdBombStatus.style.color = "#ff9900"; 
+            }
+        }
+
+        if (mode && (type === 'HEARTBEAT' || type === 'MODE_ENTER' || type === 'SD_UPDATE' || type === 'DOM_UPDATE' || type === 'SETTINGS_UPDATE')) {
+            updateMonitorLayout(mode);
+        }
+        
+        if (type === 'SETTINGS_UPDATE' || (type === 'MODE_ENTER' && payload.bomb_time)) {
+            renderRules(payload);
+        }
+
+        if (type === 'SD_UPDATE' || type === 'DOM_UPDATE') {
+            const isDom = (type === 'DOM_UPDATE');
+            
+            if (isDom) {
+                if (elBombContainer) elBombContainer.classList.add('hidden');
+                if (elDomScores) elDomScores.classList.remove('hidden');
+            } else {
+                if (elBombContainer) elBombContainer.classList.remove('hidden');
+                if (elDomScores) elDomScores.classList.add('hidden');
+                if (elSdBombTimer) elSdBombTimer.style.color = 'var(--sop-alert)';
             }
 
-            if (type === 'SD_UPDATE' || type === 'DOM_UPDATE') {
-                const isDom = (type === 'DOM_UPDATE');
-                
-                if (isDom) {
-                    if (elBombContainer) elBombContainer.classList.add('hidden');
-                    if (elDomScores) elDomScores.classList.remove('hidden');
+            if (payload.state && elSdBombStatus) {
+                elSdBombStatus.textContent = payload.state;
+                const s = payload.state;
+                if (s.includes('DEFUS') || s.includes('CT WINS') || s.includes('CAPTURING B') || s.includes('OWNED BRAVO') || s.includes('BRAVO WINS')) {
+                    elSdBombStatus.style.color = '#55ff55'; 
+                } else if (s.includes('ARM') || s.includes('EXPLODED') || s.includes('T WINS') || s.includes('CAPTURING A') || s.includes('OWNED ALPHA') || s.includes('ALPHA WINS')) {
+                    elSdBombStatus.style.color = 'var(--sop-alert)'; 
+                } else if (s === 'STANDBY' || s === 'PREPARING') {
+                    elSdBombStatus.style.color = '#ff9900'; 
                 } else {
-                    if (elBombContainer) elBombContainer.classList.remove('hidden');
-                    if (elDomScores) elDomScores.classList.add('hidden');
-                    if (elSdBombTimer) elSdBombTimer.style.color = 'var(--sop-alert)';
+                    elSdBombStatus.style.color = 'var(--sop-primary)';
                 }
+            }
 
-                if (payload.state && elSdBombStatus) {
-                    elSdBombStatus.textContent = payload.state;
-                    const s = payload.state;
-                    if (s.includes('DEFUS') || s.includes('CT WINS') || s.includes('CAPTURING B') || s.includes('OWNED BRAVO') || s.includes('BRAVO WINS')) {
-                        elSdBombStatus.style.color = '#55ff55'; 
-                    } else if (s.includes('ARM') || s.includes('EXPLODED') || s.includes('T WINS') || s.includes('CAPTURING A') || s.includes('OWNED ALPHA') || s.includes('ALPHA WINS')) {
-                        elSdBombStatus.style.color = 'var(--sop-alert)'; 
-                    } else if (s === 'STANDBY' || s === 'PREPARING') {
-                        elSdBombStatus.style.color = '#ff9900'; 
-                    } else {
-                        elSdBombStatus.style.color = 'var(--sop-primary)';
-                    }
+            if (payload.game_time !== undefined && elGlobalTimer) {
+                const m = Math.floor(payload.game_time / 60);
+                const s = payload.game_time % 60;
+                elGlobalTimer.textContent = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+            }
+            if (!isDom && payload.bomb_time !== undefined && elSdBombTimer) {
+                const bm = Math.floor(payload.bomb_time / 60);
+                const bs = payload.bomb_time % 60;
+                elSdBombTimer.textContent = `${bm.toString().padStart(2, '0')}:${bs.toString().padStart(2, '0')}`;
+            }
+            if (elGlobalTimer && payload.state !== 'STANDBY') {
+                if (!elGlobalTimer.style.color || elGlobalTimer.style.color === 'var(--sop-text)' || elGlobalTimer.style.color === 'white') {
+                        elGlobalTimer.style.color = 'var(--sop-primary)';
                 }
+                elGlobalTimer.style.color = 'var(--sop-primary)';
+            }
 
-                if (payload.game_time !== undefined && elGlobalTimer) {
-                    const m = Math.floor(payload.game_time / 60);
-                    const s = payload.game_time % 60;
-                    elGlobalTimer.textContent = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-                }
-                if (!isDom && payload.bomb_time !== undefined && elSdBombTimer) {
-                    const bm = Math.floor(payload.bomb_time / 60);
-                    const bs = payload.bomb_time % 60;
-                    elSdBombTimer.textContent = `${bm.toString().padStart(2, '0')}:${bs.toString().padStart(2, '0')}`;
-                }
-                if (elGlobalTimer && payload.state !== 'STANDBY') {
-                    if (!elGlobalTimer.style.color || elGlobalTimer.style.color === 'var(--sop-text)' || elGlobalTimer.style.color === 'white') {
-                         elGlobalTimer.style.color = 'var(--sop-primary)';
-                    }
-                    elGlobalTimer.style.color = 'var(--sop-primary)';
-                }
+            if (isDom) {
+                const formatScore = (s) => {
+                    if (s === undefined) return "00:00";
+                    const m = Math.floor(s / 60);
+                    const sec = s % 60;
+                    return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+                };
+                if (payload.score_a !== undefined && elDomValA) elDomValA.textContent = formatScore(payload.score_a);
+                if (payload.score_b !== undefined && elDomValB) elDomValB.textContent = formatScore(payload.score_b);
+            }
 
-                if (isDom) {
-                    const formatScore = (s) => {
-                        if (s === undefined) return "00:00";
-                        const m = Math.floor(s / 60);
-                        const sec = s % 60;
-                        return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
-                    };
-                    if (payload.score_a !== undefined && elDomValA) elDomValA.textContent = formatScore(payload.score_a);
-                    if (payload.score_b !== undefined && elDomValB) elDomValB.textContent = formatScore(payload.score_b);
-                }
+            let width1 = 0, width2 = 0, bar1Active = false, bar2Active = false;
 
-                let width1 = 0, width2 = 0, bar1Active = false, bar2Active = false;
+            if (!isDom) {
+                if(payload.arm_prog !== undefined) { width1 = payload.arm_prog; bar1Active = width1 > 0; }
+                if(payload.def_prog !== undefined) { width2 = payload.def_prog; bar2Active = width2 > 0; }
+            } else {
+                const prog = payload.capture_prog || 0;
+                const state = payload.state || '';
+                if (state.includes('CAPTURING A')) { width1 = prog; bar1Active = true; }
+                else if (state.includes('CAPTURING B')) { width2 = prog; bar2Active = true; }
+            }
 
-                if (!isDom) {
-                    if(payload.arm_prog !== undefined) { width1 = payload.arm_prog; bar1Active = width1 > 0; }
-                    if(payload.def_prog !== undefined) { width2 = payload.def_prog; bar2Active = width2 > 0; }
+            const updateBar = (barElem, width, isActive, timerRefName) => {
+                if(!barElem) return;
+                if (isActive) {
+                    if (timerRefName === 1) { clearTimeout(debounceTimer1); debounceTimer1 = null; }
+                    else { clearTimeout(debounceTimer2); debounceTimer2 = null; }
+                    barElem.style.width = `${width}%`;
                 } else {
-                    const prog = payload.capture_prog || 0;
-                    const state = payload.state || '';
-                    if (state.includes('CAPTURING A')) { width1 = prog; bar1Active = true; }
-                    else if (state.includes('CAPTURING B')) { width2 = prog; bar2Active = true; }
-                }
-
-                const updateBar = (barElem, width, isActive, timerRefName) => {
-                    if(!barElem) return;
-                    if (isActive) {
-                        if (timerRefName === 1) { clearTimeout(debounceTimer1); debounceTimer1 = null; }
-                        else { clearTimeout(debounceTimer2); debounceTimer2 = null; }
-                        barElem.style.width = `${width}%`;
-                    } else {
-                        if (barElem.style.width !== '0%') {
-                            if (timerRefName === 1) {
-                                if(!debounceTimer1) debounceTimer1 = setTimeout(() => { barElem.style.width = "0%"; debounceTimer1 = null; }, 200); 
-                            } else {
-                                if(!debounceTimer2) debounceTimer2 = setTimeout(() => { barElem.style.width = "0%"; debounceTimer2 = null; }, 200);
-                            }
+                    if (barElem.style.width !== '0%') {
+                        if (timerRefName === 1) {
+                            if(!debounceTimer1) debounceTimer1 = setTimeout(() => { barElem.style.width = "0%"; debounceTimer1 = null; }, 200); 
+                        } else {
+                            if(!debounceTimer2) debounceTimer2 = setTimeout(() => { barElem.style.width = "0%"; debounceTimer2 = null; }, 200);
                         }
                     }
-                };
+                }
+            };
 
-                updateBar(elSdArmBar, width1, bar1Active, 1);
-                updateBar(elSdDefuseBar, width2, bar2Active, 2);
-                updateForceEndButton(payload.state);
-            }
+            updateBar(elSdArmBar, width1, bar1Active, 1);
+            updateBar(elSdDefuseBar, width2, bar2Active, 2);
+            updateForceEndButton(payload.state);
         }
     }
 
@@ -747,8 +700,6 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.emit('send_command', { target_id: targetId, command: commandData });
             logSystem(`START MISSION SIGNAL SENT TO ${targetId}.`);
             
-            monitoredDeviceId = targetId;
-            elMonitorTargetId.textContent = elSetupTargetSelect.options[elSetupTargetSelect.selectedIndex].text;
             resetMonitorData();
             showView('monitor');
         });
