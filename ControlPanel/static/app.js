@@ -24,11 +24,11 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if(viewName === 'hub') {
             activeInspectorId = null;
+            monitoredDeviceId = null; 
             lastConfiguredMode = null;
             document.querySelectorAll('.device-item').forEach(el => el.classList.remove('active'));
         }
         
-        // --- CARICA IL DB QUANDO SI APRE L'ARCHIVIO ---
         if(viewName === 'arena-db') {
             socket.emit('request_database');
         }
@@ -100,7 +100,6 @@ document.addEventListener('DOMContentLoaded', () => {
         renderArenaRoster();
     });
 
-    // --- RICEZIONE AGGIORNAMENTI DATABASE STORICO ---
     socket.on('database_update', (players) => {
         const dbList = document.getElementById('db-list');
         const dbCount = document.getElementById('db-total-count');
@@ -196,7 +195,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(isAlpha) alphaOutCount++; else bravoOutCount++;
             }
 
-            // 1. SCHERMATA MANAGEMENT
             const liManage = document.createElement('li');
             liManage.className = 'roster-item'; 
             
@@ -247,8 +245,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if(isAlpha) listAlphaManage.appendChild(liManage);
             else listBravoManage.appendChild(liManage);
 
-
-            // 2. SCHERMATA TRACKING
             const liTrack = document.createElement('li');
             liTrack.className = `roster-item ${isInField ? 'in-field' : 'eliminated'}`;
             
@@ -301,7 +297,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if(headerBravoOut) headerBravoOut.textContent = `BRAVO FUORI (${bravoOutCount})`;
         if(trackInCount) trackInCount.textContent = inFieldCount;
 
-        // AGGIORNAMENTO PANNELLO "OPERATOR COUNT" NELLA DASHBOARD TATTICA
         if (elScoreA) elScoreA.textContent = alphaInCount;
         if (elScoreB) elScoreB.textContent = bravoInCount;
     }
@@ -704,19 +699,36 @@ document.addEventListener('DOMContentLoaded', () => {
             const targetId = elSetupTargetSelect.value;
             if (!targetId) { alert("Seleziona un nodo di destinazione."); return; }
 
-            // --- NUOVO CONTROLLO SUI GIOCATORI ---
+            // --- CONTROLLO ROSTER E SQUADRE ---
             const players = Object.values(arenaRoster);
             const playersOut = players.filter(p => p.status !== 'IN');
             
-            if (players.length > 0 && playersOut.length > 0) {
-                alert(`OPERAZIONE INTERROTTA: Ci sono ${playersOut.length} operatori fuori dal campo.\nTutti i giocatori registrati devono essere schierati ("IN CAMPO") per poter avviare la missione.`);
-                return;
-            } else if (players.length === 0) {
+            let alphaIn = 0;
+            let bravoIn = 0;
+            players.forEach(p => {
+                if(p.status === 'IN') {
+                    if(p.team === 'ALPHA') alphaIn++;
+                    if(p.team === 'BRAVO') bravoIn++;
+                }
+            });
+
+            if (players.length === 0) {
                 if(!confirm("ATTENZIONE: Il Roster è completamente vuoto. Vuoi avviare la missione comunque?")) {
                     return;
                 }
+            } else {
+                if (playersOut.length > 0) {
+                    alert(`OPERAZIONE INTERROTTA:\nCi sono ${playersOut.length} operatori fuori dal campo.\nTutti i giocatori registrati devono risultare "IN CAMPO" per poter avviare la missione.`);
+                    return;
+                }
+                
+                if (alphaIn === 0 || bravoIn === 0) {
+                    if(!confirm(`ATTENZIONE: Una delle due squadre non ha operatori in campo (Alpha: ${alphaIn} | Bravo: ${bravoIn}).\nSicuro di voler avviare una partita sbilanciata?`)) {
+                        return;
+                    }
+                }
             }
-            // -------------------------------------
+            // -----------------------------------
 
             const mode = elSetupModeSelect.value;
             let commandData = { cmd: (mode === 'sd') ? "START_SD_GAME" : "START_DOM_GAME" };
