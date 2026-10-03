@@ -6,7 +6,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const views = {
         'hub': document.getElementById('view-hub'),
-        'select-target': document.getElementById('view-select-target'),
         'setup': document.getElementById('view-setup'),
         'monitor': document.getElementById('view-monitor'),
         'inspector': document.getElementById('view-inspector'),
@@ -25,7 +24,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if(viewName === 'hub') {
             activeInspectorId = null;
-            monitoredDeviceId = null; 
             lastConfiguredMode = null;
             document.querySelectorAll('.device-item').forEach(el => el.classList.remove('active'));
         }
@@ -69,7 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const elInspFwVer = document.getElementById('insp-fw-ver');
     
     let activeInspectorId = null;
-    let monitoredDeviceId = null;
+    let activeGameNodeId = null; // Traccia automaticamente chi è l'Host della partita
     let currentDevices = [];
     let lastConfiguredMode = null; 
     let arenaRoster = {}; 
@@ -163,16 +161,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('devices_update', (devices) => {
         currentDevices = devices;
         updateDeviceList(devices);
-        
-        if (!views['select-target'].classList.contains('hidden')) {
-            renderTargetSelection();
-        }
-        updateSetupDropdown();
-
-        if (monitoredDeviceId) {
-            const dev = devices.find(d => d.id === monitoredDeviceId);
-            if (dev && dev.mode) updateMonitorLayout(dev.mode);
-        }
+        updateSetupDropdown(); // Ripristinato: ora si aggiornerà senza crash
     });
 
     socket.on('esp_event', (msg) => {
@@ -312,7 +301,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if(headerBravoOut) headerBravoOut.textContent = `BRAVO FUORI (${bravoOutCount})`;
         if(trackInCount) trackInCount.textContent = inFieldCount;
 
-        // 3. AGGIORNAMENTO PANNELLO "OPERATOR COUNT" NELLA DASHBOARD TATTICA
+        // AGGIORNAMENTO PANNELLO "OPERATOR COUNT" NELLA DASHBOARD TATTICA
         if (elScoreA) elScoreA.textContent = alphaInCount;
         if (elScoreB) elScoreB.textContent = bravoInCount;
     }
@@ -430,8 +419,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const btnForceEnd = document.getElementById('btn-force-end');
     if(btnForceEnd) btnForceEnd.addEventListener('click', () => {
-        if(confirm("ATTENZIONE: Terminare forzatamente la partita?")) {
-            logSystem(`SENDING GLOBAL TERMINATION SIGNAL...`);
+        if(!activeGameNodeId) {
+            alert("Nessuna partita attiva rilevata sul campo.");
+            return;
+        }
+        if(confirm("ATTENZIONE: Terminare forzatamente la partita sul nodo attivo?")) {
+            socket.emit('send_command', { target_id: activeGameNodeId, command: { cmd: "FORCE_END_GAME" } });
+            logSystem(`SENDING TERMINATION SIGNAL TO NODE [${activeGameNodeId.slice(-4)}]...`);
         }
     });
 
@@ -458,6 +452,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (type !== 'TIME_UPDATE' && type !== 'SD_UPDATE' && type !== 'DOM_UPDATE') {
             logSystem(`[${shortId}] ${type}`);
+        }
+
+        // Traccia chi è l'Host della partita per fargli arrivare i segnali di stop
+        if (['MODE_ENTER', 'COUNTDOWN_UPDATE', 'SD_UPDATE', 'DOM_UPDATE', 'TIME_UPDATE'].includes(type)) {
+            activeGameNodeId = senderId;
         }
 
         if (type === 'TAG_ASSIGN') {
