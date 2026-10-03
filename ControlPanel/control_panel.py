@@ -207,11 +207,50 @@ def receive_data_from_bridge():
         payload = parsed.get('payload', {})
         
         if device_id:
+            # --- GESTIONE KIOSK CENTRALIZZATA IN PYTHON ---
+            
+            # 1. Azione di Toggle (Tessera strisciata senza premere tasti)
+            if msg_type == 'TAG_SCANNED':
+                uid = payload.get('uid')
+                if uid:
+                    with sqlite3.connect(DB_PATH) as conn:
+                        c = conn.cursor()
+                        c.execute("SELECT status FROM active_roster WHERE uid = ?", (uid,))
+                        row = c.fetchone()
+                        if row:
+                            new_status = 'FUORI' if row[0] == 'IN' else 'IN'
+                            c.execute("UPDATE active_roster SET status = ? WHERE uid = ?", (new_status, uid))
+                            conn.commit()
+                            logger.info(f"[KIOSK] Operatore {uid} cambiato in stato: {new_status}")
+                            broadcast_roster()
+                        else:
+                            logger.info(f"[KIOSK] Tessera {uid} non nel roster. Prego assegnare squadra.")
+            
+            # 2. Azione di Assegnazione (Tessera strisciata + Bottone premuto)
+            elif msg_type == 'TAG_ASSIGN':
+                uid = payload.get('uid')
+                team = payload.get('team')
+                if uid and team:
+                    with sqlite3.connect(DB_PATH) as conn:
+                        c = conn.cursor()
+                        # Registra l'utente globalmente se non esiste
+                        c.execute("INSERT OR IGNORE INTO players (uid, alias) VALUES (?, ?)", (uid, f"OP-{uid[:4]}"))
+                        # Lo inserisce/aggiorna nel roster di oggi (di default FUORI)
+                        c.execute("INSERT OR REPLACE INTO active_roster (uid, team, status) VALUES (?, ?, 'FUORI')", (uid, team))
+                        conn.commit()
+                    logger.info(f"[KIOSK] Operatore {uid} assegnato al team {team}")
+                    broadcast_roster()
+            # ----------------------------------------------
+            
             mode = payload.get('mode')
             version = payload.get('version')
             
             has_changed = registry.update_device(device_id, ip_info, msg_type, mode, version)
-            socketio.emit('esp_event', data)
+            
+            # I messaggi del Kiosk non vengono più mandati a JS (perché gestiti qui sopra), 
+            # così evitiamo sovrapposizioni e appesantimenti del browser.
+            if msg_type not in ['TAG_SCANNED', 'TAG_ASSIGN']:
+                socketio.emit('esp_event', data)
             
             if has_changed:
                 active_devs, _ = registry.get_active_devices()
@@ -221,7 +260,7 @@ def receive_data_from_bridge():
     except Exception as e:
         logger.error(f"Errore forward: {e}")
         return jsonify({"status": "error"}), 500
-
+    
 # --- WEBSOCKET EVENTI ROSTER ARENA ---
 @socketio.on('request_roster')
 def handle_request_roster():
