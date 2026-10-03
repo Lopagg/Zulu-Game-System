@@ -29,6 +29,11 @@ document.addEventListener('DOMContentLoaded', () => {
             lastConfiguredMode = null;
             document.querySelectorAll('.device-item').forEach(el => el.classList.remove('active'));
         }
+        
+        // --- CARICA IL DB QUANDO SI APRE L'ARCHIVIO ---
+        if(viewName === 'arena-db') {
+            socket.emit('request_database');
+        }
     };
 
     const elAssetCount = document.getElementById('asset-count');
