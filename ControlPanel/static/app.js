@@ -71,6 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentDevices = [];
     let lastConfiguredMode = null; 
     let arenaRoster = {}; 
+    let currentGameState = 'STANDBY'; // Traccia lo stato esatto della partita per gli automatismi
 
     let debounceTimer1 = null;
     let debounceTimer2 = null;
@@ -299,6 +300,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (elScoreA) elScoreA.textContent = alphaInCount;
         if (elScoreB) elScoreB.textContent = bravoInCount;
+
+        // --- CONTROLLO ELIMINAZIONE SQUADRA AUTOMATICA (TDM MECHANIC) ---
+        // Verifichiamo se lo stato attuale indica una partita "in corso" e non già terminata o in attesa
+        const activeStates = ['SAFE', 'ARMING...', 'ARMED', 'DEFUSING...', 'NEUTRAL', 'OWNED ALPHA', 'OWNED BRAVO', 'CAPTURING A...', 'CAPTURING B...'];
+        const gameIsRunning = activeStates.includes(currentGameState) && activeGameNodeId !== null;
+
+        if (gameIsRunning) {
+            if (alphaInCount === 0 && bravoInCount > 0) {
+                logSystem("!!! TEAM ALPHA ELIMINATO - VITTORIA BRAVO !!!");
+                socket.emit('send_command', { target_id: activeGameNodeId, command: { cmd: "FORCE_WIN", winner: "BRAVO" } });
+                currentGameState = 'BRAVO WINS'; // Previene trigger multipli successivi
+            } else if (bravoInCount === 0 && alphaInCount > 0) {
+                logSystem("!!! TEAM BRAVO ELIMINATO - VITTORIA ALPHA !!!");
+                socket.emit('send_command', { target_id: activeGameNodeId, command: { cmd: "FORCE_WIN", winner: "ALPHA" } });
+                currentGameState = 'ALPHA WINS'; 
+            } else if (alphaInCount === 0 && bravoInCount === 0) {
+                logSystem("!!! MUTUA DISTRUZIONE - PARTITA TERMINATA !!!");
+                socket.emit('send_command', { target_id: activeGameNodeId, command: { cmd: "FORCE_END_GAME" } });
+                currentGameState = 'DRAW';
+            }
+        }
     }
 
     function updateDeviceList(devices) {
@@ -475,11 +497,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (mode === 'SEARCH_DESTROY') mode = 'SEARCH_AND_DESTROY';
 
         if (type === 'MODE_EXIT') {
+            currentGameState = 'STANDBY';
             resetMonitorData();
             updateMonitorLayout(null);
             logSystem(`GLOBAL MODE EXIT DETECTED.`);
         }
         if (type === 'MODE_ENTER') {
+            currentGameState = 'PREPARING';
             resetMonitorData();
             updateMonitorLayout(mode);
             if(elGlobalTimer) elGlobalTimer.textContent = "--:--"; 
@@ -520,6 +544,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (payload.state && elSdBombStatus) {
+                currentGameState = payload.state; // Assicura che la variabile combaci con l'hardware
                 elSdBombStatus.textContent = payload.state;
                 const s = payload.state;
                 if (s.includes('DEFUS') || s.includes('CT WINS') || s.includes('CAPTURING B') || s.includes('OWNED BRAVO') || s.includes('BRAVO WINS')) {
@@ -699,7 +724,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const targetId = elSetupTargetSelect.value;
             if (!targetId) { alert("Seleziona un nodo di destinazione."); return; }
 
-            // --- CONTROLLO ROSTER E SQUADRE ---
             const players = Object.values(arenaRoster);
             const playersOut = players.filter(p => p.status !== 'IN');
             
@@ -728,7 +752,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
             }
-            // -----------------------------------
 
             const mode = elSetupModeSelect.value;
             let commandData = { cmd: (mode === 'sd') ? "START_SD_GAME" : "START_DOM_GAME" };
