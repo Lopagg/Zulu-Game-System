@@ -166,7 +166,6 @@ def handle_connect():
     
     active_devs, _ = registry.get_active_devices()
     emit('devices_update', active_devs)
-    # Invia il roster salvato al client appena connesso
     broadcast_roster()
     logger.info(f"[SYSTEM] Client connesso: {request.sid}")
 
@@ -236,9 +235,7 @@ def handle_register_operator(data):
     
     with sqlite3.connect(DB_PATH) as conn:
         c = conn.cursor()
-        # Se il giocatore non esiste nel DB generale, lo crea
         c.execute("INSERT OR IGNORE INTO players (uid, alias) VALUES (?, ?)", (uid, f"OP-{uid[:4]}"))
-        # Lo inserisce nel roster attivo di oggi
         c.execute("INSERT OR REPLACE INTO active_roster (uid, team, status) VALUES (?, ?, 'FUORI')", (uid, team))
         conn.commit()
     logger.info(f"[ARENA] Registrato operatore {uid} nel {team}")
@@ -262,6 +259,40 @@ def handle_update_operator(data):
             c.execute("DELETE FROM active_roster WHERE uid = ?", (uid,))
         conn.commit()
     broadcast_roster()
+
+@socketio.on('clear_roster')
+def handle_clear_roster():
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("DELETE FROM active_roster")
+        conn.commit()
+    logger.info("[ARENA] Roster attivo resettato.")
+    broadcast_roster()
+
+# --- WEBSOCKET EVENTI DATABASE GLOBALE ---
+@socketio.on('request_database')
+def handle_request_database():
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        c.execute("SELECT * FROM players ORDER BY alias")
+        rows = [dict(r) for r in c.fetchall()]
+    socketio.emit('database_update', rows)
+
+@socketio.on('update_db_player')
+def handle_update_db_player(data):
+    uid = data.get('uid')
+    action = data.get('action')
+    value = data.get('value')
+    
+    with sqlite3.connect(DB_PATH) as conn:
+        if action == 'rename':
+            conn.execute("UPDATE players SET alias = ? WHERE uid = ?", (value, uid))
+        elif action == 'delete':
+            conn.execute("DELETE FROM players WHERE uid = ?", (uid,))
+            conn.execute("DELETE FROM active_roster WHERE uid = ?", (uid,))
+        conn.commit()
+    broadcast_roster()
+    handle_request_database()
 
 # -------------------------------------
 

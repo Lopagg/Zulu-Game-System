@@ -12,7 +12,8 @@ document.addEventListener('DOMContentLoaded', () => {
         'inspector': document.getElementById('view-inspector'),
         'arena-menu': document.getElementById('view-arena-menu'),
         'arena-manage': document.getElementById('view-arena-manage'),
-        'arena-tracking': document.getElementById('view-arena-tracking')
+        'arena-tracking': document.getElementById('view-arena-tracking'),
+        'arena-db': document.getElementById('view-arena-db')
     };
     
     window.showView = function(viewName) {
@@ -51,13 +52,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const elDomValB = document.getElementById('d-val-b');
     
     const elTacticalTitle = document.getElementById('tactical-panel-title');
-    
     const elSdArmBar = document.getElementById('sd-arm-bar');
     const elSdDefuseBar = document.getElementById('sd-defuse-bar');
     const elSdRulesList = document.getElementById('sd-rules-list');
-
-    const elLblProg1 = document.getElementById('lbl-prog-1');
-    const elLblProg2 = document.getElementById('lbl-prog-2');
 
     const elInspTitle = document.getElementById('inspector-title');
     const elInspMode = document.getElementById('insp-mode');
@@ -85,7 +82,6 @@ document.addEventListener('DOMContentLoaded', () => {
         elGlobalStatus.textContent = "ONLINE";
         elGlobalStatus.classList.remove('status-alert');
         elGlobalStatus.classList.add('status-normal');
-        // Richiedi il roster dal database all'avvio
         socket.emit('request_roster');
     });
 
@@ -96,10 +92,67 @@ document.addEventListener('DOMContentLoaded', () => {
         elGlobalStatus.classList.add('status-alert');
     });
 
-    // --- RICEZIONE AGGIORNAMENTI DATABASE DAL SERVER ---
     socket.on('roster_update', (rosterData) => {
         arenaRoster = rosterData;
         renderArenaRoster();
+    });
+
+    // --- RICEZIONE AGGIORNAMENTI DATABASE STORICO ---
+    socket.on('database_update', (players) => {
+        const dbList = document.getElementById('db-list');
+        const dbCount = document.getElementById('db-total-count');
+        if(!dbList) return;
+
+        dbList.innerHTML = '';
+        if(dbCount) dbCount.textContent = players.length;
+
+        if(players.length === 0) {
+            dbList.innerHTML = '<li class="placeholder-text" style="color:var(--sop-dim); text-align:center; margin-top:20px;">NESSUN OPERATORE IN ARCHIVIO</li>';
+            return;
+        }
+
+        players.forEach(player => {
+            const li = document.createElement('li');
+            li.className = 'roster-item';
+
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = `${player.alias} (UID: ${player.uid})`;
+            nameSpan.style.fontWeight = 'bold';
+            nameSpan.style.fontSize = '20px';
+
+            const controlsDiv = document.createElement('div');
+            controlsDiv.style.fontSize = '18px';
+            controlsDiv.style.fontFamily = 'monospace';
+
+            const btnRename = document.createElement('span');
+            btnRename.textContent = '[REN]';
+            btnRename.className = 'action-btn';
+            btnRename.style.color = 'var(--sop-primary)';
+            btnRename.onclick = () => {
+                const newName = prompt("Inserisci nuovo nome operatore:", player.alias);
+                if (newName && newName.trim() !== '') {
+                    socket.emit('update_db_player', { uid: player.uid, action: 'rename', value: newName.trim().toUpperCase() });
+                }
+            };
+
+            const btnDel = document.createElement('span');
+            btnDel.textContent = '[DEL]';
+            btnDel.className = 'action-btn';
+            btnDel.style.color = 'var(--sop-alert)';
+            btnDel.onclick = () => {
+                if(confirm(`ELIMINARE PERMANENTEMENTE ${player.alias} DAL DATABASE? L'azione è irreversibile.`)) {
+                    socket.emit('update_db_player', { uid: player.uid, action: 'delete' });
+                }
+            };
+
+            controlsDiv.appendChild(btnRename);
+            controlsDiv.appendChild(btnDel);
+
+            li.appendChild(nameSpan);
+            li.appendChild(controlsDiv);
+
+            dbList.appendChild(li);
+        });
     });
 
     socket.on('devices_update', (devices) => {
@@ -169,7 +222,6 @@ document.addEventListener('DOMContentLoaded', () => {
             btnRename.onclick = () => {
                 const newName = prompt("Inserisci nuovo nome operatore:", player.name);
                 if (newName && newName.trim() !== '') {
-                    // Invia modifica al server invece di farla in locale
                     socket.emit('update_operator', { uid: player.uid, action: 'rename', value: newName.trim().toUpperCase() });
                 }
             };
@@ -433,9 +485,7 @@ document.addEventListener('DOMContentLoaded', () => {
             logSystem(`[${shortId}] ${type}`);
         }
 
-        // --- GESTIONE ACCETTAZIONE KIOSK ---
         if (type === 'TAG_ASSIGN') {
-            // Inoltra il comando al server per aggiornare il DB
             socket.emit('register_operator', { uid: payload.uid, team: payload.team });
             return; 
         }

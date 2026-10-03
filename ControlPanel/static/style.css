@@ -134,9 +134,12 @@ body {
 .view-panel { width: 100%; height: 100%; display: none; overflow-y: auto; padding-bottom: 15px;}
 .view-panel.active { display: block; }
 
-.hub-grid { display: flex; gap: 30px; height: 100%; justify-content: center; align-items: center; padding: 50px; }
+.hub-grid { 
+    display: flex; gap: 30px; height: 100%; justify-content: center; align-items: center; padding: 50px; 
+    flex-wrap: wrap; /* Aggiunto per permettere l'allineamento con 3 cards */
+}
 .hub-card {
-    flex: 1; max-width: 400px; height: 300px; background: rgba(0, 0, 0, 0.4); border: 1px solid var(--sop-dim);
+    flex: 1; min-width: 250px; max-width: 400px; height: 300px; background: rgba(0, 0, 0, 0.4); border: 1px solid var(--sop-dim);
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     text-align: center; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
     position: relative; overflow: hidden;
@@ -306,7 +309,7 @@ body {
 .roster-list { list-style: none; padding: 10px; overflow-y: auto; flex: 1; }
 .roster-item { display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--sop-dim); padding: 10px 15px; margin-bottom: 8px; font-size: 18px; }
 .roster-item.in-field { border-left: 3px solid #55ff55; }
-.roster-item.eliminated { border-left: 3px solid var(--sop-dim); opacity: 0.4; } /* Rimossa barratura */
+.roster-item.eliminated { border-left: 3px solid var(--sop-dim); opacity: 0.4; } 
 
 .env-controls { grid-column: 1 / -1; display: flex; flex-direction: column; }
 .override-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 15px; }
