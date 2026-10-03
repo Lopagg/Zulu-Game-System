@@ -902,7 +902,10 @@ void SearchDestroyMode::forceEndGame() {
     sendTelemetry();
 }
 
+// --- NUOVO: LOGICA FINE PARTITA PER ELIMINAZIONE SQUADRA ---
 void SearchDestroyMode::forceWin(String winnerTeam) {
+    Serial.println("!!! COMANDO RICEVUTO: forceWin in Cerca & Distruggi !!!");
+    
     if (_currentState == ModeState::IN_GAME_DEFUSED || _currentState == ModeState::IN_GAME_ENDED) {
         return;
     }
@@ -910,33 +913,49 @@ void SearchDestroyMode::forceWin(String winnerTeam) {
     JsonDocument doc;
     if (winnerTeam == "ALPHA") {
         doc["winner"] = "TERRORISTS";
-        _endGameStatus = "T WINS"; // Alpha = Terroristi
+        _endGameStatus = "T WINS"; 
+        _currentState = ModeState::IN_GAME_ENDED; // Imposta lo stato per i Terroristi
     } else {
         doc["winner"] = "COUNTER_TERRORISTS";
-        _endGameStatus = "CT WINS"; // Bravo = Counter-Terroristi
+        _endGameStatus = "CT WINS"; 
+        _currentState = ModeState::IN_GAME_DEFUSED; // Questo attiva in automatico il respiro verde continuo nel loop
     }
     
     doc["reason"] = "TEAM_ELIMINATED";
     _network->sendEvent("GAME_END", doc);
     
-    _currentState = ModeState::IN_GAME_ENDED; 
     _gameIsActive = false; 
     _bombIsActive = false; 
     _hardware->noTone();
 
     _hardware->clearLcd();
     _hardware->printLcd(1, 1, "SQUADRA ELIMINATA!"); 
+    
     if (winnerTeam == "ALPHA") {
         _hardware->printLcd(0, 2, "Vince la squadra T!");
+        
+        // --- ANIMAZIONE VITTORIA ALPHA (ESPLOSIONE STANDARD) ---
+        for(int i=0; i<3; i++) {
+            _hardware->setBrightness(255);
+            _hardware->setStripColor(255, 255, 255); _hardware->playTone(2000, 50);
+            _hardware->setStripColor(255, 100, 0); _hardware->playTone(1000, 80);
+            _hardware->setStripColor(255, 0, 0); _hardware->playTone(400, 100);
+        }
+        _hardware->playTone(150, 3000);
+        _hardware->setStripColor(255, 0, 0); // Lascia la valigetta rossa fuoco
+        // --------------------------------------------------------
+        
     } else {
         _hardware->printLcd(0, 2, "Vince la squadra CT!");
+        
+        // --- ANIMAZIONE VITTORIA BRAVO (DISINNESCO STANDARD) ---
+        _hardware->playTone(1500, 80); 
+        delay(100);
+        _hardware->playTone(1800, 80); 
+        delay(100);
+        _hardware->playTone(2200, 100);
+        // -------------------------------------------------------
     }
-    
-    _hardware->playTone(1500, 80); 
-    delay(100);
-    _hardware->playTone(1800, 80); 
-    delay(100);
-    _hardware->playTone(2200, 100);
 
     sendTelemetry();
 }
