@@ -85,6 +85,8 @@ document.addEventListener('DOMContentLoaded', () => {
         elGlobalStatus.textContent = "ONLINE";
         elGlobalStatus.classList.remove('status-alert');
         elGlobalStatus.classList.add('status-normal');
+        // Richiedi il roster dal database all'avvio
+        socket.emit('request_roster');
     });
 
     socket.on('disconnect', () => {
@@ -92,6 +94,12 @@ document.addEventListener('DOMContentLoaded', () => {
         elGlobalStatus.textContent = "OFFLINE";
         elGlobalStatus.classList.remove('status-normal');
         elGlobalStatus.classList.add('status-alert');
+    });
+
+    // --- RICEZIONE AGGIORNAMENTI DATABASE DAL SERVER ---
+    socket.on('roster_update', (rosterData) => {
+        arenaRoster = rosterData;
+        renderArenaRoster();
     });
 
     socket.on('devices_update', (devices) => {
@@ -113,7 +121,6 @@ document.addEventListener('DOMContentLoaded', () => {
         handleGameEvent(msg);
     });
 
-    // --- RENDER UNIFICATO ARENA ROSTER ---
     function renderArenaRoster() {
         const listAlphaManage = document.getElementById('roster-alpha-manage');
         const listBravoManage = document.getElementById('roster-bravo-manage');
@@ -142,9 +149,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(isAlpha) alphaOutCount++; else bravoOutCount++;
             }
 
-            // 1. CREAZIONE ELEMENTO PER LA SCHERMATA MANAGEMENT (Sempre opaco e visibile, senza stati IN/OUT)
+            // 1. SCHERMATA MANAGEMENT
             const liManage = document.createElement('li');
-            liManage.className = 'roster-item'; // Stile base, non usa 'in-field' o 'eliminated'
+            liManage.className = 'roster-item'; 
             
             const nameSpanMng = document.createElement('span');
             nameSpanMng.textContent = player.name;
@@ -162,8 +169,8 @@ document.addEventListener('DOMContentLoaded', () => {
             btnRename.onclick = () => {
                 const newName = prompt("Inserisci nuovo nome operatore:", player.name);
                 if (newName && newName.trim() !== '') {
-                    player.name = newName.trim().toUpperCase();
-                    renderArenaRoster();
+                    // Invia modifica al server invece di farla in locale
+                    socket.emit('update_operator', { uid: player.uid, action: 'rename', value: newName.trim().toUpperCase() });
                 }
             };
             
@@ -172,8 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
             btnSwap.className = 'action-btn';
             btnSwap.style.color = 'var(--sop-secondary)';
             btnSwap.onclick = () => {
-                player.team = isAlpha ? 'BRAVO' : 'ALPHA';
-                renderArenaRoster();
+                socket.emit('update_operator', { uid: player.uid, action: 'swap' });
             };
             
             const btnDel = document.createElement('span');
@@ -181,9 +187,8 @@ document.addEventListener('DOMContentLoaded', () => {
             btnDel.className = 'action-btn';
             btnDel.style.color = 'var(--sop-alert)';
             btnDel.onclick = () => {
-                if(confirm(`Rimuovere l'operatore ${player.name} dal roster?`)) {
-                    delete arenaRoster[player.uid];
-                    renderArenaRoster();
+                if(confirm(`Rimuovere l'operatore ${player.name} dal roster attivo? (Le statistiche rimarranno in memoria)`)) {
+                    socket.emit('update_operator', { uid: player.uid, action: 'delete' });
                 }
             };
             
@@ -197,7 +202,7 @@ document.addEventListener('DOMContentLoaded', () => {
             else listBravoManage.appendChild(liManage);
 
 
-            // 2. CREAZIONE ELEMENTO PER LA SCHERMATA TRACKING
+            // 2. SCHERMATA TRACKING
             const liTrack = document.createElement('li');
             liTrack.className = `roster-item ${isInField ? 'in-field' : 'eliminated'}`;
             
@@ -215,8 +220,7 @@ document.addEventListener('DOMContentLoaded', () => {
             btnToggle.className = 'action-btn';
             btnToggle.style.color = isInField ? 'var(--sop-alert)' : '#55ff55';
             btnToggle.onclick = () => {
-                player.status = isInField ? 'FUORI' : 'IN';
-                renderArenaRoster();
+                socket.emit('update_operator', { uid: player.uid, action: 'status_toggle' });
             };
 
             controlsTrk.appendChild(btnToggle);
@@ -431,23 +435,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // --- GESTIONE ACCETTAZIONE KIOSK ---
         if (type === 'TAG_ASSIGN') {
-            const team = payload.team; 
-            const uid = payload.uid;
-            
-            if (!arenaRoster[uid]) {
-                arenaRoster[uid] = { 
-                    uid: uid, 
-                    name: `OP-${uid.substring(0,4)}`, 
-                    team: team, 
-                    status: 'FUORI' 
-                };
-            } else {
-                arenaRoster[uid].team = team;
-                arenaRoster[uid].status = 'FUORI';
-            }
-            
-            renderArenaRoster();
-            logSystem(`OPERATORE ${arenaRoster[uid].name} SCHIERATO IN ${team}`);
+            // Inoltra il comando al server per aggiornare il DB
+            socket.emit('register_operator', { uid: payload.uid, team: payload.team });
             return; 
         }
 

@@ -15,14 +15,14 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'zulu_secret_key_change_in_prod'
+app.config['SECRET_KEY'] = 'philanthropy_secret_key_change_in_prod'
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-USERS = { "admin": {"password": "zulu", "name": "Operatore"} }
+USERS = { "admin": {"password": "admin", "name": "Operatore"} }
 
 class User(UserMixin):
     def __init__(self, id):
@@ -42,18 +42,34 @@ def load_user(user_id):
 DB_PATH = 'philanthropy_arena.db'
 
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    # Tabella dell'anagrafica globale dei giocatori
-    c.execute('''CREATE TABLE IF NOT EXISTS players
-                 (uid TEXT PRIMARY KEY, alias TEXT, games_played INTEGER, wins INTEGER)''')
-    # Tabella temporanea per i giocatori attualmente in campo
-    c.execute('''CREATE TABLE IF NOT EXISTS active_roster
-                 (uid TEXT PRIMARY KEY, team TEXT, status TEXT)''')
-    conn.commit()
-    conn.close()
+    with sqlite3.connect(DB_PATH) as conn:
+        c = conn.cursor()
+        # Tabella dell'anagrafica globale (permanente)
+        c.execute('''CREATE TABLE IF NOT EXISTS players
+                     (uid TEXT PRIMARY KEY, alias TEXT, games_played INTEGER DEFAULT 0, wins INTEGER DEFAULT 0)''')
+        # Tabella temporanea per i giocatori attualmente in campo
+        c.execute('''CREATE TABLE IF NOT EXISTS active_roster
+                     (uid TEXT PRIMARY KEY, team TEXT, status TEXT)''')
+        conn.commit()
 
 init_db()
+
+def broadcast_roster():
+    """Legge il roster dal DB e lo invia a tutti i client web connessi."""
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        c.execute('''
+            SELECT a.uid, p.alias as name, a.team, a.status 
+            FROM active_roster a 
+            JOIN players p ON a.uid = p.uid
+        ''')
+        rows = c.fetchall()
+        roster = {}
+        for r in rows:
+            roster[r['uid']] = dict(r)
+            
+    socketio.emit('roster_update', roster)
 
 # --- DEVICE REGISTRY (Thread-Safe) ---
 class DeviceRegistry:
@@ -128,9 +144,7 @@ registry = DeviceRegistry()
 background_thread_started = False
 
 def background_cleanup():
-    """Gira in background e pulisce la lista dai dispositivi offline."""
     logger.info("[SYSTEM] Task di Pulizia AVVIATO.")
-    
     while True:
         socketio.sleep(2) 
         try:
@@ -150,10 +164,11 @@ def handle_connect():
         socketio.start_background_task(background_cleanup)
         background_thread_started = True
     
-    # Invia subito la lista al nuovo client
     active_devs, _ = registry.get_active_devices()
     emit('devices_update', active_devs)
-    logger.info(f"[SYSTEM] Client connesso alla dashboard: {request.sid}")
+    # Invia il roster salvato al client appena connesso
+    broadcast_roster()
+    logger.info(f"[SYSTEM] Client connesso: {request.sid}")
 
 @app.route('/')
 @login_required
@@ -181,7 +196,6 @@ def logout():
 
 @app.route('/internal/forward_data', methods=['POST'])
 def receive_data_from_bridge():
-    """Webhook che riceve i dati dal Bridge UDP e li inoltra alla Dashboard."""
     try:
         data = request.json
         if not data: return jsonify({"status": "error"}), 400
@@ -197,22 +211,59 @@ def receive_data_from_bridge():
             mode = payload.get('mode')
             version = payload.get('version')
             
-            # Aggiorna registro
             has_changed = registry.update_device(device_id, ip_info, msg_type, mode, version)
-            
-            # Invia evento al frontend
             socketio.emit('esp_event', data)
             
-            # Aggiorna la sidebar se ci sono cambi di stato/modalità
             if has_changed:
                 active_devs, _ = registry.get_active_devices()
                 socketio.emit('devices_update', active_devs)
 
         return jsonify({"status": "ok"}), 200
-
     except Exception as e:
         logger.error(f"Errore forward: {e}")
         return jsonify({"status": "error"}), 500
+
+# --- WEBSOCKET EVENTI ROSTER ARENA ---
+@socketio.on('request_roster')
+def handle_request_roster():
+    broadcast_roster()
+
+@socketio.on('register_operator')
+def handle_register_operator(data):
+    uid = data.get('uid')
+    team = data.get('team')
+    if not uid or not team: return
+    
+    with sqlite3.connect(DB_PATH) as conn:
+        c = conn.cursor()
+        # Se il giocatore non esiste nel DB generale, lo crea
+        c.execute("INSERT OR IGNORE INTO players (uid, alias) VALUES (?, ?)", (uid, f"OP-{uid[:4]}"))
+        # Lo inserisce nel roster attivo di oggi
+        c.execute("INSERT OR REPLACE INTO active_roster (uid, team, status) VALUES (?, ?, 'FUORI')", (uid, team))
+        conn.commit()
+    logger.info(f"[ARENA] Registrato operatore {uid} nel {team}")
+    broadcast_roster()
+
+@socketio.on('update_operator')
+def handle_update_operator(data):
+    uid = data.get('uid')
+    action = data.get('action')
+    value = data.get('value')
+    
+    with sqlite3.connect(DB_PATH) as conn:
+        c = conn.cursor()
+        if action == 'rename':
+            c.execute("UPDATE players SET alias = ? WHERE uid = ?", (value, uid))
+        elif action == 'swap':
+            c.execute("UPDATE active_roster SET team = CASE WHEN team='ALPHA' THEN 'BRAVO' ELSE 'ALPHA' END WHERE uid = ?", (uid,))
+        elif action == 'status_toggle':
+            c.execute("UPDATE active_roster SET status = CASE WHEN status='IN' THEN 'FUORI' ELSE 'IN' END WHERE uid = ?", (uid,))
+        elif action == 'delete':
+            c.execute("DELETE FROM active_roster WHERE uid = ?", (uid,))
+        conn.commit()
+    broadcast_roster()
+
+# -------------------------------------
 
 @socketio.on('rename_device')
 def handle_rename(data):
@@ -230,7 +281,6 @@ def handle_manual_scan():
 
 @socketio.on('send_command')
 def handle_socket_command(data):
-    """Inoltra i comandi dalla Dashboard web al Bridge UDP."""
     BRIDGE_IP, BRIDGE_PORT = '127.0.0.1', 1234
     try:
         target_id = data.get('target_id')
@@ -238,7 +288,6 @@ def handle_socket_command(data):
         cmd_str = json.dumps(command_obj) if isinstance(command_obj, dict) else command_obj
         
         payload = {"target_id": target_id, "command": cmd_str}
-        
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.sendto(json.dumps(payload).encode('utf-8'), (BRIDGE_IP, BRIDGE_PORT))
     except Exception as e:
