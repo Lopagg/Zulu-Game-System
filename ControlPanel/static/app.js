@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const views = {
         'hub': document.getElementById('view-hub'),
+        'select-target': document.getElementById('view-select-target'),
         'setup': document.getElementById('view-setup'),
         'monitor': document.getElementById('view-monitor'),
         'inspector': document.getElementById('view-inspector'),
@@ -24,10 +25,12 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if(viewName === 'hub') {
             activeInspectorId = null;
+            monitoredDeviceId = null; 
             lastConfiguredMode = null;
             document.querySelectorAll('.device-item').forEach(el => el.classList.remove('active'));
         }
         
+        // --- CARICA IL DB QUANDO SI APRE L'ARCHIVIO ---
         if(viewName === 'arena-db') {
             socket.emit('request_database');
         }
@@ -44,6 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const elGlobalTimer = document.getElementById('global-timer-display');
     const elScoreA = document.getElementById('score-a');
     const elScoreB = document.getElementById('score-b');
+    const elMonitorTargetId = document.getElementById('monitoring-target-id');
 
     const elSdBombStatus = document.getElementById('sd-bomb-status');
     const elSdBombTimer = document.getElementById('sd-bomb-timer');
@@ -65,6 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const elInspFwVer = document.getElementById('insp-fw-ver');
     
     let activeInspectorId = null;
+    let monitoredDeviceId = null;
     let currentDevices = [];
     let lastConfiguredMode = null; 
     let arenaRoster = {}; 
@@ -97,6 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderArenaRoster();
     });
 
+    // --- RICEZIONE AGGIORNAMENTI DATABASE STORICO ---
     socket.on('database_update', (players) => {
         const dbList = document.getElementById('db-list');
         const dbCount = document.getElementById('db-total-count');
@@ -157,7 +163,16 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('devices_update', (devices) => {
         currentDevices = devices;
         updateDeviceList(devices);
+        
+        if (!views['select-target'].classList.contains('hidden')) {
+            renderTargetSelection();
+        }
         updateSetupDropdown();
+
+        if (monitoredDeviceId) {
+            const dev = devices.find(d => d.id === monitoredDeviceId);
+            if (dev && dev.mode) updateMonitorLayout(dev.mode);
+        }
     });
 
     socket.on('esp_event', (msg) => {
@@ -296,6 +311,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if(headerBravoIn) headerBravoIn.textContent = `BRAVO IN CAMPO (${bravoInCount})`;
         if(headerBravoOut) headerBravoOut.textContent = `BRAVO FUORI (${bravoOutCount})`;
         if(trackInCount) trackInCount.textContent = inFieldCount;
+
+        // 3. AGGIORNAMENTO PANNELLO "OPERATOR COUNT" NELLA DASHBOARD TATTICA
+        if (elScoreA) elScoreA.textContent = alphaInCount;
+        if (elScoreB) elScoreB.textContent = bravoInCount;
     }
 
     function updateDeviceList(devices) {
@@ -365,8 +384,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if(elSdDefuseBar) elSdDefuseBar.style.width = "0%";
         if(elSdRulesList) elSdRulesList.innerHTML = '<li>WAITING FOR TELEMETRY...</li>';
         if(elGlobalTimer) elGlobalTimer.textContent = "--:--";
-        if(elScoreA) elScoreA.textContent = "0";
-        if(elScoreB) elScoreB.textContent = "0";
     }
 
     function openInspector(device) {
@@ -414,7 +431,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnForceEnd = document.getElementById('btn-force-end');
     if(btnForceEnd) btnForceEnd.addEventListener('click', () => {
         if(confirm("ATTENZIONE: Terminare forzatamente la partita?")) {
-            // Inviamo il comando in broadcast, o logghiamo se implementato in seguito
             logSystem(`SENDING GLOBAL TERMINATION SIGNAL...`);
         }
     });
@@ -460,11 +476,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const s = payload.time_left % 60;
                 elGlobalTimer.textContent = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
             }
-            if (payload.t1_poss !== undefined && elScoreA) elScoreA.textContent = payload.t1_poss;
-            if (payload.t2_poss !== undefined && elScoreB) elScoreB.textContent = payload.t2_poss;
         }
 
-        // --- GESTIONE EVENTI GLOBALI (senza filtrare per monitoredDeviceId) ---
         let mode = payload.mode || (type === 'SD_UPDATE' ? 'SEARCH_AND_DESTROY' : (type === 'DOM_UPDATE' ? 'DOMINATION' : null));
         if (mode === 'SEARCH_DESTROY') mode = 'SEARCH_AND_DESTROY';
 
@@ -486,8 +499,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if(elDomValA) elDomValA.textContent = "0";
             if(elDomValB) elDomValB.textContent = "0";
-            if(elScoreA) elScoreA.textContent = "0";
-            if(elScoreB) elScoreB.textContent = "0";
             
             if(elSdBombStatus) {
                 elSdBombStatus.textContent = "PREPARING";
