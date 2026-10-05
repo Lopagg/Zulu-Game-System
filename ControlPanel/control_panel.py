@@ -304,8 +304,9 @@ def receive_data_from_bridge():
                     broadcast_roster()
             # ----------------------------------------------
             
-            mode = payload.get('mode')
-            version = payload.get('version')
+            mode = payload.get('mode') or parsed.get('mode')
+            version = payload.get('version') or parsed.get('version')
+            
             has_changed = registry.update_device(device_id, ip_info, msg_type, mode, version)
             
             if msg_type not in ['TAG_SCANNED', 'TAG_ASSIGN']:

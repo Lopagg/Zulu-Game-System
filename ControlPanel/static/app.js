@@ -556,8 +556,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const li = document.createElement('li');
             li.className = `device-item ${cssClass}`;
             if (device.id === activeInspectorId) li.classList.add('active'); 
+            const isKiosk = device.mode === 'KIOSK';
+            const iconLetter = isKiosk ? 'K' : 'N';
+            const iconStyle = isKiosk ? 'background: var(--sop-secondary); color: #000;' : '';
+
             li.innerHTML = `
-                <div class="device-icon">N</div>
+                <div class="device-icon" style="${iconStyle}">${iconLetter}</div>
                 <div class="device-info">
                     <span class="device-id">${displayName}</span>
                     <span class="device-mode">${device.mode || 'UNKNOWN'}</span>
@@ -707,7 +711,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const payload = raw.payload || {};
         const shortId = senderId.slice(-4);
 
-        if (type !== 'TIME_UPDATE' && type !== 'SD_UPDATE' && type !== 'DOM_UPDATE' && type !== 'TDM_UPDATE') {
+        if (!['TIME_UPDATE', 'SD_UPDATE', 'DOM_UPDATE', 'TDM_UPDATE', 'HEARTBEAT'].includes(type)) {
             logSystem(`[${shortId}] ${type}`);
         }
 
