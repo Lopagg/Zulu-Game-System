@@ -144,6 +144,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // --- GESTIONE PULSANTI FISICI KIOSK ---
+    socket.on('kiosk_hardware_cmd', (data) => {
+        if (data.cmd === 'GAME_START') {
+            const btnStart = document.getElementById('btn-start-mission');
+            if (btnStart) {
+                logSystem("KIOSK: Rilevato pulsante hardware START.");
+                btnStart.click(); // Avvia la missione leggendo i dati dalla pagina web
+            }
+        } else if (data.cmd === 'FORCE_END_GAME') {
+            const btnEnd = document.getElementById('btn-force-end');
+            if (btnEnd) {
+                logSystem("KIOSK: Rilevato pulsante hardware END.");
+                btnEnd.click(); // Interrompe in sicurezza
+            }
+        }
+    });
+
     socket.on('database_update', (players) => {
         globalPlayersDB = players; // Salviamo nel database locale JS
         
