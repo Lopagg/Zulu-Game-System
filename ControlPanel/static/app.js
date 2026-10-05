@@ -635,6 +635,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if(elInspState) elInspState.textContent = device.status || 'UNKNOWN';
         if(elInspIp) elInspIp.textContent = device.ip || 'UNKNOWN';
         if(elInspFwVer) elInspFwVer.textContent = `FW_VER: ${device.version || '--'}`;
+
+        // --- NUOVO: AGGIORNA LA DESCRIZIONE IN BASE AL TIPO DI DISPOSITIVO ---
+        const descTitle = document.querySelector('.asset-desc h4');
+        const descText = document.querySelector('.asset-desc .desc-text');
+        
+        if (device.mode === 'KIOSK') {
+            if(descTitle) descTitle.textContent = "PHILANTHROPY TACTICAL KIOSK";
+            if(descText) descText.textContent = "Terminale logistico RFID per l'identificazione, l'ingresso e lo smistamento degli operatori in campo.";
+        } else {
+            if(descTitle) descTitle.textContent = "PHILANTHROPY TACTICAL NODE (MK-I)";
+            if(descText) descText.textContent = "Terminale tattico multi-ruolo basato su architettura ESP32.";
+        }
     }
 
     const btnModeObserve = document.getElementById('btn-mode-observe');
