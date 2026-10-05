@@ -44,10 +44,8 @@ DB_PATH = 'philanthropy_arena.db'
 def init_db():
     with sqlite3.connect(DB_PATH) as conn:
         c = conn.cursor()
-        # Tabella dell'anagrafica globale (permanente)
         c.execute('''CREATE TABLE IF NOT EXISTS players
                      (uid TEXT PRIMARY KEY, alias TEXT, games_played INTEGER DEFAULT 0, wins INTEGER DEFAULT 0)''')
-        # Tabella temporanea per i giocatori attualmente in campo
         c.execute('''CREATE TABLE IF NOT EXISTS active_roster
                      (uid TEXT PRIMARY KEY, team TEXT, status TEXT)''')
         conn.commit()
@@ -55,7 +53,6 @@ def init_db():
 init_db()
 
 def broadcast_roster():
-    """Legge il roster dal DB e lo invia a tutti i client web connessi."""
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
         c = conn.cursor()
@@ -85,11 +82,8 @@ class DeviceRegistry:
         with self.lock:
             if device_id not in self.devices:
                 self.devices[device_id] = {
-                    "id": device_id,
-                    "name": device_id,
-                    "type": "NODE",
-                    "mode": "BOOTING...",
-                    "version": "Unknown"
+                    "id": device_id, "name": device_id, "type": "NODE",
+                    "mode": "BOOTING...", "version": "Unknown"
                 }
                 changed = True 
             
@@ -126,37 +120,82 @@ class DeviceRegistry:
         to_remove = []
         active_list = []
         needs_update = False
-
         with self.lock:
             for d_id, data in self.devices.items():
                 if now - data["last_seen"] > self.timeout_seconds:
                     to_remove.append(d_id)
                 else:
                     active_list.append(data)
-            
             for d_id in to_remove:
                 del self.devices[d_id]
                 needs_update = True
-            
         return active_list, needs_update
 
 registry = DeviceRegistry()
 background_thread_started = False
 
+# --- GESTORE TDM VIRTUALE ---
+tdm_state = { "active": False, "time_left": 0, "duration": 0 }
+
 def background_cleanup():
-    logger.info("[SYSTEM] Task di Pulizia AVVIATO.")
+    logger.info("[SYSTEM] Task di Pulizia e Arbitro TDM AVVIATO.")
+    tick_counter = 0
     while True:
-        socketio.sleep(2) 
-        try:
-            active_devs, removed_something = registry.get_active_devices()
-            if removed_something:
-                logger.info(f"[SYSTEM] Dispositivo disconnesso. Nodi rimasti: {len(active_devs)}")
-                socketio.emit('devices_update', active_devs)
-        except Exception as e:
-            logger.error(f"[CRITICAL] Errore nel thread di pulizia: {e}")
+        socketio.sleep(1) # Eseguito ogni secondo per il timer TDM
+        tick_counter += 1
+        
+        # --- CICLO PARTITA TDM VIRTUALE ---
+        if tdm_state['active']:
+            if tdm_state['time_left'] > 0:
+                tdm_state['time_left'] -= 1
+                
+                with sqlite3.connect(DB_PATH) as conn:
+                    c = conn.cursor()
+                    c.execute("SELECT team FROM active_roster WHERE status='IN'")
+                    players = c.fetchall()
+                    alpha_in = sum(1 for p in players if p[0] == 'ALPHA')
+                    bravo_in = sum(1 for p in players if p[0] == 'BRAVO')
+                
+                state_str = "ACTIVE"
+                # Condizioni di Vittoria Anticipata
+                if alpha_in == 0 and bravo_in > 0:
+                    tdm_state['active'] = False
+                    state_str = "BRAVO WINS"
+                elif bravo_in == 0 and alpha_in > 0:
+                    tdm_state['active'] = False
+                    state_str = "ALPHA WINS"
+                elif alpha_in == 0 and bravo_in == 0:
+                    tdm_state['active'] = False
+                    state_str = "DRAW"
+                # Scadenza Timer
+                elif tdm_state['time_left'] == 0:
+                    tdm_state['active'] = False
+                    if alpha_in > bravo_in: state_str = "ALPHA WINS"
+                    elif bravo_in > alpha_in: state_str = "BRAVO WINS"
+                    else: state_str = "DRAW"
+                
+                doc = {
+                    "id": "SERVER-TDM",
+                    "type": "TDM_UPDATE",
+                    "payload": {
+                        "mode": "TEAM_DEATHMATCH",
+                        "state": state_str,
+                        "game_time": tdm_state['time_left']
+                    }
+                }
+                socketio.emit('esp_event', {"parsed_data": doc})
+        
+        # --- PULIZIA DISPOSITIVI (eseguita ogni 2 secondi) ---
+        if tick_counter % 2 == 0:
+            try:
+                active_devs, removed_something = registry.get_active_devices()
+                if removed_something:
+                    logger.info(f"[SYSTEM] Dispositivo disconnesso. Nodi rimasti: {len(active_devs)}")
+                    socketio.emit('devices_update', active_devs)
+            except Exception as e:
+                logger.error(f"[CRITICAL] Errore nel thread di pulizia: {e}")
 
 # --- ROUTES & WEBSOCKETS ---
-
 @socketio.on('connect')
 def handle_connect():
     global background_thread_started
@@ -167,7 +206,6 @@ def handle_connect():
     active_devs, _ = registry.get_active_devices()
     emit('devices_update', active_devs)
     broadcast_roster()
-    logger.info(f"[SYSTEM] Client connesso: {request.sid}")
 
 @app.route('/')
 @login_required
@@ -207,9 +245,6 @@ def receive_data_from_bridge():
         payload = parsed.get('payload', {})
         
         if device_id:
-            # --- GESTIONE KIOSK CENTRALIZZATA IN PYTHON ---
-            
-            # 1. Azione di Toggle (Tessera strisciata senza premere tasti)
             if msg_type == 'TAG_SCANNED':
                 uid = payload.get('uid')
                 if uid:
@@ -221,34 +256,23 @@ def receive_data_from_bridge():
                             new_status = 'FUORI' if row[0] == 'IN' else 'IN'
                             c.execute("UPDATE active_roster SET status = ? WHERE uid = ?", (new_status, uid))
                             conn.commit()
-                            logger.info(f"[KIOSK] Operatore {uid} cambiato in stato: {new_status}")
                             broadcast_roster()
-                        else:
-                            logger.info(f"[KIOSK] Tessera {uid} non nel roster. Prego assegnare squadra.")
             
-            # 2. Azione di Assegnazione (Tessera strisciata + Bottone premuto)
             elif msg_type == 'TAG_ASSIGN':
                 uid = payload.get('uid')
                 team = payload.get('team')
                 if uid and team:
                     with sqlite3.connect(DB_PATH) as conn:
                         c = conn.cursor()
-                        # Registra l'utente globalmente se non esiste
                         c.execute("INSERT OR IGNORE INTO players (uid, alias) VALUES (?, ?)", (uid, f"OP-{uid[:4]}"))
-                        # Lo inserisce/aggiorna nel roster di oggi (di default FUORI)
                         c.execute("INSERT OR REPLACE INTO active_roster (uid, team, status) VALUES (?, ?, 'FUORI')", (uid, team))
                         conn.commit()
-                    logger.info(f"[KIOSK] Operatore {uid} assegnato al team {team}")
                     broadcast_roster()
-            # ----------------------------------------------
             
             mode = payload.get('mode')
             version = payload.get('version')
-            
             has_changed = registry.update_device(device_id, ip_info, msg_type, mode, version)
             
-            # I messaggi del Kiosk non vengono più mandati a JS (perché gestiti qui sopra), 
-            # così evitiamo sovrapposizioni e appesantimenti del browser.
             if msg_type not in ['TAG_SCANNED', 'TAG_ASSIGN']:
                 socketio.emit('esp_event', data)
             
@@ -271,13 +295,11 @@ def handle_register_operator(data):
     uid = data.get('uid')
     team = data.get('team')
     if not uid or not team: return
-    
     with sqlite3.connect(DB_PATH) as conn:
         c = conn.cursor()
         c.execute("INSERT OR IGNORE INTO players (uid, alias) VALUES (?, ?)", (uid, f"OP-{uid[:4]}"))
         c.execute("INSERT OR REPLACE INTO active_roster (uid, team, status) VALUES (?, ?, 'FUORI')", (uid, team))
         conn.commit()
-    logger.info(f"[ARENA] Registrato operatore {uid} nel {team}")
     broadcast_roster()
 
 @socketio.on('update_operator')
@@ -285,7 +307,6 @@ def handle_update_operator(data):
     uid = data.get('uid')
     action = data.get('action')
     value = data.get('value')
-    
     with sqlite3.connect(DB_PATH) as conn:
         c = conn.cursor()
         if action == 'rename':
@@ -304,7 +325,6 @@ def handle_clear_roster():
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute("DELETE FROM active_roster")
         conn.commit()
-    logger.info("[ARENA] Roster attivo resettato.")
     broadcast_roster()
 
 # --- WEBSOCKET EVENTI DATABASE GLOBALE ---
@@ -322,7 +342,6 @@ def handle_update_db_player(data):
     uid = data.get('uid')
     action = data.get('action')
     value = data.get('value')
-    
     with sqlite3.connect(DB_PATH) as conn:
         if action == 'rename':
             conn.execute("UPDATE players SET alias = ? WHERE uid = ?", (value, uid))
@@ -332,6 +351,21 @@ def handle_update_db_player(data):
         conn.commit()
     broadcast_roster()
     handle_request_database()
+
+# --- EVENTI SERVER-TDM ---
+@socketio.on('start_tdm_game')
+def handle_start_tdm(data):
+    dur = data.get('duration', 15)
+    tdm_state['active'] = True
+    tdm_state['duration'] = dur * 60
+    tdm_state['time_left'] = dur * 60
+    
+    doc = { "id": "SERVER-TDM", "type": "MODE_ENTER", "payload": {"mode": "TEAM_DEATHMATCH"} }
+    socketio.emit('esp_event', {"parsed_data": doc})
+    
+    rules_doc = { "id": "SERVER-TDM", "type": "SETTINGS_UPDATE", "payload": {"mode": "TEAM_DEATHMATCH", "game_duration": dur} }
+    socketio.emit('esp_event', {"parsed_data": rules_doc})
+    logger.info(f"[TDM] Partita Deathmatch avviata: {dur} minuti")
 
 # -------------------------------------
 
@@ -356,6 +390,23 @@ def handle_socket_command(data):
         target_id = data.get('target_id')
         command_obj = data.get('command')
         cmd_str = json.dumps(command_obj) if isinstance(command_obj, dict) else command_obj
+        
+        # Intercetta comandi rivolti al server TDM per terminazioni anticipate manuali
+        if target_id == "SERVER-TDM":
+            if "FORCE_END_GAME" in cmd_str or "FORCE_WIN" in cmd_str:
+                tdm_state['active'] = False
+                state_str = "STOPPED"
+                if "FORCE_WIN" in cmd_str:
+                    if "ALPHA" in cmd_str: state_str = "ALPHA WINS"
+                    elif "BRAVO" in cmd_str: state_str = "BRAVO WINS"
+                
+                doc = {
+                    "id": "SERVER-TDM",
+                    "type": "TDM_UPDATE",
+                    "payload": { "mode": "TEAM_DEATHMATCH", "state": state_str, "game_time": tdm_state['time_left'] }
+                }
+                socketio.emit('esp_event', {"parsed_data": doc})
+                return
         
         payload = {"target_id": target_id, "command": cmd_str}
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)

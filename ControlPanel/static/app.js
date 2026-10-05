@@ -71,7 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentDevices = [];
     let lastConfiguredMode = null; 
     let arenaRoster = {}; 
-    let currentGameState = 'STANDBY'; // Traccia lo stato esatto della partita per gli automatismi
+    let currentGameState = 'STANDBY'; 
 
     let debounceTimer1 = null;
     let debounceTimer2 = null;
@@ -300,27 +300,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (elScoreA) elScoreA.textContent = alphaInCount;
         if (elScoreB) elScoreB.textContent = bravoInCount;
-
-        // --- CONTROLLO ELIMINAZIONE SQUADRA AUTOMATICA (TDM MECHANIC) ---
-        // Verifichiamo se lo stato attuale indica una partita "in corso" e non già terminata o in attesa
-        const activeStates = ['SAFE', 'ARMING...', 'ARMED', 'DEFUSING...', 'NEUTRAL', 'OWNED ALPHA', 'OWNED BRAVO', 'CAPTURING A...', 'CAPTURING B...'];
-        const gameIsRunning = activeStates.includes(currentGameState) && activeGameNodeId !== null;
-
-        if (gameIsRunning) {
-            if (alphaInCount === 0 && bravoInCount > 0) {
-                logSystem("!!! TEAM ALPHA ELIMINATO - VITTORIA BRAVO !!!");
-                socket.emit('send_command', { target_id: activeGameNodeId, command: { cmd: "FORCE_WIN", winner: "BRAVO" } });
-                currentGameState = 'BRAVO WINS'; // Previene trigger multipli successivi
-            } else if (bravoInCount === 0 && alphaInCount > 0) {
-                logSystem("!!! TEAM BRAVO ELIMINATO - VITTORIA ALPHA !!!");
-                socket.emit('send_command', { target_id: activeGameNodeId, command: { cmd: "FORCE_WIN", winner: "ALPHA" } });
-                currentGameState = 'ALPHA WINS'; 
-            } else if (alphaInCount === 0 && bravoInCount === 0) {
-                logSystem("!!! MUTUA DISTRUZIONE - PARTITA TERMINATA !!!");
-                socket.emit('send_command', { target_id: activeGameNodeId, command: { cmd: "FORCE_END_GAME" } });
-                currentGameState = 'DRAW';
-            }
-        }
     }
 
     function updateDeviceList(devices) {
@@ -353,23 +332,32 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateMonitorLayout(mode) {
         if (!mode || mode === lastConfiguredMode) return;
         lastConfiguredMode = mode;
-        if (mode === 'SEARCH_AND_DESTROY' || mode === 'DOMINATION') {
+        if (mode === 'SEARCH_AND_DESTROY' || mode === 'DOMINATION' || mode === 'TEAM_DEATHMATCH') {
             elWidgetSdTactical.classList.remove('hidden');
             elWidgetSdRules.classList.remove('hidden');
             elWidgetGenericMap.classList.add('hidden');
+            
+            const progSection = document.querySelector('.progress-section');
             
             if (mode === 'SEARCH_AND_DESTROY') {
                 if(elTacticalTitle) elTacticalTitle.textContent = "TACTICAL FEED // BOMB STATUS";
                 if(elBombContainer) elBombContainer.classList.remove('hidden'); 
                 if(elDomScores) elDomScores.classList.add('hidden');
+                if(progSection) progSection.classList.remove('hidden');
                 if(elLblProg1) elLblProg1.textContent = "ARMING PROGRESS";
                 if(elLblProg2) elLblProg2.textContent = "DEFUSING PROGRESS";
             } else if (mode === 'DOMINATION') {
                 if(elTacticalTitle) elTacticalTitle.textContent = "TACTICAL FEED // ZONE CONTROL";
                 if(elBombContainer) elBombContainer.classList.add('hidden');    
                 if(elDomScores) elDomScores.classList.remove('hidden');
+                if(progSection) progSection.classList.remove('hidden');
                 if(elLblProg1) elLblProg1.textContent = "ALPHA ACTION";
                 if(elLblProg2) elLblProg2.textContent = "BRAVO ACTION";
+            } else if (mode === 'TEAM_DEATHMATCH') {
+                if(elTacticalTitle) elTacticalTitle.textContent = "TACTICAL FEED // TDM";
+                if(elBombContainer) elBombContainer.classList.add('hidden');    
+                if(elDomScores) elDomScores.classList.add('hidden');
+                if(progSection) progSection.classList.add('hidden'); // Nasconde le barre
             }
             if(elSdArmBar) elSdArmBar.style.width = "0%";
             if(elSdDefuseBar) elSdDefuseBar.style.width = "0%";
@@ -440,7 +428,7 @@ document.addEventListener('DOMContentLoaded', () => {
             alert("Nessuna partita attiva rilevata sul campo.");
             return;
         }
-        if(confirm("ATTENZIONE: Terminare forzatamente la partita sul nodo attivo?")) {
+        if(confirm("ATTENZIONE: Terminare forzatamente la partita?")) {
             socket.emit('send_command', { target_id: activeGameNodeId, command: { cmd: "FORCE_END_GAME" } });
             logSystem(`SENDING TERMINATION SIGNAL TO NODE [${activeGameNodeId.slice(-4)}]...`);
         }
@@ -467,11 +455,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const payload = raw.payload || {};
         const shortId = senderId.slice(-4);
 
-        if (type !== 'TIME_UPDATE' && type !== 'SD_UPDATE' && type !== 'DOM_UPDATE') {
+        if (type !== 'TIME_UPDATE' && type !== 'SD_UPDATE' && type !== 'DOM_UPDATE' && type !== 'TDM_UPDATE') {
             logSystem(`[${shortId}] ${type}`);
         }
 
-        if (['MODE_ENTER', 'COUNTDOWN_UPDATE', 'SD_UPDATE', 'DOM_UPDATE', 'TIME_UPDATE'].includes(type)) {
+        if (['MODE_ENTER', 'COUNTDOWN_UPDATE', 'SD_UPDATE', 'DOM_UPDATE', 'TIME_UPDATE', 'TDM_UPDATE'].includes(type)) {
             activeGameNodeId = senderId;
         }
 
@@ -493,7 +481,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        let mode = payload.mode || (type === 'SD_UPDATE' ? 'SEARCH_AND_DESTROY' : (type === 'DOM_UPDATE' ? 'DOMINATION' : null));
+        let mode = payload.mode || (type === 'SD_UPDATE' ? 'SEARCH_AND_DESTROY' : (type === 'DOM_UPDATE' ? 'DOMINATION' : (type === 'TDM_UPDATE' ? 'TEAM_DEATHMATCH' : null)));
         if (mode === 'SEARCH_DESTROY') mode = 'SEARCH_AND_DESTROY';
 
         if (type === 'MODE_EXIT') {
@@ -523,7 +511,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        if (mode && (type === 'HEARTBEAT' || type === 'MODE_ENTER' || type === 'SD_UPDATE' || type === 'DOM_UPDATE' || type === 'SETTINGS_UPDATE')) {
+        if (mode && (type === 'HEARTBEAT' || type === 'MODE_ENTER' || type === 'SD_UPDATE' || type === 'DOM_UPDATE' || type === 'SETTINGS_UPDATE' || type === 'TDM_UPDATE')) {
             updateMonitorLayout(mode);
         }
         
@@ -531,12 +519,16 @@ document.addEventListener('DOMContentLoaded', () => {
             renderRules(payload);
         }
 
-        if (type === 'SD_UPDATE' || type === 'DOM_UPDATE') {
+        if (type === 'SD_UPDATE' || type === 'DOM_UPDATE' || type === 'TDM_UPDATE') {
             const isDom = (type === 'DOM_UPDATE');
+            const isTdm = (type === 'TDM_UPDATE');
             
             if (isDom) {
                 if (elBombContainer) elBombContainer.classList.add('hidden');
                 if (elDomScores) elDomScores.classList.remove('hidden');
+            } else if (isTdm) {
+                if (elBombContainer) elBombContainer.classList.add('hidden');
+                if (elDomScores) elDomScores.classList.add('hidden');
             } else {
                 if (elBombContainer) elBombContainer.classList.remove('hidden');
                 if (elDomScores) elDomScores.classList.add('hidden');
@@ -544,14 +536,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (payload.state && elSdBombStatus) {
-                currentGameState = payload.state; // Assicura che la variabile combaci con l'hardware
+                currentGameState = payload.state;
                 elSdBombStatus.textContent = payload.state;
                 const s = payload.state;
                 if (s.includes('DEFUS') || s.includes('CT WINS') || s.includes('CAPTURING B') || s.includes('OWNED BRAVO') || s.includes('BRAVO WINS')) {
                     elSdBombStatus.style.color = '#55ff55'; 
                 } else if (s.includes('ARM') || s.includes('EXPLODED') || s.includes('T WINS') || s.includes('CAPTURING A') || s.includes('OWNED ALPHA') || s.includes('ALPHA WINS')) {
                     elSdBombStatus.style.color = 'var(--sop-alert)'; 
-                } else if (s === 'STANDBY' || s === 'PREPARING') {
+                } else if (s === 'STANDBY' || s === 'PREPARING' || s === 'DRAW') {
                     elSdBombStatus.style.color = '#ff9900'; 
                 } else {
                     elSdBombStatus.style.color = 'var(--sop-primary)';
@@ -563,7 +555,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const s = payload.game_time % 60;
                 elGlobalTimer.textContent = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
             }
-            if (!isDom && payload.bomb_time !== undefined && elSdBombTimer) {
+            if (!isDom && !isTdm && payload.bomb_time !== undefined && elSdBombTimer) {
                 const bm = Math.floor(payload.bomb_time / 60);
                 const bs = payload.bomb_time % 60;
                 elSdBombTimer.textContent = `${bm.toString().padStart(2, '0')}:${bs.toString().padStart(2, '0')}`;
@@ -588,10 +580,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let width1 = 0, width2 = 0, bar1Active = false, bar2Active = false;
 
-            if (!isDom) {
+            if (!isDom && !isTdm) {
                 if(payload.arm_prog !== undefined) { width1 = payload.arm_prog; bar1Active = width1 > 0; }
                 if(payload.def_prog !== undefined) { width2 = payload.def_prog; bar2Active = width2 > 0; }
-            } else {
+            } else if (isDom) {
                 const prog = payload.capture_prog || 0;
                 const state = payload.state || '';
                 if (state.includes('CAPTURING A')) { width1 = prog; bar1Active = true; }
@@ -625,7 +617,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const btnForceEnd = document.getElementById('btn-force-end');
         if (btnForceEnd) {
             const footer = btnForceEnd.parentElement;
-            const activeStates = ['SAFE', 'ARMING...', 'ARMED', 'DEFUSING...', 'NEUTRAL', 'OWNED ALPHA', 'OWNED BRAVO', 'CAPTURING A...', 'CAPTURING B...'];
+            const activeStates = ['SAFE', 'ARMING...', 'ARMED', 'DEFUSING...', 'NEUTRAL', 'OWNED ALPHA', 'OWNED BRAVO', 'CAPTURING A...', 'CAPTURING B...', 'ACTIVE'];
             if (activeStates.includes(state)) footer.classList.remove('hidden');
             else footer.classList.add('hidden');
         }
@@ -668,12 +660,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (elSetupModeSelect) {
         elSetupModeSelect.addEventListener('change', (e) => {
+            if(elSetupSdParams) elSetupSdParams.classList.add('hidden');
+            if(elSetupDomParams) elSetupDomParams.classList.add('hidden');
+            const tdmParams = document.getElementById('setup-tdm-params');
+            if(tdmParams) tdmParams.classList.add('hidden');
+
+            const targetRow = document.getElementById('target-selection-row');
+
             if (e.target.value === 'sd') {
-                elSetupSdParams.classList.remove('hidden');
-                elSetupDomParams.classList.add('hidden');
-            } else {
-                elSetupSdParams.classList.add('hidden');
-                elSetupDomParams.classList.remove('hidden');
+                if(elSetupSdParams) elSetupSdParams.classList.remove('hidden');
+                if(targetRow) targetRow.classList.remove('hidden');
+            } else if (e.target.value === 'dom') {
+                if(elSetupDomParams) elSetupDomParams.classList.remove('hidden');
+                if(targetRow) targetRow.classList.remove('hidden');
+            } else if (e.target.value === 'tdm') {
+                if(tdmParams) tdmParams.classList.remove('hidden');
+                if(targetRow) targetRow.classList.add('hidden');
             }
         });
     }
@@ -689,9 +691,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (btnTransmitSetup) {
         btnTransmitSetup.addEventListener('click', () => {
+            const mode = elSetupModeSelect.value;
+            if (mode === 'tdm') {
+                alert("Il Team Deathmatch è gestito dal server, non richiede l'invio di configurazioni hardware.");
+                return;
+            }
+
             const targetId = elSetupTargetSelect.value;
             if (!targetId) { alert("Seleziona un nodo di destinazione."); return; }
-            const mode = elSetupModeSelect.value;
             let commandData = {};
 
             if (mode === 'sd') {
@@ -721,8 +728,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (btnStartMission) {
         btnStartMission.addEventListener('click', () => {
+            const mode = elSetupModeSelect.value;
             const targetId = elSetupTargetSelect.value;
-            if (!targetId) { alert("Seleziona un nodo di destinazione."); return; }
+            
+            if (mode !== 'tdm' && !targetId) { alert("Seleziona un nodo di destinazione."); return; }
 
             const players = Object.values(arenaRoster);
             const playersOut = players.filter(p => p.status !== 'IN');
@@ -753,9 +762,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            const mode = elSetupModeSelect.value;
-            let commandData = { cmd: (mode === 'sd') ? "START_SD_GAME" : "START_DOM_GAME" };
+            if (mode === 'tdm') {
+                const dur = parseInt(document.getElementById('tdm-game-dur').value) || 15;
+                socket.emit('start_tdm_game', { duration: dur });
+                logSystem(`START MISSION: TEAM DEATHMATCH (${dur} min).`);
+                resetMonitorData();
+                showView('monitor');
+                return;
+            }
 
+            let commandData = { cmd: (mode === 'sd') ? "START_SD_GAME" : "START_DOM_GAME" };
             socket.emit('send_command', { target_id: targetId, command: commandData });
             logSystem(`START MISSION SIGNAL SENT TO ${targetId}.`);
             

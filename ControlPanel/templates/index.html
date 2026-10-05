@@ -9,7 +9,7 @@
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=9">
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-    <script src="{{ url_for('static', filename='app.js') }}?v=10" defer></script>
+    <script src="{{ url_for('static', filename='app.js') }}?v=11" defer></script>
 </head>
 <body class="sop-theme">
 
@@ -96,8 +96,6 @@
                 </div>
             </div>
 
-            <!-- view-select-target rimosso -->
-
             <div id="view-setup" class="view-panel hidden">
                 <div class="sop-card setup-panel">
                     <div class="panel-header">
@@ -105,23 +103,35 @@
                         <button class="back-btn deck-btn" onclick="showView('hub')">[ CANCEL ]</button>
                     </div>
                     <div class="panel-body">
-                        <!-- Selezione Target rimane per sapere a quale nodo inviare i comandi di start, per le modalità che lo richiedono -->
+                        
                         <div class="input-group-tactical" style="margin-bottom: 25px;">
+                            <label class="setup-label">SELECT OPERATION MODE:</label>
+                            <select id="setup-mode-select" class="tactical-select">
+                                <option value="sd">SEARCH & DESTROY</option>
+                                <option value="dom">DOMINATION</option>
+                                <option value="tdm">TEAM DEATHMATCH</option>
+                            </select>
+                        </div>
+
+                        <div id="target-selection-row" class="input-group-tactical" style="margin-bottom: 25px;">
                             <label class="setup-label">SELECT TARGET TERMINAL:</label>
                             <select id="setup-target-select" class="tactical-select">
                                 <option value="">-- Seleziona un nodo in Modalità Terminale --</option>
                             </select>
                         </div>
 
-                        <div class="input-group-tactical" style="margin-bottom: 25px;">
-                            <label class="setup-label">SELECT OPERATION MODE:</label>
-                            <select id="setup-mode-select" class="tactical-select">
-                                <option value="sd">SEARCH & DESTROY</option>
-                                <option value="dom">DOMINATION</option>
-                            </select>
-                        </div>
-
                         <hr class="separator">
+
+                        <div id="setup-tdm-params" class="setup-params-group hidden">
+                            <h3 style="color: var(--sop-primary); margin-bottom: 20px;">TDM PARAMETERS</h3>
+                            <div class="row-inputs" style="margin-bottom: 15px;">
+                                <div style="flex:1;">
+                                    <label class="setup-label">GAME DURATION (MIN)</label>
+                                    <input type="number" id="tdm-game-dur" class="setup-input" value="15" min="1">
+                                </div>
+                            </div>
+                            <p style="color:#888; font-size:12px; margin-top:10px;">* Team Deathmatch non richiede un terminale fisico. Il server calcolerà il tempo e le eliminazioni in automatico.</p>
+                        </div>
 
                         <div id="setup-sd-params" class="setup-params-group">
                             <h3 style="color: var(--sop-primary); margin-bottom: 20px;">S&D PARAMETERS</h3>
