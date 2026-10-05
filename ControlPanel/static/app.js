@@ -232,14 +232,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- NUOVI EVENTI DI CONTROLLO MISSIONE DAL SERVER ---
     socket.on('mission_start_error', (data) => {
         alert(data.msg);
     });
 
     socket.on('mission_start_warning', (data) => {
         if(confirm(data.msg)) {
-            // Se l'utente approva, rimanda la richiesta con la forzatura
             socket.emit('request_mission_start', { ...data.original_request, force: true });
         }
     });
@@ -417,22 +415,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (setupBravoCount) {
             setupBravoCount.textContent = `${bravoInCount}/${bravoCount}`;
-        }
-
-        const activeStates = ['SAFE', 'ARMING...', 'ARMED', 'DEFUSING...', 'NEUTRAL', 'OWNED ALPHA', 'OWNED BRAVO', 'CAPTURING A...', 'CAPTURING B...'];
-        const gameIsRunning = activeStates.includes(currentGameState) && activeGameNodeId !== null;
-
-        if (gameIsRunning) {
-            if (alphaInCount === 0 && bravoInCount > 0) {
-                socket.emit('send_command', { target_id: activeGameNodeId, command: { cmd: "FORCE_WIN", winner: "BRAVO" } });
-                currentGameState = 'BRAVO WINS'; 
-            } else if (bravoInCount === 0 && alphaInCount > 0) {
-                socket.emit('send_command', { target_id: activeGameNodeId, command: { cmd: "FORCE_WIN", winner: "ALPHA" } });
-                currentGameState = 'ALPHA WINS'; 
-            } else if (alphaInCount === 0 && bravoInCount === 0) {
-                socket.emit('send_command', { target_id: activeGameNodeId, command: { cmd: "FORCE_END_GAME" } });
-                currentGameState = 'DRAW';
-            }
         }
     }
 
@@ -1004,7 +986,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- NUOVA LOGICA PULSANTE INITIATE MISSION ---
     if (btnStartMission) {
         btnStartMission.addEventListener('click', () => {
             const mode = elSetupModeSelect.value;
@@ -1023,7 +1004,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const dur = parseInt(document.getElementById('tdm-game-dur').value) || 15;
             
-            // Demandiamo tutto al Server Python
             socket.emit('request_mission_start', {
                 mode: mode,
                 target_id: targetId,

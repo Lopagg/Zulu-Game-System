@@ -162,45 +162,72 @@ def trigger_siren(cmd_type="SIREN_LONG"):
         logger.error(f"[ERROR SIREN SERVER] {e}")
 
 def background_cleanup():
-    logger.info("[SYSTEM] Task di Pulizia e Arbitro TDM AVVIATO.")
+    logger.info("[SYSTEM] Task di Pulizia e Arbitro Globale AVVIATO.")
     tick_counter = 0
     while True:
         socketio.sleep(1) 
         tick_counter += 1
         
+        # 1. Recupero situazione Roster (usato per tutte le modalità)
+        with sqlite3.connect(DB_PATH) as conn:
+            c = conn.cursor()
+            c.execute("SELECT team FROM active_roster WHERE status='IN'")
+            players = c.fetchall()
+            alpha_in = sum(1 for p in players if p[0] == 'ALPHA')
+            bravo_in = sum(1 for p in players if p[0] == 'BRAVO')
+        
+        # --- ARBITRO TEAM DEATHMATCH (Virtuale) ---
         if tdm_state['active']:
             if tdm_state['time_left'] > 0:
                 tdm_state['time_left'] -= 1
-                with sqlite3.connect(DB_PATH) as conn:
-                    c = conn.cursor()
-                    c.execute("SELECT team FROM active_roster WHERE status='IN'")
-                    players = c.fetchall()
-                    alpha_in = sum(1 for p in players if p[0] == 'ALPHA')
-                    bravo_in = sum(1 for p in players if p[0] == 'BRAVO')
-                
-                state_str = "ACTIVE"
+            
+            state_str = "ACTIVE"
+            if alpha_in == 0 and bravo_in > 0:
+                tdm_state['active'] = False
+                state_str = "BRAVO WINS"
+                trigger_siren("SIREN_LONG") 
+            elif bravo_in == 0 and alpha_in > 0:
+                tdm_state['active'] = False
+                state_str = "ALPHA WINS"
+                trigger_siren("SIREN_LONG") 
+            elif alpha_in == 0 and bravo_in == 0:
+                tdm_state['active'] = False
+                state_str = "DRAW"
+                trigger_siren("SIREN_LONG") 
+            elif tdm_state['time_left'] <= 0:
+                tdm_state['active'] = False
+                if alpha_in > bravo_in: state_str = "ALPHA WINS"
+                elif bravo_in > alpha_in: state_str = "BRAVO WINS"
+                else: state_str = "DRAW"
+                trigger_siren("SIREN_LONG") 
+            
+            doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": state_str, "game_time": tdm_state['time_left'] } }
+            socketio.emit('esp_event', {"parsed_data": doc})
+
+        # --- ARBITRO TERMINALI HARDWARE (Fisici) ---
+        active_hw_states = ['SAFE', 'ARMING...', 'ARMED', 'DEFUSING...', 'NEUTRAL', 'OWNED ALPHA', 'OWNED BRAVO', 'CAPTURING A...', 'CAPTURING B...']
+        for dev_id, state in list(node_game_states.items()):
+            if state in active_hw_states:
+                cmd_to_send = None
                 if alpha_in == 0 and bravo_in > 0:
-                    tdm_state['active'] = False
-                    state_str = "BRAVO WINS"
-                    trigger_siren("SIREN_LONG") 
+                    cmd_to_send = {"cmd": "FORCE_WIN", "winner": "BRAVO"}
                 elif bravo_in == 0 and alpha_in > 0:
-                    tdm_state['active'] = False
-                    state_str = "ALPHA WINS"
-                    trigger_siren("SIREN_LONG") 
+                    cmd_to_send = {"cmd": "FORCE_WIN", "winner": "ALPHA"}
                 elif alpha_in == 0 and bravo_in == 0:
-                    tdm_state['active'] = False
-                    state_str = "DRAW"
-                    trigger_siren("SIREN_LONG") 
-                elif tdm_state['time_left'] == 0:
-                    tdm_state['active'] = False
-                    if alpha_in > bravo_in: state_str = "ALPHA WINS"
-                    elif bravo_in > alpha_in: state_str = "BRAVO WINS"
-                    else: state_str = "DRAW"
-                    trigger_siren("SIREN_LONG") 
+                    cmd_to_send = {"cmd": "FORCE_END_GAME"}
                 
-                doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": state_str, "game_time": tdm_state['time_left'] } }
-                socketio.emit('esp_event', {"parsed_data": doc})
-        
+                if cmd_to_send:
+                    # Imposta lo stato su STOPPED per evitare l'invio continuo di UDP
+                    node_game_states[dev_id] = 'STOPPED' 
+                    logger.info(f"[ARBITRO SERVER] Rilevata eliminazione team! Invio {cmd_to_send['cmd']} al nodo {dev_id}")
+                    try:
+                        bridge_payload = {"target_id": dev_id, "command": cmd_to_send}
+                        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                        sock.sendto(json.dumps(bridge_payload).encode('utf-8'), ('127.0.0.1', 1234))
+                    except Exception as e:
+                        logger.error(f"[ERROR UDP FORCE_WIN] {e}")
+
+        # 2. Pulizia Nodi Disconnessi
         if tick_counter % 2 == 0:
             try:
                 active_devs, removed_something = registry.get_active_devices()
@@ -490,7 +517,6 @@ def handle_request_mission_start(data):
             })
             return
             
-    # Se i controlli sono passati o bypassati (force=True), avvia la partita
     if mode == 'tdm':
         tdm_state['active'] = True
         tdm_state['duration'] = dur * 60
