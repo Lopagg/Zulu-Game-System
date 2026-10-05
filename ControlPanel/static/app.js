@@ -84,6 +84,35 @@ document.addEventListener('DOMContentLoaded', () => {
         elMissionClock.textContent = now.toLocaleTimeString('it-IT', { hour12: false });
     }, 1000);
 
+    // --- AGGIORNAMENTO METEO TATTICO ---
+    function fetchTacticalWeather() {
+        // Coordinate impostate su Uboldo (VA)
+        fetch('https://api.open-meteo.com/v1/forecast?latitude=45.615&longitude=9.005&current_weather=true')
+            .then(res => res.json())
+            .then(data => {
+                const cw = data.current_weather;
+                if(cw) {
+                    const temp = Math.round(cw.temperature);
+                    const code = cw.weathercode;
+                    let condition = "CLEAR";
+                    
+                    if (code >= 1 && code <= 3) condition = "CLOUDS";
+                    else if (code >= 45 && code <= 48) condition = "FOG";
+                    else if (code >= 51 && code <= 67) condition = "RAIN";
+                    else if (code >= 71 && code <= 77) condition = "SNOW";
+                    else if (code >= 80 && code <= 82) condition = "SHOWERS";
+                    else if (code >= 95) condition = "STORM";
+
+                    const weatherEl = document.getElementById('weather-display');
+                    if (weatherEl) weatherEl.textContent = `${temp}°C // ${condition}`;
+                }
+            })
+            .catch(err => console.error("[SYS] Errore fetch meteo:", err));
+    }
+    fetchTacticalWeather();
+    setInterval(fetchTacticalWeather, 900000); // Aggiorna in background ogni 15 minuti
+    // -----------------------------------
+
     socket.on('connect', () => {
         logSystem("LINK ESTABLISHED WITH SOP SERVER.");
         elGlobalStatus.textContent = "ONLINE";
