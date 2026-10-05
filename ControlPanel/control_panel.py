@@ -262,26 +262,10 @@ def receive_data_from_bridge():
             if msg_type == 'KIOSK_CMD':
                 cmd = payload.get('cmd')
                 if cmd:
-                    logger.info(f"[KIOSK HARDWARE CMD] Inoltro comando globale: {cmd}")
-                    
-                    # 1. Convertiamo il comando generico nei due comandi di avvio specifici
-                    cmds_to_send = ["START_SD_GAME", "START_DOM_GAME"] if cmd == "GAME_START" else [cmd]
-                    
-                    # 2. Otteniamo la lista di tutti i dispositivi attivi e instradiamo singolarmente
-                    active_devs, _ = registry.get_active_devices()
-                    for dev in active_devs:
-                        for c in cmds_to_send:
-                            bridge_payload = {"target_id": dev["id"], "command": {"cmd": c}}
-                            try:
-                                sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                                sock.sendto(json.dumps(bridge_payload).encode('utf-8'), ('127.0.0.1', 1234))
-                            except Exception as e:
-                                pass
-                    
-                    # 3. Ferma anche il Deathmatch virtuale se attivo (selezionando il tasto END)
-                    if cmd == "FORCE_END_GAME":
-                        tdm_state['active'] = False
-                        socketio.emit('esp_event', {"parsed_data": {"id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": {"mode": "TEAM_DEATHMATCH", "state": "STOPPED", "game_time": tdm_state['time_left']}}})
+                    logger.info(f"[KIOSK HARDWARE CMD] Richiesta comando alla Dashboard: {cmd}")
+                    # Inoltra il segnale unicamente al sito web, che scatenerà il click virtuale.
+                    socketio.emit('kiosk_hardware_cmd', {'cmd': cmd})
+                return jsonify({"status": "ok"}), 200
 
             elif msg_type == 'TAG_SCANNED':
                 uid = payload.get('uid')

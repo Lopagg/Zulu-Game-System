@@ -1002,9 +1002,20 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnStartMission) {
         btnStartMission.addEventListener('click', () => {
             const mode = elSetupModeSelect.value;
-            const targetId = elSetupTargetSelect.value;
+            let targetId = elSetupTargetSelect.value;
             
-            if (mode !== 'tdm' && !targetId) { alert("Seleziona un nodo di destinazione."); return; }
+            // Auto-selezione del terminale se dimenticato
+            if (mode !== 'tdm' && !targetId) { 
+                const targetSelect = document.getElementById('setup-target-select');
+                if (targetSelect && targetSelect.options.length > 1) {
+                    targetSelect.selectedIndex = 1;
+                    targetId = targetSelect.value;
+                    logSystem("KIOSK: Terminale auto-selezionato.");
+                } else {
+                    alert("Nessun terminale di gioco connesso per avviare la missione!");
+                    return; 
+                }
+            }
 
             const players = Object.values(arenaRoster);
             const playersOut = players.filter(p => p.status !== 'IN');
