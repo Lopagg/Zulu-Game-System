@@ -34,6 +34,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    window.clearActiveRoster = function() {
+        if(confirm('ATTENZIONE: Rimuovere tutti gli operatori dal roster di oggi? (Le statistiche globali rimarranno intatte)')) {
+            socket.emit('clear_roster');
+            logSystem("RICHIESTA PULIZIA ROSTER INVIATA.");
+        }
+    };
+
     const elAssetCount = document.getElementById('asset-count');
     const elGlobalStatus = document.getElementById('global-status');
     const elMissionClock = document.getElementById('mission-clock');

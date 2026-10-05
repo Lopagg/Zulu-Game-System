@@ -309,7 +309,7 @@
                 <div class="monitor-controls">
                     <div>
                         <button class="back-btn deck-btn" onclick="showView('arena-menu')" style="margin-bottom: 10px;">[ < BACK ]</button>
-                        <button class="deck-btn btn-danger" onclick="if(confirm('ATTENZIONE: Rimuovere tutti gli operatori dal roster di oggi?')) socket.emit('clear_roster')" style="margin-bottom: 10px; margin-left: 10px;">[ CLEAR ROSTER ]</button>
+                        <button class="deck-btn btn-danger" onclick="clearActiveRoster()" style="margin-bottom: 10px; margin-left: 10px;">[ CLEAR ROSTER ]</button>
                         <!-- PULSANTE AGGIUNGI DA DB -->
                         <button class="deck-btn" onclick="openAddPlayerModal()" style="margin-bottom: 10px; margin-left: 10px; color: var(--sop-primary); border-color: var(--sop-primary);">[ ADD FROM DB ]</button>
                     </div>
