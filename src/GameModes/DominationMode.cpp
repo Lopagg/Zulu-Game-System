@@ -83,25 +83,6 @@ void DominationMode::loop() {
     bool btn2_is_pressed = _hardware->isButton2Pressed();
     bool btn2_was_pressed = _hardware->wasButton2Pressed();
 
-    // Gestione Comandi Remoti
-    String command = _network->getReceivedMessage();
-    
-    // 1. Comando Terminazione Forzata
-    if (command.indexOf("FORCE_END_GAME") >= 0) { 
-        forceEndGame();
-    }
-
-    if (command.indexOf("FORCE_WIN") >= 0) {
-        if (command.indexOf("ALPHA") >= 0) forceWin("ALPHA");
-        else if (command.indexOf("BRAVO") >= 0) forceWin("BRAVO");
-    }
-    
-    // 2. NUOVO: Richiesta Stato (Appena il sito si connette)
-    if (command.indexOf("GET_STATUS") >= 0) {
-        sendSettingsStatus(); // Invia durata, capture time, ecc.
-        sendTelemetry();      // Invia punteggi e stato attuale
-    }
-
     switch (_currentState) {
         case ModeState::MODE_SUB_MENU:
             handleSubMenuInput(key, btn1_was_pressed, btn2_was_pressed);
@@ -517,7 +498,8 @@ void DominationMode::updateGameTimerOnRow(int row) {
     // Controllo Fine Partita
     if (remainingSeconds == 0 && _currentState != ModeState::GAME_OVER) {
         _currentState = ModeState::GAME_OVER;
-        _hardware->playTone(400, 1000);
+        
+        _hardware->playToneAsync(400, 1000);
 
         if (_team1PossessionTime > _team2PossessionTime) _endGameStatus = "ALPHA WINS";
         else if (_team2PossessionTime > _team1PossessionTime) _endGameStatus = "BRAVO WINS";
@@ -753,8 +735,7 @@ void DominationMode::forceEndGame() {
     }
     
     _currentState = ModeState::GAME_OVER;
-    _hardware->playTone(400, 1000);
-    _hardware->noTone(); 
+    _hardware->playToneAsync(400, 1000);
 
     // Aggiorna punteggi finali
     unsigned long now = millis();
@@ -795,8 +776,7 @@ void DominationMode::forceWin(String winnerTeam) {
     if (_currentState == ModeState::GAME_OVER) return;
 
     _currentState = ModeState::GAME_OVER;
-    _hardware->playTone(400, 1000);
-    _hardware->noTone();
+    _hardware->playToneAsync(400, 1000);
 
     // Congela i tempi di possesso attuali
     unsigned long now = millis();

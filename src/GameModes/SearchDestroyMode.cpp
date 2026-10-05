@@ -99,24 +99,6 @@ void SearchDestroyMode::loop() {
     bool btn2_is_pressed = _hardware->isButton2Pressed();
     bool btn2_was_pressed = _hardware->wasButton2Pressed();
 
-    // Gestione comandi remoti
-    String command = _network->getReceivedMessage();
-    // Usiamo indexOf per essere tolleranti verso eventuali spazi o caratteri extra
-    if (command.indexOf("FORCE_END_GAME") >= 0) {
-        forceEndGame();
-    }
-
-    if (command.indexOf("FORCE_WIN") >= 0) {
-        if (command.indexOf("ALPHA") >= 0) forceWin("ALPHA");
-        else if (command.indexOf("BRAVO") >= 0) forceWin("BRAVO");
-    }
-
-    // Risponde alla richiesta del pannello di controllo inviando tutti i dati
-    if (command.indexOf("GET_STATUS") >= 0) {
-        sendSettingsStatus(); // Aggiorna il pannello Regole (Destra)
-        sendTelemetry();      // Aggiorna il pannello Bomba/Stato (Sinistra)
-    }
-
     // --- GESTIONE TELEMETRIA ---
 
     bool isHighAction = (_currentState == ModeState::IN_GAME_IS_ARMING || _currentState == ModeState::IN_GAME_IS_DEFUSING);
@@ -346,7 +328,7 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
             _hardware->clearLcd();
             _hardware->printLcd(1, 1, "TEMPO SCADUTO!");
             _hardware->printLcd(0, 2, "Vince la squadra CT!");
-            _hardware->playTone(1000, 1000);
+            _hardware->playToneAsync(1000, 1000);
             
             sendTelemetry();
             return; // Esci per non processare altro
@@ -430,7 +412,7 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
                 _hardware->setStripColor(255, 100, 0); _hardware->playTone(1000, 80);
                 _hardware->setStripColor(255, 0, 0); _hardware->playTone(400, 100);
             }
-            _hardware->playTone(150, 3000);
+            _hardware->playToneAsync(150, 3000);
             
             sendTelemetry();
             return;
@@ -893,11 +875,7 @@ void SearchDestroyMode::forceEndGame() {
     _hardware->printLcd(1, 1, "PARTITA TERMINATA"); 
     _hardware->printLcd(0, 2, "Vince la squadra CT!");
     
-    _hardware->playTone(1500, 80); 
-    delay(100);
-    _hardware->playTone(1800, 80); 
-    delay(100);
-    _hardware->playTone(2200, 100);
+    _hardware->playToneAsync(1500, 80); 
 
     sendTelemetry();
 }
@@ -941,7 +919,7 @@ void SearchDestroyMode::forceWin(String winnerTeam) {
             _hardware->setStripColor(255, 100, 0); _hardware->playTone(1000, 80);
             _hardware->setStripColor(255, 0, 0); _hardware->playTone(400, 100);
         }
-        _hardware->playTone(150, 3000);
+        _hardware->playToneAsync(150, 3000);
         _hardware->setStripColor(255, 0, 0); // Lascia la valigetta rossa fuoco
         // --------------------------------------------------------
         
@@ -949,11 +927,7 @@ void SearchDestroyMode::forceWin(String winnerTeam) {
         _hardware->printLcd(0, 2, "Vince la squadra CT!");
         
         // --- ANIMAZIONE VITTORIA BRAVO (DISINNESCO STANDARD) ---
-        _hardware->playTone(1500, 80); 
-        delay(100);
-        _hardware->playTone(1800, 80); 
-        delay(100);
-        _hardware->playTone(2200, 100);
+        _hardware->playToneAsync(1500, 80); 
         // -------------------------------------------------------
     }
 

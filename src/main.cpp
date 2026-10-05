@@ -3,10 +3,6 @@
 /**
  * @file main.cpp
  * @brief File di ingresso principale del firmware.
- * @details Questo file contiene le funzioni setup() e loop() che sono il cuore
- * di ogni programma Arduino. Gestisce l'inizializzazione di tutti i sistemi,
- * la creazione degli oggetti per le modalità di gioco e la macchina a stati
- * principale che controlla quale modalità è attualmente in esecuzione.
  */
 
 #include <Arduino.h>
@@ -27,14 +23,8 @@
 #include "GameModes/DominationMode.h"
 #include "GameModes/DominationSettings.h"
 #include "GameModes/FoxhuntMode.h"
-#include "GameModes/TerminalMode.h"
+// Rimosso l'include di TerminalMode
 
-/** --- Istanze Globali --- 
- * Vengono creati gli oggetti principali che verranno usati in tutto il programma.
- * 'hardware' e 'networkManager' sono oggetti concreti.
- * Le modalità di gioco e le loro impostazioni sono puntatori, verranno creati
- * dinamicamente nella funzione setup().
-*/
 HardwareManager hardware;
 NetworkManager networkManager;
 FirmwareUpdater updater(&hardware);
@@ -44,38 +34,26 @@ DominationSettings* domSettings = nullptr;
 DominationMode* domMode = nullptr;
 FoxhuntMode* foxhuntMode = nullptr;
 MusicRoomMode* musicRoomMode = nullptr;
-TerminalMode* terminalMode = nullptr;
+// Rimosso il puntatore a TerminalMode
 
-
-/** --- Dichiarazioni Anticipate ---
- * Prototipo di funzione per displayMainMenu(). Permette di usare la funzione
- * prima della sua effettiva implementazione nel file, risolvendo l'ordine di lettura del compilatore.
- */
 void displayMainMenu();
+void handleNetworkCommands();
 
-/** Variabile di stato globale che tiene traccia della modalità corrente.
- * All'avvio, viene impostata sulla schermata di benvenuto.
-*/
 AppState currentAppState = APP_STATE_WELCOME;
 AppState* appState = &currentAppState;
 
-// --- Stato e Menu Globale ---
-// Variabili per la gestione del menu principale.
 int mainMenuIndex = 0;
 
-// FOXHUNT NASCOSTO: Rimossa la stringa "Foxhunt" dall'array.
-String mainMenuOptions[] = { "Cerca & Distruggi", "Dominio", "Mod. Terminale","Stanza dei Suoni", "Test Hardware" };
+// Rimosso "Mod. Terminale" dall'array
+String mainMenuOptions[] = { "Cerca & Distruggi", "Dominio", "Stanza dei Suoni", "Test Hardware" };
 int numMainMenuOptions = sizeof(mainMenuOptions) / sizeof(mainMenuOptions[0]);
 
-// --- Variabili per il sottomenu di Test Hardware ---
 enum TestHardwareSubState {
     TEST_MAIN,
     TEST_KEYS
 };
 TestHardwareSubState currentTestSubState = TEST_MAIN;
 
-// --- Dichiarazioni Funzioni di Stato ---
-// Prototipi per le funzioni che gestiscono gli stati non legati a una classe specifica.
 void displayMainMenu();
 void handleWelcomeState();
 void handleMainMenuState();
@@ -90,23 +68,15 @@ String getCurrentModeString() {
         case APP_STATE_DOMINATION_MODE: return "DOMINATION";
         case APP_STATE_SEARCH_DESTROY_MODE: return "SEARCH_AND_DESTROY";
         case APP_STATE_MUSIC_ROOM: return "MUSIC ROOM";
-        case APP_STATE_TERMINAL_MODE: return "TERMINAL";
         case APP_STATE_FOXHUNT: return "FOXHUNT";
         case APP_STATE_TEST_HARDWARE: return "HARDWARE TEST";
         default: return "UNKNOWN";
     }
 }
 
-// --- SETUP ---
-/**
- * @brief Funzione di setup, eseguita una sola volta all'avvio del dispositivo.
- * @details Inizializza la comunicazione seriale, la memoria NVS per le impostazioni,
- * crea gli oggetti per le modalità di gioco e inizializza l'hardware e la rete.
- */
 void setup() {
     Serial.begin(115200);
 
-    // Inizializzazione della NVS (Non-Volatile Storage), necessaria per la libreria Preferences.
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
       ESP_ERROR_CHECK(nvs_flash_erase());
@@ -115,9 +85,6 @@ void setup() {
     ESP_ERROR_CHECK(ret);
     Serial.println("NVS Inizializzato.");
 
-    // Creazione dinamica degli oggetti per le impostazioni e le modalità di gioco.
-    // Viene passato un puntatore (&) all'hardware, alla rete e allo stato globale,
-    // in modo che tutte le modalità possano interagire con gli stessi componenti.
     sdSettings = new SearchDestroySettings();
     sdMode = new SearchDestroyMode(&hardware, &networkManager, sdSettings, &currentAppState, displayMainMenu);
 
@@ -128,9 +95,6 @@ void setup() {
 
     foxhuntMode = new FoxhuntMode(&hardware, &networkManager, &currentAppState, displayMainMenu);
 
-    terminalMode = new TerminalMode(&hardware, &networkManager, &currentAppState, displayMainMenu, domSettings, domMode, sdSettings, sdMode);
-
-    // Inizializzazione dei componenti fisici e della connessione di rete.
     hardware.initialize();
     networkManager.initialize(&hardware); 
     Serial.println("Avvio del sistema completato.");
@@ -139,47 +103,32 @@ void setup() {
     doc["status"] = "ready";
     doc["version"] = FIRMWARE_VERSION;
     networkManager.sendEvent("DEVICE_ONLINE", doc);
-
 }
 
-// --- LOOP ---
-
 unsigned long lastHeartbeatTime = 0;
-const unsigned long heartbeatInterval = 2000; // 2 secondi
+const unsigned long heartbeatInterval = 2000; 
 
-/**
- * @brief Funzione di loop, eseguita continuamente dopo il setup().
- * @details È il cuore del programma. Ad ogni ciclo, aggiorna i componenti di input,
- * le animazioni e la rete. Utilizza una macchina a stati (switch-case) basata su
- * 'currentAppState' per delegare il controllo alla funzione o all'oggetto corretto.
- */
 void loop() {
     hardware.updateButtons();
     hardware.updateMidiTune();
     networkManager.update();
+    
+    handleNetworkCommands();
 
     if (millis() - lastHeartbeatTime > heartbeatInterval) {
         lastHeartbeatTime = millis();
         
         JsonDocument doc;
-        
-        // 1. LE TUE INFO ESISTENTI (Non rimosse)
         doc["uptime"] = millis() / 1000; 
-
-        // 2. LE NUOVE INFO NECESSARIE (Per fixare il menu)
-        doc["mode"] = getCurrentModeString(); // <--- FONDAMENTALE
-        doc["version"] = FIRMWARE_VERSION;    // Utile per la dashboard
-        
-        // 3. Invio
+        doc["mode"] = getCurrentModeString(); 
+        doc["version"] = FIRMWARE_VERSION;    
         networkManager.sendEvent("HEARTBEAT", doc);
     }
 
-    // Esegue l'animazione arcobaleno solo quando si è nei menu.
     if (currentAppState == APP_STATE_WELCOME || currentAppState == APP_STATE_MAIN_MENU) {
         hardware.updateRainbowEffect();
     }
 
-    // Macchina a stati principale.
     switch (currentAppState) {
         case APP_STATE_WELCOME:
             handleWelcomeState();
@@ -188,34 +137,23 @@ void loop() {
             handleMainMenuState();
             break;
         case APP_STATE_SEARCH_DESTROY_MODE:
-            sdMode->loop(); // Delega il controllo alla modalità C&D
+            sdMode->loop(); 
             break;
         case APP_STATE_DOMINATION_MODE:
-            domMode->loop();    // Delega il controllo alla modalità Dominio
+            domMode->loop();    
             break;
         case APP_STATE_MUSIC_ROOM:
-            musicRoomMode->loop();  // Delega il controllo alla Stanza dei Suoni
-            break;
-        case APP_STATE_TERMINAL_MODE:
-            terminalMode->loop();   // Delega il controllo alla Modalità Terminale
+            musicRoomMode->loop();  
             break;
         case APP_STATE_FOXHUNT:
-            foxhuntMode->loop(); // Delega il controllo alla Modalità Foxhunt (Il codice rimane in memoria, ma inaccessibile dal menu)
+            foxhuntMode->loop(); 
             break;
         case APP_STATE_TEST_HARDWARE:
             handleTestHardwareState();
             break;
     }
-    
 }
 
-// --- Implementazione Funzioni di Gestione Stati ---
-
-/**
- * @brief Gestisce la logica della schermata di benvenuto.
- * @details Mostra un messaggio di benvenuto, la versione del firmware e l'ora per 3 secondi,
- * dopodiché passa automaticamente allo stato del menu principale.
- */
 void handleWelcomeState() {
     static bool firstEntry = true;
     static unsigned long welcomeStartTime = 0;
@@ -249,11 +187,6 @@ void handleWelcomeState() {
     }
 }
 
-/**
- * @brief Disegna il menu principale sull'LCD.
- * @details Pulisce lo schermo e disegna le opzioni del menu, mostrando un cursore (>)
- * sulla voce attualmente selezionata e le frecce di scorrimento se necessario.
- */
 void displayMainMenu() {
     Serial.println("DISPLAY: Menu Principale");
     hardware.clearLcd();
@@ -286,12 +219,6 @@ void displayMainMenu() {
     hardware.printOled2("CONFERMA", 2, 18, 25);
 }
 
-/**
- * @brief Gestisce la logica del menu principale.
- * @details Legge l'input dal tastierino per navigare nel menu e dal pulsante di conferma
- * per selezionare una modalità. Quando una modalità viene selezionata, cambia lo stato
- * globale 'currentAppState' e chiama il metodo enter() della modalità scelta.
- */
 void handleMainMenuState() {
     char key = hardware.getKey();
     bool btn1_pressed = hardware.wasButton1Pressed();
@@ -335,22 +262,15 @@ void handleMainMenuState() {
                 networkManager.sendEvent("MODE_CHANGE", doc);
                 domMode->enter();
                 break;
-            // Indice 2 era FOXHUNT, rimosso. Ora indice 2 è Terminal Mode.
+            // Indici aggiornati dopo la rimozione del terminale
             case 2: 
-                Serial.println("TRANSIZIONE: Main Menu -> Modalita' Terminale");
-                currentAppState = APP_STATE_TERMINAL_MODE;
-                doc["new_mode"] = "TERMINAL";
-                networkManager.sendEvent("MODE_CHANGE", doc);
-                terminalMode->enter();
-                break;
-            case 3: 
                 Serial.println("TRANSIZIONE: Main Menu -> Stanza dei Suoni");
                 currentAppState = APP_STATE_MUSIC_ROOM;
                 doc["new_mode"] = "MUSIC_ROOM";
                 networkManager.sendEvent("MODE_CHANGE", doc);
                 musicRoomMode->enter();
                 break;
-            case 4: 
+            case 3: 
                 Serial.println("TRANSIZIONE: Main Menu -> Test Hardware");
                 currentAppState = APP_STATE_TEST_HARDWARE;
                 doc["new_mode"] = "TEST_HARDWARE";
@@ -362,9 +282,6 @@ void handleMainMenuState() {
     }
 }
 
-/**
- * @brief Disegna la schermata principale del Test Hardware.
- */
 void displayTestHardwareMainMenu() {
     hardware.clearLcd();
     hardware.printLcd(0, 0, "Test Hardware");
@@ -375,9 +292,6 @@ void displayTestHardwareMainMenu() {
     hardware.printOled2("TEST", 2, 35, 25);
 }
 
-/**
- * @brief Disegna la schermata per il test delle chiavi.
- */
 void displayKeyTestMenu() {
     hardware.clearLcd();
     hardware.printLcd(0, 0, "Test Interruttori");
@@ -387,26 +301,22 @@ void displayKeyTestMenu() {
     hardware.clearOled2();
 }
 
-/**
- * @brief Gestisce la logica della modalità di test hardware e dei suoi sottomenù.
- */
 void handleTestHardwareState() {
     char key = hardware.getKey();
     bool btn1_pressed = hardware.wasButton1Pressed();
     bool btn2_pressed = hardware.wasButton2Pressed();
 
     if (currentTestSubState == TEST_MAIN) {
-        // --- LOGICA DEL MENU PRINCIPALE DI TEST ---
 
         if (key != NO_KEY) {
             Serial.printf("INPUT: '%c' premuto\n", key);
             hardware.playTone(700, 40);
 
             if (key == 'A') {
-                hardware.printLcd(0, 1, "                    "); // Pulisce la riga
+                hardware.printLcd(0, 1, "                    "); 
                 hardware.printLcd(0, 1, "Avvicina una card...");
-                String uid = hardware.readRFID(5000); // Timeout di 5s
-                displayTestHardwareMainMenu(); // Ridisegna il menu dopo il test
+                String uid = hardware.readRFID(5000); 
+                displayTestHardwareMainMenu(); 
                 hardware.printLcd(0, 2, "UID:");
                 hardware.printLcd(0, 3, uid);
 
@@ -415,13 +325,11 @@ void handleTestHardwareState() {
                 networkManager.sendEvent("TEST_RFID_READ", doc);
 
             } else if (key == 'B') {
-                // Passa al sottomenu di test delle chiavi
                 currentTestSubState = TEST_KEYS;
                 displayKeyTestMenu();
             }
-              else if (key == 'C') { // Usiamo il tasto 'C' per l'aggiornamento
+              else if (key == 'C') { 
                 updater.checkForUpdates();
-                // Dopo il controllo, ridisegna il menu di test
                 displayTestHardwareMainMenu();
         }
               else {
@@ -439,7 +347,6 @@ void handleTestHardwareState() {
         }
 
         if (btn1_pressed) {
-            // Esce dalla modalità Test Hardware
             Serial.println("INPUT: Pulsante 1 (Indietro) premuto");
             hardware.playTone(300, 70);
             hardware.turnOffStrip();
@@ -454,33 +361,99 @@ void handleTestHardwareState() {
         }
 
     } else if (currentTestSubState == TEST_KEYS) {
-        // --- LOGICA DEL SOTTOMENU TEST CHIAVI ---
         
         bool key1_state = hardware.isKey1Turned();
         bool key2_state = hardware.isKey2Turned();
 
-        // Aggiorna LCD
         hardware.printLcd(10, 2, key1_state ? "ON " : "OFF");
         hardware.printLcd(10, 3, key2_state ? "ON " : "OFF");
 
-        // Aggiorna LED Striscia
         int half_leds = hardware.getStripLedCount() / 2;
-        // Chiave 1 - Prima metà (Verde)
         for (int i = 0; i < half_leds; i++) {
             hardware.setPixelColor(i, key1_state ? 255 : 0, 0, 0);
         }
-        // Chiave 2 - Seconda metà (Blu)
         for (int i = half_leds; i < hardware.getStripLedCount(); i++) {
             hardware.setPixelColor(i, 0, key2_state ? 255 : 0, 0);
         }
         hardware.showStrip();
 
         if (btn1_pressed) {
-            // Torna al menu principale di test
             Serial.println("INPUT: Pulsante 1 (Indietro) premuto");
             hardware.playTone(300, 70);
             currentTestSubState = TEST_MAIN;
             displayTestHardwareMainMenu();
         }
+    }
+}
+
+void handleNetworkCommands() {
+    String message = networkManager.getReceivedMessage();
+    if (message == "") return;
+
+    JsonDocument doc;
+    DeserializationError error = deserializeJson(doc, message);
+    if (error) return;
+
+    const char* cmd = doc["cmd"];
+    if (!cmd) return;
+
+    String cmdStr = String(cmd);
+    Serial.print("Comando GLOBALE ricevuto: ");
+    Serial.println(cmdStr);
+
+    if (cmdStr == "FORCE_END_GAME") {
+        if (currentAppState == APP_STATE_SEARCH_DESTROY_MODE && sdMode) sdMode->forceEndGame();
+        else if (currentAppState == APP_STATE_DOMINATION_MODE && domMode) domMode->forceEndGame();
+    } 
+    else if (cmdStr == "FORCE_WIN") {
+        String winner = doc["winner"] | "";
+        if (currentAppState == APP_STATE_SEARCH_DESTROY_MODE && sdMode) sdMode->forceWin(winner);
+        else if (currentAppState == APP_STATE_DOMINATION_MODE && domMode) domMode->forceWin(winner);
+    } 
+    else if (cmdStr == "GET_STATUS") {
+        if (currentAppState == APP_STATE_SEARCH_DESTROY_MODE && sdMode) {
+            sdMode->sendSettingsStatus();
+            sdMode->sendTelemetry();
+        } else if (currentAppState == APP_STATE_DOMINATION_MODE && domMode) {
+            domMode->sendSettingsStatus();
+            domMode->sendTelemetry();
+        }
+    }
+    
+    else if (cmdStr == "SET_SD_SETTINGS") {
+        if (doc["bomb_time"].is<int>()) sdSettings->setBombTime(doc["bomb_time"]);
+        if (doc["arm_time"].is<int>()) sdSettings->setArmingTime(doc["arm_time"]);
+        if (doc["defuse_time"].is<int>()) sdSettings->setDefuseTime(doc["defuse_time"]);
+        if (doc["use_arm_pin"].is<bool>()) sdSettings->setUseArmingPin(doc["use_arm_pin"]);
+        if (doc["use_defuse_pin"].is<bool>()) sdSettings->setUseDisarmingPin(doc["use_defuse_pin"]);
+        if (doc["arm_pin"].is<const char*>()) sdSettings->setArmingPin(doc["arm_pin"].as<String>());
+        if (doc["defuse_pin"].is<const char*>()) sdSettings->setDisarmingPin(doc["defuse_pin"].as<String>());
+        sdSettings->saveParameters();
+        if (currentAppState == APP_STATE_SEARCH_DESTROY_MODE && sdMode) sdMode->sendSettingsStatus();
+        Serial.println("Impostazioni C&D aggiornate da remoto.");
+    }
+    else if (cmdStr == "SET_DOM_SETTINGS") {
+        if (doc["duration"].is<int>()) domSettings->setGameDuration(doc["duration"]);
+        if (doc["capture_time"].is<int>()) domSettings->setCaptureTime(doc["capture_time"]);
+        if (doc["countdown"].is<int>()) domSettings->setCountdownDuration(doc["countdown"]);
+        domSettings->saveParameters();
+        if (currentAppState == APP_STATE_DOMINATION_MODE && domMode) domMode->sendSettingsStatus();
+        Serial.println("Impostazioni Dominio aggiornate da remoto.");
+    }
+    else if (cmdStr == "START_SD_GAME") {
+        Serial.println("Avvio partita C&D da remoto...");
+        JsonDocument resp;
+        resp["target_mode"] = "SEARCH_AND_DESTROY";
+        networkManager.sendEvent("REMOTE_START_ACK", resp);
+        currentAppState = APP_STATE_SEARCH_DESTROY_MODE;
+        if (sdMode) sdMode->enterInGame();
+    }
+    else if (cmdStr == "START_DOM_GAME") {
+        Serial.println("Avvio partita Dominio da remoto...");
+        JsonDocument resp;
+        resp["target_mode"] = "DOMINATION";
+        networkManager.sendEvent("REMOTE_START_ACK", resp);
+        currentAppState = APP_STATE_DOMINATION_MODE;
+        if (domMode) domMode->enterInGame();
     }
 }

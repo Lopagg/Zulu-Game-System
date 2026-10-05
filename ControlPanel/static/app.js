@@ -1000,8 +1000,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!elSetupTargetSelect) return;
         
         const currentSelection = elSetupTargetSelect.value;
-        elSetupTargetSelect.innerHTML = '<option value="">-- Seleziona un nodo --</option>';
-        const terminalDevices = currentDevices.filter(d => d.mode === 'TERMINAL');
+        elSetupTargetSelect.innerHTML = '<option value="">-- Seleziona un nodo nel Menu Principale --</option>';
+        
+        // MODIFICA: Ora filtriamo per i dispositivi che si trovano nel Menu Principale (o nell'eventuale vecchia mod. terminale)
+        const terminalDevices = currentDevices.filter(d => d.mode === 'MAIN MENU' || d.mode === 'TERMINAL');
         
         terminalDevices.forEach(d => {
             const opt = document.createElement('option');

@@ -114,6 +114,8 @@ public:
     // Funzioni Buzzer
     /** @brief Riproduce un suono semplice per una data durata. Usato per i feedback dei menu. */
     void playTone(unsigned int frequency, unsigned long duration);
+    void playToneAsync(unsigned int frequency, unsigned long duration);
+    void updateAsyncBuzzer();
     /** @brief Ferma qualsiasi suono. */
     void noTone();
     /** @brief Avvia o aggiorna un suono continuo. Usato per suoni di avanzamento. */

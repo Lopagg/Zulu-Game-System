@@ -1,33 +1,17 @@
 // src/HardwareManager.cpp
 
-/**
- * @file HardwareManager.cpp
- * @brief Implementazione della classe HardwareManager.
- */
+#include "HardwareManager.h" 
+#include <Wire.h> 
 
-#include "HardwareManager.h" // Collegamento al file .h
-#include <Wire.h> // Libreria per I2C. Qui si inizializzano i bus
-
-// RIASSUNTO PIN ESP32
-    // Lato sinistro: VIN (5V), GND, D13, D12, D14, D27, D26, D25, D33, D32, D35, D34, VN, VP, EN
-    // Lato destro: 3V3, GND, D15, D4, RX2 (D16), TX2 (D17), D5, D18, D19, D21, TX0, RX0, D22, D23
-
-/** --- Configurazione Hardware Globale ---
-In questa sezione vengono definiti tutti i parametri hardware del progetto
-(indirizzi, pin, dimensioni, ecc.) usando delle macro. Questo rende il
- codice più leggibile e facile da modificare in futuro. */
 #define LCD_ADDRESS 0x27
-#define OLED_ADDRESS 0x3C // Per entrambi
+#define OLED_ADDRESS 0x3C 
 #define LCD_COLS    20
 #define LCD_ROWS    4
 #define OLED_RES_X 128
 #define OLED_RES_Y 64
 
-// Bus I2C n.1 (principale)
 #define I2C_SDA_PIN 21
 #define I2C_SCL_PIN 22
-
-// Bus I2C n.2 (secondario per OLED 2)
 #define I2C_SDA2_PIN 18
 #define I2C_SCL2_PIN 19
 
@@ -37,9 +21,8 @@ In questa sezione vengono definiti tutti i parametri hardware del progetto
 #define KEY2_PIN 34
 #define BUZZER_PIN  23
 #define LED_STRIP_PIN   13
-#define LED_STRIP_COUNT 60 // Numero di LED della striscia
+#define LED_STRIP_COUNT 60 
 
-// Mappa e pin del tastierino numerico 4x4.
 const byte ROWS = 4;
 const byte COLS = 4;
 char hexaKeys[ROWS][COLS] = {
@@ -51,13 +34,12 @@ char hexaKeys[ROWS][COLS] = {
 byte rowPins[ROWS] = {27, 26, 25, 14};
 byte colPins[COLS] = {4, 5, 16, 17};
 
-/**
- * @brief Costruttore della classe.
- * @details Viene eseguito quando viene creato l'oggetto 'hardware' in main.cpp.
- * Usa la lista di inizializzazione per creare tutti gli oggetti dei componenti
- * passando loro i parametri di configurazione (pin, indirizzi, ecc.).
- * Nel corpo, inizializza le variabili di stato per le animazioni.
- */
+// --- VARIABILI STATICA PER BUZZER ASINCRONO ---
+static unsigned long g_asyncToneStartTime = 0;
+static unsigned long g_asyncToneDuration = 0;
+static bool g_isAsyncTonePlaying = false;
+// ----------------------------------------------
+
 HardwareManager::HardwareManager() :
     _lcd(LCD_ADDRESS, LCD_COLS, LCD_ROWS),
     _keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS),
@@ -68,11 +50,9 @@ HardwareManager::HardwareManager() :
     _strip(LED_STRIP_COUNT, LED_STRIP_PIN, NEO_GRB + NEO_KHZ800),
     _rtc(),
     _oled1(OLED_RES_X, OLED_RES_Y, &Wire, -1),
-    _i2c_2(1), // Inizializza il secondo bus I2C con ID 1
+    _i2c_2(1), 
     _oled2(OLED_RES_X, OLED_RES_Y, &_i2c_2, -1)
-
 {
-    // Inizializza le variabili di stato per la gestione interna
     _currentMidiTune = nullptr;
     _midiTuneLength = 0;
     _currentMidiNoteIndex = 0;
@@ -95,22 +75,13 @@ HardwareManager::HardwareManager() :
     _nfc = nullptr;
 }
 
-/**
- * @brief Inizializza tutti i componenti hardware.
- * @details Questa funzione viene chiamata una sola volta nel setup() del programma principale.
- * Esegue la sequenza di avvio per ogni componente: avvia i bus di comunicazione,
- * inizializza i display, configura i pin e controlla che tutto funzioni correttamente.
- * Se l'RTC non viene trovato, blocca il programma per segnalare un errore critico.
- */
 void HardwareManager::initialize() {
     Serial.println("--- Inizializzazione Hardware ---");
     Serial.print("Inizializzazione I2C Bus 1 (Pin 21, 22)... ");
-    // Avvia il bus I2C principale per LCD, RTC e OLED1
     Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
     Serial.println("OK.");
     
     Serial.print("Inizializzazione I2C Bus 2 (Pin 18, 19)... ");
-    // Avvia il secondo bus I2C per l'OLED2
     _i2c_2.begin(I2C_SDA2_PIN, I2C_SCL2_PIN);
     Serial.println("OK.");
 
@@ -120,9 +91,8 @@ void HardwareManager::initialize() {
     
     createProgressBarChars();
 
-    // Inizializzazione del lettore RFID/NFC
     Serial.print("Inizializzazione Lettore PN532... ");
-    _nfc_i2c = new PN532_I2C(Wire); // Usa il bus I2C principale
+    _nfc_i2c = new PN532_I2C(Wire); 
     _nfc = new PN532(*_nfc_i2c);
     
     _nfc->begin();
@@ -159,14 +129,12 @@ void HardwareManager::initialize() {
         _oled2.display();
     }
     
-    // Configura il canale PWM per il buzzer/altoparlante
     Serial.print("Configurazione LEDC per Buzzer... ");
     ledcSetup(_buzzerChannel, 5000, 8); 
-    ledcAttachPin(_buzzerPin, _buzzerChannel); // Collega il pin una sola volta
-    ledcWrite(_buzzerChannel, 0); // Assicura che sia spento all'avvio
+    ledcAttachPin(_buzzerPin, _buzzerChannel); 
+    ledcWrite(_buzzerChannel, 0); 
     Serial.println("OK.");
     
-    // Inizializza i pulsanti
     Serial.print("Inizializzazione Pulsanti... ");
     _button1.init(); _button2.init();
     Serial.println("OK.");
@@ -177,7 +145,6 @@ void HardwareManager::initialize() {
     _strip.show();
     Serial.println("OK.");
 
-    // Inizializza l'RTC
     Serial.print("Inizializzazione RTC (DS3231)... ");
     if (!_rtc.begin()) {
         Serial.println("ERRORE: modulo RTC non trovato!");
@@ -196,15 +163,12 @@ void HardwareManager::initialize() {
     Serial.println("--- HARDWARE INIZIALIZZATO ---");
 }
 
-// --- GESTIONE INPUT ---
-// Le seguenti funzioni servono a leggere lo stato dei pulsanti e del tastierino.
-// Sono "wrapper" che nascondono i dettagli delle librerie sottostanti.
-
 void HardwareManager::updateButtons() { 
     _button1.update();
     _button2.update();
     _key1.update();
     _key2.update();
+    updateAsyncBuzzer(); // Esegue il controllo del suono in background
 }
 
 bool HardwareManager::wasButton1Pressed() { return _button1.wasPressed(); }
@@ -212,11 +176,9 @@ bool HardwareManager::wasButton2Pressed() { return _button2.wasPressed(); }
 char HardwareManager::getKey() { return _keypad.getKey(); }
 bool HardwareManager::isButton1Pressed() { return _button1.isPressed(); }
 bool HardwareManager::isButton2Pressed() { return _button2.isPressed(); }
-// --- GESTIONE INTERRUTTORI A CHIAVE ---
 bool HardwareManager::isKey1Turned() { return _key1.isPressed(); }
 bool HardwareManager::isKey2Turned() { return _key2.isPressed(); }
 
-// --- GESTIONE OUTPUT LED ---
 void HardwareManager::updateRainbowEffect() {
     if (millis() - _rainbowLastUpdate < 25) return;
     _rainbowLastUpdate = millis();
@@ -266,7 +228,7 @@ void HardwareManager::flashCurrentColor(int count, int duration) {
     
     setBrightness(255);
     for (int i = 0; i < count; i++) {
-        _strip.show(); // Mostra i colori attuali a massima luminosità
+        _strip.show(); 
         delay(duration);
         turnOffStrip();
         if (i < count - 1) {
@@ -274,7 +236,6 @@ void HardwareManager::flashCurrentColor(int count, int duration) {
         }
     }
     
-    // Ripristina i pixel originali
     for(int i=0; i < LED_STRIP_COUNT; i++) {
         _strip.setPixelColor(i, pixels[i]);
     }
@@ -307,17 +268,11 @@ void HardwareManager::updateWinnerWaveEffect(uint8_t r, uint8_t g, uint8_t b, fl
     }
 }
 
-// --- GESTIONE RTC ---
 DateTime HardwareManager::getRTCTime() { return _rtc.now(); }
 
-/**
- * @brief Sincronizza il modulo RTC fisico con l'ora di sistema ottenuta via NTP.
- */
 void HardwareManager::syncWithNTP() {
     struct tm timeinfo;
-    // getLocalTime restituisce true se l'ora è stata sincronizzata
     if (getLocalTime(&timeinfo)) {
-        // Aggiorna l'RTC DS3231 con l'ora appena ricevuta da Internet
         _rtc.adjust(DateTime(timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday, 
                              timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec));
         Serial.println("SUCCESSO: RTC Sincronizzato con server NTP!");
@@ -327,7 +282,6 @@ void HardwareManager::syncWithNTP() {
     }
 }
 
-// --- GESTIONE LCD ---
 void HardwareManager::printLcd(int col, int row, const String& text) { _lcd.setCursor(col, row); _lcd.print(text); }
 void HardwareManager::clearLcd() { _lcd.clear(); }
 
@@ -339,8 +293,25 @@ void HardwareManager::playTone(unsigned int frequency, unsigned long duration) {
         noTone();
     }
 }
+
+// --- NUOVO: BUZZER ASINCRONO (Non-bloccante) ---
+void HardwareManager::playToneAsync(unsigned int frequency, unsigned long duration) {
+    ledcWriteTone(_buzzerChannel, frequency);
+    g_asyncToneStartTime = millis();
+    g_asyncToneDuration = duration;
+    g_isAsyncTonePlaying = true;
+}
+
+void HardwareManager::updateAsyncBuzzer() {
+    if (g_isAsyncTonePlaying && (millis() - g_asyncToneStartTime >= g_asyncToneDuration)) {
+        noTone();
+        g_isAsyncTonePlaying = false;
+    }
+}
+// -----------------------------------------------
+
 void HardwareManager::noTone() {
-    ledcWrite(_buzzerChannel, 0); // Imposta il duty cycle a 0 per il silenzio assoluto
+    ledcWrite(_buzzerChannel, 0); 
 }
 void HardwareManager::updateTone(unsigned int frequency) {
     if (frequency == 0) {
@@ -355,12 +326,12 @@ void HardwareManager::playMidiTune(const int notes[][3], int length) {
     _midiTuneLength = length;
     _currentMidiNoteIndex = 0;
     _midiNoteStartTime = millis();
-    _isMidiNotePlaying = false; // Iniziamo con una pausa se c'è
+    _isMidiNotePlaying = false; 
 }
 
 void HardwareManager::updateMidiTune() {
     if (_currentMidiTune == nullptr) {
-        return; // Nessuna melodia da suonare
+        return; 
     }
 
     unsigned long currentMillis = millis();
@@ -370,26 +341,22 @@ void HardwareManager::updateMidiTune() {
     int pauseDuration = currentNoteData[2];
 
     if (!_isMidiNotePlaying) {
-        // Fase di suono della nota
-        if (note != 0) { // Se non è una pausa
+        if (note != 0) { 
             updateTone(note);
         }
         _isMidiNotePlaying = true;
     }
 
     if (currentMillis - _midiNoteStartTime >= toneDuration) {
-        // Fine della fase di suono
         noTone();
         if (currentMillis - _midiNoteStartTime >= (unsigned long)toneDuration + pauseDuration) {
-            // Fine anche della pausa, passa alla nota successiva
             _currentMidiNoteIndex++;
             if (_currentMidiNoteIndex >= _midiTuneLength) {
-                // Melodia finita
                 _currentMidiTune = nullptr;
                 return;
             }
             _midiNoteStartTime = currentMillis;
-            _isMidiNotePlaying = false; // Ricomincia il ciclo per la nuova nota
+            _isMidiNotePlaying = false; 
         }
     }
 }
@@ -405,11 +372,9 @@ bool HardwareManager::isMidiTunePlaying() {
     return _currentMidiTune != nullptr;
 }
 
-// --- GETTERS ---
 int HardwareManager::getLcdRows() { return _lcdRows; }
 int HardwareManager::getLcdCols() { return _lcdCols; }
 
-// --- FUNZIONI PER LA PROGRESS BAR ---
 void HardwareManager::createProgressBarChars() {
     byte p1[]={B10000,B10000,B10000,B10000,B10000,B10000,B10000,B10000};
     byte p2[]={B11000,B11000,B11000,B11000,B11000,B11000,B11000,B11000};
@@ -421,7 +386,6 @@ void HardwareManager::createProgressBarChars() {
 }
 void HardwareManager::writeCustomChar(uint8_t charIndex) { _lcd.write(byte(charIndex)); }
 
-// --- FUNZIONI PER GLI OLED ---
 void HardwareManager::clearOled1() {
     _oled1.clearDisplay();
     _oled1.display();
@@ -447,20 +411,13 @@ void HardwareManager::printOled2(const String& text, int size, int x, int y) {
     _oled2.display();
 }
 
-/**
- * @brief Legge l'UID di una card RFID/NFC in modo persistente per un dato timeout.
- * @param timeout Il tempo massimo in millisecondi per cui cercare una card.
- * @return Una stringa con l'UID in formato esadecimale, o un messaggio di errore.
- */
 String HardwareManager::readRFID(uint16_t timeout) {
     uint8_t success;
     uint8_t uid[] = { 0, 0, 0, 0, 0, 0, 0 };
     uint8_t uidLength;
 
     unsigned long startTime = millis();
-    //Cicla finché non trova una card o scade il tempo
     while (millis() - startTime < timeout) {
-        // Tenta di leggere una card con un breve timeout per non bloccare il ciclo
         success = _nfc->readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &uidLength, 50);
 
         if (success) {
@@ -473,18 +430,14 @@ String HardwareManager::readRFID(uint16_t timeout) {
             uidString.toUpperCase();
             return uidString;
         }
-        delay(10); // Piccola pausa per non sovraccaricare il bus I2C
+        delay(10); 
     }
     
-    // Se il ciclo finisce senza aver trovato nulla
     return "Nessuna card trovata";
 }
 
 String HardwareManager::getChipId() {
-    // Ottiene il MAC address univoco dell'ESP32
     uint64_t chipid = ESP.getEfuseMac(); 
-    
-    // Converte i 6 byte del MAC in una stringa esadecimale pulita
     uint16_t chip = (uint16_t)(chipid >> 32);
     char hex[13];
     snprintf(hex, sizeof(hex), "%04X%08X", chip, (uint32_t)chipid);

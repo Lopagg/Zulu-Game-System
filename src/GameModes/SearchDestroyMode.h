@@ -43,6 +43,8 @@ public:
     void forceEndGame();
     void forceWin(String winnerTeam);
 
+    void sendTelemetry();
+
 private:
     // Puntatori agli oggetti principali
     HardwareManager* _hardware;
@@ -137,7 +139,7 @@ private:
     void updateDisplayForCurrentState();
 
     unsigned long _lastTelemetryTime;
-    void sendTelemetry();
+    
 
 };
 
