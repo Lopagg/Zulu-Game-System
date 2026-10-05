@@ -11,6 +11,7 @@ from threading import Lock
 import sqlite3
 import os
 import datetime
+import urllib.request # Aggiunto per il meteo
 
 # --- CONFIGURAZIONE ---
 logging.basicConfig(level=logging.INFO)
@@ -85,6 +86,58 @@ def broadcast_roster():
             roster[r['uid']] = dict(r)
             
     socketio.emit('roster_update', roster)
+
+# --- METEO TATTICO CENTRALIZZATO ---
+last_weather_update = 0
+cached_weather = "--°C // SCANNING..."
+
+def fetch_weather():
+    global last_weather_update, cached_weather
+    now = time.time()
+    if now - last_weather_update > 900: # Aggiorna ogni 15 minuti (900 sec)
+        try:
+            req = urllib.request.urlopen('https://api.open-meteo.com/v1/forecast?latitude=45.615&longitude=9.005&current_weather=true', timeout=5)
+            data = json.loads(req.read().decode('utf-8'))
+            cw = data.get('current_weather')
+            if cw:
+                temp = round(cw.get('temperature', 0))
+                code = cw.get('weathercode', 0)
+                condition = "CLEAR"
+                if 1 <= code <= 3: condition = "CLOUDS"
+                elif 45 <= code <= 48: condition = "FOG"
+                elif 51 <= code <= 67: condition = "RAIN"
+                elif 71 <= code <= 77: condition = "SNOW"
+                elif 80 <= code <= 82: condition = "SHOWERS"
+                elif code >= 95: condition = "STORM"
+                cached_weather = f"{temp}°C // {condition}"
+                last_weather_update = now
+        except Exception as e:
+            logger.error(f"[ERROR METEO] {e}")
+    return cached_weather
+
+# --- AGGIORNAMENTO STATISTICHE GIOCATORI ---
+def update_match_stats(winner_state):
+    winning_team = None
+    if winner_state in ['ALPHA WINS', 'OWNED ALPHA', 'T WINS']:
+        winning_team = 'ALPHA'
+    elif winner_state in ['BRAVO WINS', 'OWNED BRAVO', 'CT WINS']:
+        winning_team = 'BRAVO'
+        
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            c = conn.cursor()
+            c.execute("SELECT uid, team FROM active_roster WHERE status='IN'")
+            players = c.fetchall()
+            for uid, team in players:
+                # Aggiunge +1 partita giocata a tutti quelli in campo
+                c.execute("UPDATE players SET games_played = games_played + 1 WHERE uid = ?", (uid,))
+                # Aggiunge +1 vittoria se sono nel team vincente
+                if winning_team and team == winning_team:
+                    c.execute("UPDATE players SET wins = wins + 1 WHERE uid = ?", (uid,))
+            conn.commit()
+            logger.info(f"[STATS] Aggiornate statistiche per {len(players)} operatori. Team Vittorioso: {winning_team or 'NESSUNO (DRAW/STOP)'}")
+    except Exception as e:
+        logger.error(f"[ERROR STATS] {e}")
 
 # --- DEVICE REGISTRY (Thread-Safe) ---
 class DeviceRegistry:
@@ -168,7 +221,7 @@ def background_cleanup():
         socketio.sleep(1) 
         tick_counter += 1
         
-        # 1. Recupero situazione Roster (usato per tutte le modalità)
+        # 1. Recupero situazione Roster
         with sqlite3.connect(DB_PATH) as conn:
             c = conn.cursor()
             c.execute("SELECT team FROM active_roster WHERE status='IN'")
@@ -182,24 +235,27 @@ def background_cleanup():
                 tdm_state['time_left'] -= 1
             
             state_str = "ACTIVE"
+            tdm_ends = False
+            
             if alpha_in == 0 and bravo_in > 0:
-                tdm_state['active'] = False
                 state_str = "BRAVO WINS"
-                trigger_siren("SIREN_LONG") 
+                tdm_ends = True
             elif bravo_in == 0 and alpha_in > 0:
-                tdm_state['active'] = False
                 state_str = "ALPHA WINS"
-                trigger_siren("SIREN_LONG") 
+                tdm_ends = True
             elif alpha_in == 0 and bravo_in == 0:
-                tdm_state['active'] = False
                 state_str = "DRAW"
-                trigger_siren("SIREN_LONG") 
+                tdm_ends = True
             elif tdm_state['time_left'] <= 0:
-                tdm_state['active'] = False
                 if alpha_in > bravo_in: state_str = "ALPHA WINS"
                 elif bravo_in > alpha_in: state_str = "BRAVO WINS"
                 else: state_str = "DRAW"
+                tdm_ends = True
+                
+            if tdm_ends:
+                tdm_state['active'] = False
                 trigger_siren("SIREN_LONG") 
+                update_match_stats(state_str) # Salva statistiche TDM
             
             doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": state_str, "game_time": tdm_state['time_left'] } }
             socketio.emit('esp_event', {"parsed_data": doc})
@@ -217,7 +273,9 @@ def background_cleanup():
                     cmd_to_send = {"cmd": "FORCE_END_GAME"}
                 
                 if cmd_to_send:
-                    # Imposta lo stato su STOPPED per evitare l'invio continuo di UDP
+                    # Invia il comando al terminale per fargli fermare la partita.
+                    # Non aggiorniamo le statistiche qui, aspettiamo che sia il 
+                    # terminale a confermarci la fine effettiva tramite UDP.
                     node_game_states[dev_id] = 'STOPPED' 
                     logger.info(f"[ARBITRO SERVER] Rilevata eliminazione team! Invio {cmd_to_send['cmd']} al nodo {dev_id}")
                     try:
@@ -227,7 +285,7 @@ def background_cleanup():
                     except Exception as e:
                         logger.error(f"[ERROR UDP FORCE_WIN] {e}")
 
-        # 2. Pulizia Nodi Disconnessi
+        # 2. Pulizia Nodi Disconnessi e Sincronizzazione Meteo
         if tick_counter % 2 == 0:
             try:
                 active_devs, removed_something = registry.get_active_devices()
@@ -236,6 +294,10 @@ def background_cleanup():
                     socketio.emit('devices_update', active_devs)
             except Exception as e:
                 logger.error(f"[CRITICAL] Errore nel thread di pulizia: {e}")
+                
+        if tick_counter % 10 == 0:
+            weather_data = fetch_weather()
+            socketio.emit('weather_update', {'weather': weather_data})
 
 # --- ROUTES & WEBSOCKETS ---
 @socketio.on('connect')
@@ -247,6 +309,7 @@ def handle_connect():
     
     active_devs, _ = registry.get_active_devices()
     emit('devices_update', active_devs)
+    emit('weather_update', {'weather': fetch_weather()})
     broadcast_roster()
 
 @app.route('/')
@@ -360,8 +423,8 @@ def receive_data_from_bridge():
             if msg_type not in ['TAG_SCANNED', 'TAG_ASSIGN']:
                 socketio.emit('esp_event', data)
 
-            # --- ARBITRO LATO SERVER (Transizioni di Stato) ---
-            if msg_type in ['SD_UPDATE', 'DOM_UPDATE', 'TDM_UPDATE']:
+            # --- ARBITRO LATO SERVER (Transizioni di Stato per Terminali) ---
+            if msg_type in ['SD_UPDATE', 'DOM_UPDATE']:
                 new_state = payload.get('state')
                 if new_state:
                     old_state = node_game_states.get(device_id, 'STANDBY')
@@ -374,6 +437,7 @@ def receive_data_from_bridge():
                         if new_state in end_states and old_state not in end_states:
                             logger.info(f"[ARBITRO SERVER] Partita su {device_id} terminata ({new_state}).")
                             trigger_siren("SIREN_LONG")
+                            update_match_stats(new_state) # Salva le statistiche della partita fisica
                         
                         if old_state == 'PREPARING' and new_state in start_states:
                             logger.info(f"[ARBITRO SERVER] Partita su {device_id} iniziata ({new_state}).")
@@ -574,6 +638,7 @@ def handle_socket_command(data):
                 doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": state_str, "game_time": tdm_state['time_left'] } }
                 socketio.emit('esp_event', {"parsed_data": doc})
                 trigger_siren("SIREN_LONG")
+                update_match_stats(state_str) # Salva le statistiche in caso di fine manuale
             return
         
         if target_id == "BROADCAST_ENV":
