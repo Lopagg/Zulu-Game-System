@@ -73,6 +73,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let arenaRoster = {}; 
     let currentGameState = 'STANDBY'; 
     let currentProfileUid = null;
+    
+    let globalPlayersDB = []; // --- NUOVO: Archivia i giocatori per aggiungerli manualmente
 
     let debounceTimer1 = null;
     let debounceTimer2 = null;
@@ -100,9 +102,20 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('roster_update', (rosterData) => {
         arenaRoster = rosterData;
         renderArenaRoster();
+        // Se il modal "Add Player" è aperto, ricarica la lista per nascondere chi è appena entrato
+        if (!document.getElementById('add-player-modal').classList.contains('hidden')) {
+            renderAddPlayerList();
+        }
     });
 
     socket.on('database_update', (players) => {
+        globalPlayersDB = players; // Salviamo nel database locale JS
+        
+        // Se il modal "Add Player" è aperto, ricarica la lista
+        if (!document.getElementById('add-player-modal').classList.contains('hidden')) {
+            renderAddPlayerList();
+        }
+
         const dbList = document.getElementById('db-list');
         const dbCount = document.getElementById('db-total-count');
         if(!dbList) return;
@@ -361,7 +374,71 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- NUOVO: LOGICA DEL PROFILO MODAL E UPLOAD FOTO ---
+    // --- NUOVO: LOGICA AGGIUNTA GIOCATORI DAL DB ---
+    window.openAddPlayerModal = function() {
+        socket.emit('request_database');
+        document.getElementById('add-player-modal').classList.remove('hidden');
+    };
+
+    window.closeAddPlayerModal = function() {
+        document.getElementById('add-player-modal').classList.add('hidden');
+    };
+
+    function renderAddPlayerList() {
+        const list = document.getElementById('add-player-list');
+        if (!list) return;
+        list.innerHTML = '';
+
+        // Filtra giocatori non ancora nel roster
+        const availablePlayers = globalPlayersDB.filter(p => !arenaRoster[p.uid]);
+
+        if (availablePlayers.length === 0) {
+            list.innerHTML = '<li class="placeholder-text" style="color:var(--sop-dim); text-align:center; margin-top:20px;">TUTTI I GIOCATORI DEL DB SONO GIA\' IN CAMPO OPPURE DB VUOTO</li>';
+            return;
+        }
+
+        availablePlayers.forEach(player => {
+            const li = document.createElement('li');
+            li.className = 'roster-item';
+            li.style.justifyContent = 'space-between';
+
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = `${player.alias}`;
+            nameSpan.style.fontWeight = 'bold';
+            nameSpan.style.fontSize = '18px';
+
+            const controlsDiv = document.createElement('div');
+
+            const btnAlpha = document.createElement('button');
+            btnAlpha.textContent = '[ + ALPHA ]';
+            btnAlpha.className = 'deck-btn';
+            btnAlpha.style.color = 'var(--sop-alert)';
+            btnAlpha.style.borderColor = 'var(--sop-alert)';
+            btnAlpha.style.marginRight = '10px';
+            btnAlpha.onclick = () => {
+                socket.emit('register_operator', { uid: player.uid, team: 'ALPHA' });
+                // Il renderArenaRoster via socket ricaricherà anche questa lista per toglierlo
+            };
+
+            const btnBravo = document.createElement('button');
+            btnBravo.textContent = '[ + BRAVO ]';
+            btnBravo.className = 'deck-btn';
+            btnBravo.style.color = '#55ff55';
+            btnBravo.style.borderColor = '#55ff55';
+            btnBravo.onclick = () => {
+                socket.emit('register_operator', { uid: player.uid, team: 'BRAVO' });
+            };
+
+            controlsDiv.appendChild(btnAlpha);
+            controlsDiv.appendChild(btnBravo);
+
+            li.appendChild(nameSpan);
+            li.appendChild(controlsDiv);
+            list.appendChild(li);
+        });
+    }
+
+    // --- LOGICA DEL PROFILO MODAL E UPLOAD FOTO ---
     window.openOperatorProfile = function(uid) {
         currentProfileUid = uid;
         socket.emit('request_profile', {uid: uid});
@@ -382,7 +459,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if(data.photo) {
             photoEl.src = `/static/uploads/${data.photo}?t=${new Date().getTime()}`;
         } else {
-            // Immagine tattica stilizzata di default in base64
             photoEl.src = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIiBmaWxsPSIjMzMzIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjM1IiByPSIyMCIvPjxwYXRoIGQ9Ik0yMCA5MCBRMjAgNjAgNTAgNjAgUTgwIDYwIDgwIDkwIFoiLz48L3N2Zz4=";
         }
         

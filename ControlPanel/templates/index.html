@@ -9,7 +9,7 @@
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=12">
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-    <script src="{{ url_for('static', filename='app.js') }}?v=14" defer></script>
+    <script src="{{ url_for('static', filename='app.js') }}?v=15" defer></script>
 </head>
 <body class="sop-theme">
 
@@ -307,6 +307,8 @@
                     <div>
                         <button class="back-btn deck-btn" onclick="showView('arena-menu')" style="margin-bottom: 10px;">[ < BACK ]</button>
                         <button class="deck-btn btn-danger" onclick="if(confirm('ATTENZIONE: Rimuovere tutti gli operatori dal roster di oggi?')) socket.emit('clear_roster')" style="margin-bottom: 10px; margin-left: 10px;">[ CLEAR ROSTER ]</button>
+                        <!-- PULSANTE AGGIUNGI DA DB -->
+                        <button class="deck-btn" onclick="openAddPlayerModal()" style="margin-bottom: 10px; margin-left: 10px; color: var(--sop-primary); border-color: var(--sop-primary);">[ ADD FROM DB ]</button>
                     </div>
                     <span class="monitor-label">STATUS: <span style="color:#55ff55">MANAGEMENT LIVE</span> | OPERATORI TOTALI: <span id="total-op-count" style="color:var(--sop-primary); font-weight:bold; font-size:16px;">0</span></span>
                 </div>
@@ -447,6 +449,21 @@
                     
                     <button class="deck-btn" style="border-color: var(--sop-primary); color: var(--sop-primary); float: right; margin-top: 10px;" onclick="saveOperatorNotes()">[ SALVA NOTE ]</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- === NUOVO: MODAL AGGIUNGI DAL DB === -->
+    <div id="add-player-modal" class="modal-overlay hidden">
+        <div class="sop-card profile-modal" style="width: 500px;">
+            <div class="panel-header" style="justify-content: space-between; border-bottom: 2px solid var(--sop-primary);">
+                <h2 style="margin: 0; padding: 10px; color: var(--sop-primary); letter-spacing: 2px;">ADD FROM DATABASE</h2>
+                <button class="close-modal-btn" onclick="closeAddPlayerModal()">[X]</button>
+            </div>
+            <div class="panel-body" style="padding: 20px;">
+                <ul id="add-player-list" class="roster-list" style="max-height: 400px; overflow-y: auto; padding: 0;">
+                    <!-- I giocatori vengono iniettati qui da JS -->
+                </ul>
             </div>
         </div>
     </div>
