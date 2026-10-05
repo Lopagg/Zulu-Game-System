@@ -225,6 +225,7 @@ document.addEventListener('DOMContentLoaded', () => {
             logSystem("KIOSK: Rilevato pulsante hardware END. Terminazione immediata.");
             if (activeGameNodeId) {
                 socket.emit('send_command', { target_id: activeGameNodeId, command: { cmd: "FORCE_END_GAME" } });
+                socket.emit('send_command', { target_id: "BROADCAST_ENV", command: { cmd: "SIREN_LONG" } }); 
                 logSystem(`SENDING TERMINATION SIGNAL TO NODE [${activeGameNodeId.slice(-4)}]...`);
             } else {
                 logSystem("NESSUNA PARTITA ATTIVA RILEVATA DA TERMINARE.");
@@ -692,6 +693,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if(confirm("ATTENZIONE: Terminare forzatamente la partita?")) {
             socket.emit('send_command', { target_id: activeGameNodeId, command: { cmd: "FORCE_END_GAME" } });
+            socket.emit('send_command', { target_id: "BROADCAST_ENV", command: { cmd: "SIREN_LONG" } }); 
             logSystem(`SENDING TERMINATION SIGNAL TO NODE [${activeGameNodeId.slice(-4)}]...`);
         }
     });
@@ -760,9 +762,6 @@ document.addEventListener('DOMContentLoaded', () => {
             updateMonitorLayout(mode);
             if(elGlobalTimer) elGlobalTimer.textContent = "--:--"; 
             logSystem(`GLOBAL MODE ENTER: ${mode}`);
-            
-            // --- SUONA LA SIRENA QUANDO LA PARTITA INIZIA EFFETTIVAMENTE ---
-            socket.emit('send_command', { target_id: "BROADCAST_ENV", command: { cmd: "SIREN_LONG" } });
         }
         if (type === 'COUNTDOWN_UPDATE') {
             if (payload.time !== undefined && elGlobalTimer) {
@@ -808,6 +807,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const endStates = ['T WINS', 'CT WINS', 'ALPHA WINS', 'BRAVO WINS', 'DRAW', 'STOPPED'];
                 if (endStates.includes(payload.state) && !endStates.includes(currentGameState)) {
                     logSystem(`!!! PARTITA TERMINATA (${payload.state}) - ATTIVAZIONE SIRENA !!!`);
+                    socket.emit('send_command', { target_id: "BROADCAST_ENV", command: { cmd: "SIREN_LONG" } });
+                }
+
+                // --- SUONA LA SIRENA QUANDO LA PARTITA INIZIA EFFETTIVAMENTE ---
+                const startStates = ['ACTIVE', 'SAFE', 'NEUTRAL'];
+                if (currentGameState === 'PREPARING' && startStates.includes(payload.state)) {
+                    logSystem(`!!! PARTITA INIZIATA (${payload.state}) - ATTIVAZIONE SIRENA !!!`);
                     socket.emit('send_command', { target_id: "BROADCAST_ENV", command: { cmd: "SIREN_LONG" } });
                 }
 
@@ -1049,7 +1055,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (mode === 'tdm') {
                 const dur = parseInt(document.getElementById('tdm-game-dur').value) || 15;
                 socket.emit('start_tdm_game', { duration: dur });
-                // Tolto invio diretto della sirena
                 logSystem(`START MISSION: TEAM DEATHMATCH (${dur} min).`);
                 resetMonitorData();
                 showView('monitor');
@@ -1058,7 +1063,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let commandData = { cmd: (mode === 'sd') ? "START_SD_GAME" : "START_DOM_GAME" };
             socket.emit('send_command', { target_id: targetId, command: commandData });
-            // Tolto invio diretto della sirena
             logSystem(`START MISSION SIGNAL SENT TO ${targetId}.`);
             
             resetMonitorData();
