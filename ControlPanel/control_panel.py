@@ -258,19 +258,39 @@ def receive_data_from_bridge():
         payload = parsed.get('payload', {})
         
         if device_id:
+            # --- GESTIONE KIOSK BIDIREZIONALE ---
             if msg_type == 'TAG_SCANNED':
                 uid = payload.get('uid')
+                reply_action = "UNKNOWN"
                 if uid:
                     with sqlite3.connect(DB_PATH) as conn:
                         c = conn.cursor()
-                        c.execute("SELECT status FROM active_roster WHERE uid = ?", (uid,))
+                        c.execute("SELECT status, team FROM active_roster WHERE uid = ?", (uid,))
                         row = c.fetchone()
+                        
                         if row:
+                            # Il giocatore è nel roster: inverti lo stato
                             new_status = 'FUORI' if row[0] == 'IN' else 'IN'
                             c.execute("UPDATE active_roster SET status = ? WHERE uid = ?", (new_status, uid))
                             conn.commit()
+                            logger.info(f"[KIOSK] Operatore {uid} ({row[1]}) cambiato in stato: {new_status}")
+                            reply_action = f"{new_status}_{row[1]}" # Es: IN_ALPHA, FUORI_BRAVO
                             broadcast_roster()
-            
+                        else:
+                            # Tessera non in roster: il server dice al kiosk di aspettare il bottone
+                            logger.info(f"[KIOSK] Tessera {uid} non nel roster. Prego assegnare squadra.")
+                            reply_action = "WAIT_ASSIGN"
+                
+                # Invia la risposta al Bridge UDP locale per instradarla all'ESP32
+                if device_id in registry.devices and "ip" in registry.devices[device_id]:
+                    kiosk_ip = registry.devices[device_id]["ip"]
+                    try:
+                        reply_payload = {"target_id": device_id, "command": {"cmd": "KIOSK_REPLY", "action": reply_action}}
+                        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                        sock.sendto(json.dumps(reply_payload).encode('utf-8'), ('127.0.0.1', 1234))
+                    except Exception as e:
+                        logger.error(f"[ERROR UDP REPLY] {e}")
+
             elif msg_type == 'TAG_ASSIGN':
                 uid = payload.get('uid')
                 team = payload.get('team')
@@ -278,9 +298,11 @@ def receive_data_from_bridge():
                     with sqlite3.connect(DB_PATH) as conn:
                         c = conn.cursor()
                         c.execute("INSERT OR IGNORE INTO players (uid, alias, registered_at) VALUES (?, ?, ?)", (uid, f"OP-{uid[:4]}", get_current_time()))
-                        c.execute("INSERT OR REPLACE INTO active_roster (uid, team, status) VALUES (?, ?, 'FUORI')", (uid, team))
+                        c.execute("INSERT OR REPLACE INTO active_roster (uid, team, status) VALUES (?, ?, 'IN')", (uid, team)) # Entra direttamente IN CAMPO
                         conn.commit()
+                    logger.info(f"[KIOSK] Operatore {uid} assegnato al team {team} ed entrato in campo.")
                     broadcast_roster()
+            # ----------------------------------------------
             
             mode = payload.get('mode')
             version = payload.get('version')
