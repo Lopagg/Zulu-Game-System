@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
             activeInspectorId = null;
             monitoredDeviceId = null; 
             lastConfiguredMode = null;
-            activeGameNodeId = null; // Azzera il focus partita tornando alla Home
+            activeGameNodeId = null; 
             currentGameState = 'STANDBY';
             document.querySelectorAll('.device-item').forEach(el => el.classList.remove('active'));
         }
@@ -225,7 +225,6 @@ document.addEventListener('DOMContentLoaded', () => {
             logSystem("KIOSK: Rilevato pulsante hardware END. Terminazione immediata.");
             if (activeGameNodeId) {
                 socket.emit('send_command', { target_id: activeGameNodeId, command: { cmd: "FORCE_END_GAME" } });
-                socket.emit('send_command', { target_id: "BROADCAST_ENV", command: { cmd: "SIREN_LONG" } }); 
                 logSystem(`SENDING TERMINATION SIGNAL TO NODE [${activeGameNodeId.slice(-4)}]...`);
             } else {
                 logSystem("NESSUNA PARTITA ATTIVA RILEVATA DA TERMINARE.");
@@ -411,17 +410,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 logSystem("!!! TEAM ALPHA ELIMINATO - VITTORIA BRAVO !!!");
                 socket.emit('send_command', { target_id: activeGameNodeId, command: { cmd: "FORCE_WIN", winner: "BRAVO" } });
                 currentGameState = 'BRAVO WINS'; 
-                socket.emit('send_command', { target_id: "BROADCAST_ENV", command: { cmd: "SIREN_LONG" } }); 
             } else if (bravoInCount === 0 && alphaInCount > 0) {
                 logSystem("!!! TEAM BRAVO ELIMINATO - VITTORIA ALPHA !!!");
                 socket.emit('send_command', { target_id: activeGameNodeId, command: { cmd: "FORCE_WIN", winner: "ALPHA" } });
                 currentGameState = 'ALPHA WINS'; 
-                socket.emit('send_command', { target_id: "BROADCAST_ENV", command: { cmd: "SIREN_LONG" } }); 
             } else if (alphaInCount === 0 && bravoInCount === 0) {
                 logSystem("!!! MUTUA DISTRUZIONE - PARTITA TERMINATA !!!");
                 socket.emit('send_command', { target_id: activeGameNodeId, command: { cmd: "FORCE_END_GAME" } });
                 currentGameState = 'DRAW';
-                socket.emit('send_command', { target_id: "BROADCAST_ENV", command: { cmd: "SIREN_LONG" } }); 
             }
         }
     }
@@ -696,7 +692,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if(confirm("ATTENZIONE: Terminare forzatamente la partita?")) {
             socket.emit('send_command', { target_id: activeGameNodeId, command: { cmd: "FORCE_END_GAME" } });
-            socket.emit('send_command', { target_id: "BROADCAST_ENV", command: { cmd: "SIREN_LONG" } }); 
             logSystem(`SENDING TERMINATION SIGNAL TO NODE [${activeGameNodeId.slice(-4)}]...`);
         }
     });
@@ -730,16 +725,13 @@ document.addEventListener('DOMContentLoaded', () => {
             activeGameNodeId = senderId;
         }
 
-        // --- FIX 1: Ignora i battiti degli altri terminali se c'è una partita attiva in corso ---
         if (type === 'HEARTBEAT' && activeGameNodeId && senderId !== activeGameNodeId) {
             return; 
         }
 
-        // --- FIX 2: Estrazione sicura del mode ---
         let mode = payload.mode || raw.mode || (type === 'SD_UPDATE' ? 'SEARCH_AND_DESTROY' : (type === 'DOM_UPDATE' ? 'DOMINATION' : (type === 'TDM_UPDATE' ? 'TEAM_DEATHMATCH' : null)));
         if (mode === 'SEARCH_DESTROY') mode = 'SEARCH_AND_DESTROY';
 
-        // --- FIX 3: Impedisci al Kiosk di forzare la grafica sulla mappa standard ---
         if (mode === 'KIOSK') return; 
 
         if (type === 'TAG_ASSIGN') {
@@ -757,7 +749,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (type === 'MODE_EXIT') {
             currentGameState = 'STANDBY';
-            activeGameNodeId = null; // Libera il focus dalla partita conclusa
+            activeGameNodeId = null; 
             resetMonitorData();
             updateMonitorLayout(null);
             logSystem(`GLOBAL MODE EXIT DETECTED.`);
@@ -768,6 +760,9 @@ document.addEventListener('DOMContentLoaded', () => {
             updateMonitorLayout(mode);
             if(elGlobalTimer) elGlobalTimer.textContent = "--:--"; 
             logSystem(`GLOBAL MODE ENTER: ${mode}`);
+            
+            // --- SUONA LA SIRENA QUANDO LA PARTITA INIZIA EFFETTIVAMENTE ---
+            socket.emit('send_command', { target_id: "BROADCAST_ENV", command: { cmd: "SIREN_LONG" } });
         }
         if (type === 'COUNTDOWN_UPDATE') {
             if (payload.time !== undefined && elGlobalTimer) {
@@ -809,6 +804,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (payload.state && elSdBombStatus) {
                 
+                // --- SUONA LA SIRENA QUANDO LA PARTITA FINISCE EFFETTIVAMENTE ---
                 const endStates = ['T WINS', 'CT WINS', 'ALPHA WINS', 'BRAVO WINS', 'DRAW', 'STOPPED'];
                 if (endStates.includes(payload.state) && !endStates.includes(currentGameState)) {
                     logSystem(`!!! PARTITA TERMINATA (${payload.state}) - ATTIVAZIONE SIRENA !!!`);
@@ -1053,7 +1049,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (mode === 'tdm') {
                 const dur = parseInt(document.getElementById('tdm-game-dur').value) || 15;
                 socket.emit('start_tdm_game', { duration: dur });
-                socket.emit('send_command', { target_id: "BROADCAST_ENV", command: { cmd: "SIREN_LONG" } }); 
+                // Tolto invio diretto della sirena
                 logSystem(`START MISSION: TEAM DEATHMATCH (${dur} min).`);
                 resetMonitorData();
                 showView('monitor');
@@ -1062,7 +1058,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let commandData = { cmd: (mode === 'sd') ? "START_SD_GAME" : "START_DOM_GAME" };
             socket.emit('send_command', { target_id: targetId, command: commandData });
-            socket.emit('send_command', { target_id: "BROADCAST_ENV", command: { cmd: "SIREN_LONG" } }); 
+            // Tolto invio diretto della sirena
             logSystem(`START MISSION SIGNAL SENT TO ${targetId}.`);
             
             resetMonitorData();
