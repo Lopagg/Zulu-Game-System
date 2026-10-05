@@ -7,9 +7,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=11">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=12">
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-    <script src="{{ url_for('static', filename='app.js') }}?v=13" defer></script>
+    <script src="{{ url_for('static', filename='app.js') }}?v=14" defer></script>
 </head>
 <body class="sop-theme">
 
@@ -103,8 +103,7 @@
                         <button class="back-btn deck-btn" onclick="showView('hub')">[ CANCEL ]</button>
                     </div>
                     <div class="panel-body">
-
-                        <!-- --- NUOVO: RIEPILOGO ROSTER IN FASE DI SETUP --- -->
+                        
                         <div class="setup-roster-summary">
                             <div class="setup-roster-team">
                                 <div class="setup-roster-label">ALPHA READY</div>
@@ -115,7 +114,6 @@
                                 <div id="setup-bravo-count" class="setup-roster-count setup-roster-bravo">0/0</div>
                             </div>
                         </div>
-                        <!-- ------------------------------------------------ -->
                         
                         <div class="input-group-tactical" style="margin-bottom: 25px;">
                             <label class="setup-label">SELECT OPERATION MODE:</label>
@@ -371,6 +369,7 @@
                 </div>
             </div>
 
+            <!-- MENU INSPECTOR (Hardware) -->
             <div id="view-inspector" class="view-panel hidden">
                 <div class="inspector-header">
                     <h2 id="inspector-title">NODE-UNKNOWN // CONFIG</h2>
@@ -422,5 +421,35 @@
         </footer>
 
     </div>
+
+    <!-- === MODAL PROFILO OPERATORE === -->
+    <div id="operator-modal" class="modal-overlay hidden">
+        <div class="sop-card profile-modal">
+            <div class="panel-header" style="justify-content: space-between; border-bottom: 2px solid var(--sop-primary);">
+                <h2 id="modal-op-name" style="margin: 0; padding: 10px; color: var(--sop-primary); letter-spacing: 2px;">OPERATOR PROFILE</h2>
+                <button class="close-modal-btn" onclick="closeModal()">[X]</button>
+            </div>
+            <div class="panel-body profile-grid">
+                <div class="profile-photo-col">
+                    <div class="photo-frame">
+                        <img id="modal-op-photo" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIiBmaWxsPSIjMzMzIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjM1IiByPSIyMCIvPjxwYXRoIGQ9Ik0yMCA5MCBRMjAgNjAgNTAgNjAgUTgwIDYwIDgwIDkwIFoiLz48L3N2Zz4=" alt="Foto Operatore" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIiBmaWxsPSIjMzMzIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjM1IiByPSIyMCIvPjxwYXRoIGQ9Ik0yMCA5MCBRMjAgNjAgNTAgNjAgUTgwIDYwIDgwIDkwIFoiLz48L3N2Zz4='">
+                    </div>
+                    <input type="file" id="photo-upload-input" accept="image/*" class="hidden" onchange="handlePhotoUpload(this)">
+                    <button class="deck-btn full-width" onclick="document.getElementById('photo-upload-input').click()">[ CARICA FOTO ]</button>
+                </div>
+                <div class="profile-info-col">
+                    <div class="data-row"><span class="label">UID TESSERA:</span> <span id="modal-op-uid" class="value" style="font-family: monospace;">--</span></div>
+                    <div class="data-row"><span class="label">REGISTRATO IL:</span> <span id="modal-op-date" class="value">--</span></div>
+                    <div class="data-row"><span class="label">PARTITE GIOCATE:</span> <span id="modal-op-games" class="value" style="color:var(--sop-primary); font-weight:bold;">0</span></div>
+                    
+                    <label class="setup-label" style="margin-top: 15px;">ANNOTAZIONI / STATO MEDICO</label>
+                    <textarea id="modal-op-notes" class="setup-input tactical-textarea" rows="4" placeholder="Nessuna nota presente..."></textarea>
+                    
+                    <button class="deck-btn" style="border-color: var(--sop-primary); color: var(--sop-primary); float: right; margin-top: 10px;" onclick="saveOperatorNotes()">[ SALVA NOTE ]</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </body>
 </html>

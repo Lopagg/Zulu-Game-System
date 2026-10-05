@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
 from flask_socketio import SocketIO, emit
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from werkzeug.utils import secure_filename
 import logging
 import json
 import socket
@@ -9,6 +10,7 @@ import threading
 from threading import Lock
 import sqlite3
 import os
+import datetime
 
 # --- CONFIGURAZIONE ---
 logging.basicConfig(level=logging.INFO)
@@ -16,6 +18,11 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'philanthropy_secret_key_change_in_prod'
+
+UPLOAD_FOLDER = os.path.join(app.root_path, 'static', 'uploads')
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 login_manager = LoginManager()
@@ -41,11 +48,23 @@ def load_user(user_id):
 # --- DATABASE SETUP (PHILANTHROPY) ---
 DB_PATH = 'philanthropy_arena.db'
 
+def get_current_time():
+    return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
 def init_db():
     with sqlite3.connect(DB_PATH) as conn:
         c = conn.cursor()
         c.execute('''CREATE TABLE IF NOT EXISTS players
                      (uid TEXT PRIMARY KEY, alias TEXT, games_played INTEGER DEFAULT 0, wins INTEGER DEFAULT 0)''')
+        
+        # Upgrade sicuro dello schema per tabelle esistenti
+        try: c.execute("ALTER TABLE players ADD COLUMN registered_at TEXT")
+        except sqlite3.OperationalError: pass
+        try: c.execute("ALTER TABLE players ADD COLUMN notes TEXT")
+        except sqlite3.OperationalError: pass
+        try: c.execute("ALTER TABLE players ADD COLUMN photo TEXT")
+        except sqlite3.OperationalError: pass
+
         c.execute('''CREATE TABLE IF NOT EXISTS active_roster
                      (uid TEXT PRIMARY KEY, team TEXT, status TEXT)''')
         conn.commit()
@@ -78,34 +97,24 @@ class DeviceRegistry:
     def update_device(self, device_id, ip_info, msg_type, mode=None, version=None):
         now = time.time()
         changed = False
-        
         with self.lock:
             if device_id not in self.devices:
-                self.devices[device_id] = {
-                    "id": device_id, "name": device_id, "type": "NODE",
-                    "mode": "BOOTING...", "version": "Unknown"
-                }
+                self.devices[device_id] = { "id": device_id, "name": device_id, "type": "NODE", "mode": "BOOTING...", "version": "Unknown" }
                 changed = True 
-            
             self.devices[device_id]["last_seen"] = now
-            
             new_ip = ip_info[0] if isinstance(ip_info, list) else ip_info
             if self.devices[device_id].get("ip") != new_ip:
                 self.devices[device_id]["ip"] = new_ip
-            
             self.devices[device_id]["status"] = "ONLINE"
-            
             if version and self.devices[device_id].get("version") != version:
                 self.devices[device_id]["version"] = version
                 changed = True
-
             if mode and self.devices[device_id].get("mode") != mode:
                  self.devices[device_id]["mode"] = mode
                  changed = True
             elif msg_type == "MODE_EXIT" and self.devices[device_id].get("mode") != "MAIN MENU":
                 self.devices[device_id]["mode"] = "MAIN MENU"
                 changed = True
-            
         return changed
 
     def rename_device(self, device_id, new_name):
@@ -141,14 +150,12 @@ def background_cleanup():
     logger.info("[SYSTEM] Task di Pulizia e Arbitro TDM AVVIATO.")
     tick_counter = 0
     while True:
-        socketio.sleep(1) # Eseguito ogni secondo per il timer TDM
+        socketio.sleep(1) 
         tick_counter += 1
         
-        # --- CICLO PARTITA TDM VIRTUALE ---
         if tdm_state['active']:
             if tdm_state['time_left'] > 0:
                 tdm_state['time_left'] -= 1
-                
                 with sqlite3.connect(DB_PATH) as conn:
                     c = conn.cursor()
                     c.execute("SELECT team FROM active_roster WHERE status='IN'")
@@ -157,7 +164,6 @@ def background_cleanup():
                     bravo_in = sum(1 for p in players if p[0] == 'BRAVO')
                 
                 state_str = "ACTIVE"
-                # Condizioni di Vittoria Anticipata
                 if alpha_in == 0 and bravo_in > 0:
                     tdm_state['active'] = False
                     state_str = "BRAVO WINS"
@@ -167,25 +173,15 @@ def background_cleanup():
                 elif alpha_in == 0 and bravo_in == 0:
                     tdm_state['active'] = False
                     state_str = "DRAW"
-                # Scadenza Timer
                 elif tdm_state['time_left'] == 0:
                     tdm_state['active'] = False
                     if alpha_in > bravo_in: state_str = "ALPHA WINS"
                     elif bravo_in > alpha_in: state_str = "BRAVO WINS"
                     else: state_str = "DRAW"
                 
-                doc = {
-                    "id": "SERVER-TDM",
-                    "type": "TDM_UPDATE",
-                    "payload": {
-                        "mode": "TEAM_DEATHMATCH",
-                        "state": state_str,
-                        "game_time": tdm_state['time_left']
-                    }
-                }
+                doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": state_str, "game_time": tdm_state['time_left'] } }
                 socketio.emit('esp_event', {"parsed_data": doc})
         
-        # --- PULIZIA DISPOSITIVI (eseguita ogni 2 secondi) ---
         if tick_counter % 2 == 0:
             try:
                 active_devs, removed_something = registry.get_active_devices()
@@ -231,6 +227,23 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
+# --- UPLOAD FOTO PROFILO ---
+@app.route('/upload_photo', methods=['POST'])
+@login_required
+def upload_photo():
+    if 'photo' not in request.files or 'uid' not in request.form:
+        return jsonify({"status": "error"}), 400
+    file = request.files['photo']
+    uid = request.form['uid']
+    if file.filename != '':
+        filename = secure_filename(f"op_{uid}.jpg")
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(filepath)
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute("UPDATE players SET photo = ? WHERE uid = ?", (filename, uid))
+        return jsonify({"status": "ok", "filename": filename})
+    return jsonify({"status": "error"}), 400
+
 @app.route('/internal/forward_data', methods=['POST'])
 def receive_data_from_bridge():
     try:
@@ -264,7 +277,7 @@ def receive_data_from_bridge():
                 if uid and team:
                     with sqlite3.connect(DB_PATH) as conn:
                         c = conn.cursor()
-                        c.execute("INSERT OR IGNORE INTO players (uid, alias) VALUES (?, ?)", (uid, f"OP-{uid[:4]}"))
+                        c.execute("INSERT OR IGNORE INTO players (uid, alias, registered_at) VALUES (?, ?, ?)", (uid, f"OP-{uid[:4]}", get_current_time()))
                         c.execute("INSERT OR REPLACE INTO active_roster (uid, team, status) VALUES (?, ?, 'FUORI')", (uid, team))
                         conn.commit()
                     broadcast_roster()
@@ -297,7 +310,7 @@ def handle_register_operator(data):
     if not uid or not team: return
     with sqlite3.connect(DB_PATH) as conn:
         c = conn.cursor()
-        c.execute("INSERT OR IGNORE INTO players (uid, alias) VALUES (?, ?)", (uid, f"OP-{uid[:4]}"))
+        c.execute("INSERT OR IGNORE INTO players (uid, alias, registered_at) VALUES (?, ?, ?)", (uid, f"OP-{uid[:4]}", get_current_time()))
         c.execute("INSERT OR REPLACE INTO active_roster (uid, team, status) VALUES (?, ?, 'FUORI')", (uid, team))
         conn.commit()
     broadcast_roster()
@@ -327,7 +340,7 @@ def handle_clear_roster():
         conn.commit()
     broadcast_roster()
 
-# --- WEBSOCKET EVENTI DATABASE GLOBALE ---
+# --- WEBSOCKET EVENTI DATABASE GLOBALE E PROFILO ---
 @socketio.on('request_database')
 def handle_request_database():
     with sqlite3.connect(DB_PATH) as conn:
@@ -352,6 +365,24 @@ def handle_update_db_player(data):
     broadcast_roster()
     handle_request_database()
 
+@socketio.on('request_profile')
+def handle_request_profile(data):
+    uid = data.get('uid')
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        c.execute("SELECT * FROM players WHERE uid = ?", (uid,))
+        row = c.fetchone()
+        if row:
+            emit('profile_data', dict(row))
+
+@socketio.on('save_notes')
+def handle_save_notes(data):
+    uid = data.get('uid')
+    notes = data.get('notes')
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("UPDATE players SET notes = ? WHERE uid = ?", (notes, uid))
+
 # --- EVENTI SERVER-TDM ---
 @socketio.on('start_tdm_game')
 def handle_start_tdm(data):
@@ -365,9 +396,6 @@ def handle_start_tdm(data):
     
     rules_doc = { "id": "SERVER-TDM", "type": "SETTINGS_UPDATE", "payload": {"mode": "TEAM_DEATHMATCH", "game_duration": dur} }
     socketio.emit('esp_event', {"parsed_data": rules_doc})
-    logger.info(f"[TDM] Partita Deathmatch avviata: {dur} minuti")
-
-# -------------------------------------
 
 @socketio.on('rename_device')
 def handle_rename(data):
@@ -391,7 +419,6 @@ def handle_socket_command(data):
         command_obj = data.get('command')
         cmd_str = json.dumps(command_obj) if isinstance(command_obj, dict) else command_obj
         
-        # Intercetta comandi rivolti al server TDM per terminazioni anticipate manuali
         if target_id == "SERVER-TDM":
             if "FORCE_END_GAME" in cmd_str or "FORCE_WIN" in cmd_str:
                 tdm_state['active'] = False
@@ -400,11 +427,7 @@ def handle_socket_command(data):
                     if "ALPHA" in cmd_str: state_str = "ALPHA WINS"
                     elif "BRAVO" in cmd_str: state_str = "BRAVO WINS"
                 
-                doc = {
-                    "id": "SERVER-TDM",
-                    "type": "TDM_UPDATE",
-                    "payload": { "mode": "TEAM_DEATHMATCH", "state": state_str, "game_time": tdm_state['time_left'] }
-                }
+                doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": state_str, "game_time": tdm_state['time_left'] } }
                 socketio.emit('esp_event', {"parsed_data": doc})
                 return
         

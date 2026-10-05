@@ -239,6 +239,41 @@ body {
 .alpha-list li { color: #ff5555; }
 .bravo-list li { color: #55ff55; }
 
+/* --- CLICKABLE NAMES --- */
+.clickable-name { 
+    cursor: pointer; 
+    transition: color 0.2s, text-shadow 0.2s; 
+    text-decoration: underline dashed rgba(0, 255, 204, 0.3); 
+    text-underline-offset: 4px;
+}
+.clickable-name:hover { 
+    color: var(--sop-primary) !important; 
+    text-decoration: underline dashed var(--sop-primary); 
+    text-shadow: 0 0 10px var(--sop-primary); 
+}
+
+/* --- MODAL PROFILE --- */
+.modal-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.85); z-index: 1000;
+    display: flex; justify-content: center; align-items: center;
+    backdrop-filter: blur(5px);
+}
+.profile-modal {
+    width: 600px; max-width: 90%; background: var(--sop-bg); border: 2px solid var(--sop-primary);
+}
+.profile-grid {
+    display: grid; grid-template-columns: 200px 1fr; gap: 20px; padding: 20px;
+}
+.photo-frame {
+    width: 100%; height: 250px; border: 1px solid var(--sop-dim); background: rgba(0,255,204,0.05);
+    display: flex; justify-content: center; align-items: center; margin-bottom: 10px; overflow: hidden;
+}
+.photo-frame img { width: 100%; height: 100%; object-fit: cover; }
+.tactical-textarea { resize: none; font-size: 14px; background: rgba(0,0,0,0.8); }
+.close-modal-btn { background: transparent; border: none; color: var(--sop-alert); font-size: 20px; font-weight: bold; cursor: pointer; }
+.close-modal-btn:hover { text-shadow: 0 0 10px var(--sop-alert); }
+
 /* --- TACTICAL FEED (S&D) --- */
 .tactical-body { display: flex; flex-direction: column; justify-content: space-around; padding: 20px; height: 100%; width: 100%; overflow-y: auto; }
 .bomb-status-box { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--sop-dim); padding-bottom: 10px; width: 100%; font-size: 40px; font-weight: bold; letter-spacing: 3px; color: var(--sop-text); }

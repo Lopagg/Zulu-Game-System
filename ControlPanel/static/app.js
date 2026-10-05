@@ -72,6 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let lastConfiguredMode = null; 
     let arenaRoster = {}; 
     let currentGameState = 'STANDBY'; 
+    let currentProfileUid = null;
 
     let debounceTimer1 = null;
     let debounceTimer2 = null;
@@ -122,6 +123,8 @@ document.addEventListener('DOMContentLoaded', () => {
             nameSpan.textContent = `${player.alias} (UID: ${player.uid})`;
             nameSpan.style.fontWeight = 'bold';
             nameSpan.style.fontSize = '20px';
+            nameSpan.className = 'clickable-name';
+            nameSpan.onclick = () => openOperatorProfile(player.uid);
 
             const controlsDiv = document.createElement('div');
             controlsDiv.style.fontSize = '18px';
@@ -202,6 +205,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     if(listMonitorAlpha) {
                         const liMon = document.createElement('li');
                         liMon.textContent = player.name;
+                        liMon.className = 'clickable-name';
+                        liMon.onclick = () => openOperatorProfile(player.uid);
                         listMonitorAlpha.appendChild(liMon);
                     }
                 } else {
@@ -209,6 +214,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     if(listMonitorBravo) {
                         const liMon = document.createElement('li');
                         liMon.textContent = player.name;
+                        liMon.className = 'clickable-name';
+                        liMon.onclick = () => openOperatorProfile(player.uid);
                         listMonitorBravo.appendChild(liMon);
                     }
                 }
@@ -223,6 +230,8 @@ document.addEventListener('DOMContentLoaded', () => {
             nameSpanMng.textContent = player.name;
             nameSpanMng.style.fontWeight = 'bold';
             nameSpanMng.style.fontSize = '20px'; 
+            nameSpanMng.className = 'clickable-name';
+            nameSpanMng.onclick = () => openOperatorProfile(player.uid);
             
             const controlsMng = document.createElement('div');
             controlsMng.style.fontSize = '18px'; 
@@ -273,6 +282,8 @@ document.addEventListener('DOMContentLoaded', () => {
             nameSpanTrk.textContent = player.name;
             nameSpanTrk.style.fontWeight = 'bold';
             nameSpanTrk.style.fontSize = '20px'; 
+            nameSpanTrk.className = 'clickable-name';
+            nameSpanTrk.onclick = () => openOperatorProfile(player.uid);
             
             const controlsTrk = document.createElement('div');
             controlsTrk.style.fontSize = '18px'; 
@@ -321,7 +332,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (elScoreA) elScoreA.textContent = alphaInCount;
         if (elScoreB) elScoreB.textContent = bravoInCount;
 
-        // --- NUOVO: AGGIORNAMENTO PANNELLO RIEPILOGO IN SETUP ---
         const setupAlphaCount = document.getElementById('setup-alpha-count');
         const setupBravoCount = document.getElementById('setup-bravo-count');
         if (setupAlphaCount) {
@@ -330,7 +340,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (setupBravoCount) {
             setupBravoCount.textContent = `${bravoInCount}/${bravoCount}`;
         }
-        // --------------------------------------------------------
 
         const activeStates = ['SAFE', 'ARMING...', 'ARMED', 'DEFUSING...', 'NEUTRAL', 'OWNED ALPHA', 'OWNED BRAVO', 'CAPTURING A...', 'CAPTURING B...'];
         const gameIsRunning = activeStates.includes(currentGameState) && activeGameNodeId !== null;
@@ -351,6 +360,75 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
+
+    // --- NUOVO: LOGICA DEL PROFILO MODAL E UPLOAD FOTO ---
+    window.openOperatorProfile = function(uid) {
+        currentProfileUid = uid;
+        socket.emit('request_profile', {uid: uid});
+    };
+
+    window.closeModal = function() {
+        document.getElementById('operator-modal').classList.add('hidden');
+    };
+
+    socket.on('profile_data', (data) => {
+        document.getElementById('modal-op-name').textContent = `PROFILE // ${data.alias}`;
+        document.getElementById('modal-op-uid').textContent = data.uid;
+        document.getElementById('modal-op-date').textContent = data.registered_at || 'Sconosciuta';
+        document.getElementById('modal-op-games').textContent = data.games_played || 0;
+        document.getElementById('modal-op-notes').value = data.notes || '';
+        
+        const photoEl = document.getElementById('modal-op-photo');
+        if(data.photo) {
+            photoEl.src = `/static/uploads/${data.photo}?t=${new Date().getTime()}`;
+        } else {
+            // Immagine tattica stilizzata di default in base64
+            photoEl.src = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIiBmaWxsPSIjMzMzIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjM1IiByPSIyMCIvPjxwYXRoIGQ9Ik0yMCA5MCBRMjAgNjAgNTAgNjAgUTgwIDYwIDgwIDkwIFoiLz48L3N2Zz4=";
+        }
+        
+        document.getElementById('operator-modal').classList.remove('hidden');
+    });
+
+    window.saveOperatorNotes = function() {
+        const notes = document.getElementById('modal-op-notes').value;
+        if(currentProfileUid) {
+            socket.emit('save_notes', {uid: currentProfileUid, notes: notes});
+            logSystem(`NOTE SALVATE PER [${currentProfileUid}]`);
+            closeModal();
+        }
+    };
+
+    window.handlePhotoUpload = function(input) {
+        if(!input.files || !input.files[0] || !currentProfileUid) return;
+        
+        const file = input.files[0];
+        const formData = new FormData();
+        formData.append('photo', file);
+        formData.append('uid', currentProfileUid);
+        
+        logSystem("CARICAMENTO FOTO IN CORSO...");
+        
+        fetch('/upload_photo', {
+            method: 'POST',
+            body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+            if(data.status === 'ok') {
+                const photoEl = document.getElementById('modal-op-photo');
+                photoEl.src = `/static/uploads/${data.filename}?t=${new Date().getTime()}`;
+                logSystem(`FOTO PROFILO AGGIORNATA.`);
+            } else {
+                alert('Errore durante il caricamento della foto.');
+                logSystem("ERRORE UPLOAD FOTO.");
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert('Errore di rete durante l\'upload.');
+        });
+    };
+    // -----------------------------------------------------
 
     function updateDeviceList(devices) {
         elDeviceList.innerHTML = ''; 
