@@ -62,7 +62,9 @@ AppState* appState = &currentAppState;
 // --- Stato e Menu Globale ---
 // Variabili per la gestione del menu principale.
 int mainMenuIndex = 0;
-String mainMenuOptions[] = { "Cerca & Distruggi", "Dominio", "Foxhunt", "Mod. Terminale","Stanza dei Suoni", "Test Hardware" };
+
+// FOXHUNT NASCOSTO: Rimossa la stringa "Foxhunt" dall'array.
+String mainMenuOptions[] = { "Cerca & Distruggi", "Dominio", "Mod. Terminale","Stanza dei Suoni", "Test Hardware" };
 int numMainMenuOptions = sizeof(mainMenuOptions) / sizeof(mainMenuOptions[0]);
 
 // --- Variabili per il sottomenu di Test Hardware ---
@@ -198,7 +200,7 @@ void loop() {
             terminalMode->loop();   // Delega il controllo alla Modalità Terminale
             break;
         case APP_STATE_FOXHUNT:
-            foxhuntMode->loop(); // Delega il controllo alla Modalità Foxhunt
+            foxhuntMode->loop(); // Delega il controllo alla Modalità Foxhunt (Il codice rimane in memoria, ma inaccessibile dal menu)
             break;
         case APP_STATE_TEST_HARDWARE:
             handleTestHardwareState();
@@ -333,28 +335,22 @@ void handleMainMenuState() {
                 networkManager.sendEvent("MODE_CHANGE", doc);
                 domMode->enter();
                 break;
-            case 2: // <--- FOXHUNT È ORA QUI (Indice 2)
-                Serial.println("TRANSIZIONE: Main Menu -> Foxhunt");
-                currentAppState = APP_STATE_FOXHUNT;
-                doc["new_mode"] = "FOXHUNT";
-                networkManager.sendEvent("MODE_CHANGE", doc);
-                foxhuntMode->enter();
-                break;
-            case 3:
+            // Indice 2 era FOXHUNT, rimosso. Ora indice 2 è Terminal Mode.
+            case 2: 
                 Serial.println("TRANSIZIONE: Main Menu -> Modalita' Terminale");
                 currentAppState = APP_STATE_TERMINAL_MODE;
                 doc["new_mode"] = "TERMINAL";
                 networkManager.sendEvent("MODE_CHANGE", doc);
                 terminalMode->enter();
                 break;
-            case 4: // <--- STANZA DEI SUONI SPOSTATA QUI (Indice 4)
+            case 3: 
                 Serial.println("TRANSIZIONE: Main Menu -> Stanza dei Suoni");
                 currentAppState = APP_STATE_MUSIC_ROOM;
                 doc["new_mode"] = "MUSIC_ROOM";
                 networkManager.sendEvent("MODE_CHANGE", doc);
                 musicRoomMode->enter();
                 break;
-            case 5: // <--- TEST HARDWARE SPOSTATO QUI (Indice 5)
+            case 4: 
                 Serial.println("TRANSIZIONE: Main Menu -> Test Hardware");
                 currentAppState = APP_STATE_TEST_HARDWARE;
                 doc["new_mode"] = "TEST_HARDWARE";

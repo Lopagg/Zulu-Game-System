@@ -259,6 +259,26 @@ def receive_data_from_bridge():
         
         if device_id:
             # --- GESTIONE KIOSK BIDIREZIONALE ---
+
+            if msg_type == 'KIOSK_CMD':
+                cmd = payload.get('cmd')
+                if cmd:
+                    logger.info(f"[KIOSK HARDWARE CMD] Inoltro comando globale: {cmd}")
+                    # Crea il payload UDP come se fosse stato premuto il tasto dal Web
+                    bridge_payload = {"target_id": "BROADCAST", "command": {"cmd": cmd}}
+                    try:
+                        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                        sock.sendto(json.dumps(bridge_payload).encode('utf-8'), ('127.0.0.1', 1234))
+                    except Exception as e:
+                        logger.error(f"[ERROR UDP BROADCAST] {e}")
+                    
+                    # Se è un comando di stop, ferma anche il Deathmatch virtuale se attivo
+                    if cmd == "FORCE_END_GAME":
+                        tdm_state['active'] = False
+                        socketio.emit('esp_event', {"parsed_data": {"id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": {"state": "STOPPED", "game_time": tdm_state['time_left']}}})
+                        
+                return jsonify({"status": "ok"}), 200
+
             if msg_type == 'TAG_SCANNED':
                 uid = payload.get('uid')
                 reply_action = "UNKNOWN"
