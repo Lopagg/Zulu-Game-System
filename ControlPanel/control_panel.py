@@ -57,7 +57,6 @@ def init_db():
         c.execute('''CREATE TABLE IF NOT EXISTS players
                      (uid TEXT PRIMARY KEY, alias TEXT, games_played INTEGER DEFAULT 0, wins INTEGER DEFAULT 0)''')
         
-        # Upgrade sicuro dello schema per tabelle esistenti
         try: c.execute("ALTER TABLE players ADD COLUMN registered_at TEXT")
         except sqlite3.OperationalError: pass
         try: c.execute("ALTER TABLE players ADD COLUMN notes TEXT")
@@ -227,7 +226,6 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
-# --- UPLOAD FOTO PROFILO ---
 @app.route('/upload_photo', methods=['POST'])
 @login_required
 def upload_photo():
@@ -263,7 +261,6 @@ def receive_data_from_bridge():
                 cmd = payload.get('cmd')
                 if cmd:
                     logger.info(f"[KIOSK HARDWARE CMD] Richiesta comando alla Dashboard: {cmd}")
-                    # Inoltra il segnale unicamente al sito web, che scatenerà il click virtuale.
                     socketio.emit('kiosk_hardware_cmd', {'cmd': cmd})
                 return jsonify({"status": "ok"}), 200
 
@@ -277,21 +274,17 @@ def receive_data_from_bridge():
                         row = c.fetchone()
                         
                         if row:
-                            # Il giocatore è nel roster: inverti lo stato
                             new_status = 'FUORI' if row[0] == 'IN' else 'IN'
                             c.execute("UPDATE active_roster SET status = ? WHERE uid = ?", (new_status, uid))
                             conn.commit()
                             logger.info(f"[KIOSK] Operatore {uid} ({row[1]}) cambiato in stato: {new_status}")
-                            reply_action = f"{new_status}_{row[1]}" # Es: IN_ALPHA, FUORI_BRAVO
+                            reply_action = f"{new_status}_{row[1]}" 
                             broadcast_roster()
                         else:
-                            # Tessera non in roster: il server dice al kiosk di aspettare il bottone
                             logger.info(f"[KIOSK] Tessera {uid} non nel roster. Prego assegnare squadra.")
                             reply_action = "WAIT_ASSIGN"
                 
-                # Invia la risposta al Bridge UDP locale per instradarla all'ESP32
                 if device_id in registry.devices and "ip" in registry.devices[device_id]:
-                    kiosk_ip = registry.devices[device_id]["ip"]
                     try:
                         reply_payload = {"target_id": device_id, "command": {"cmd": "KIOSK_REPLY", "action": reply_action}}
                         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -306,7 +299,7 @@ def receive_data_from_bridge():
                     with sqlite3.connect(DB_PATH) as conn:
                         c = conn.cursor()
                         c.execute("INSERT OR IGNORE INTO players (uid, alias, registered_at) VALUES (?, ?, ?)", (uid, f"OP-{uid[:4]}", get_current_time()))
-                        c.execute("INSERT OR REPLACE INTO active_roster (uid, team, status) VALUES (?, ?, 'IN')", (uid, team)) # Entra direttamente IN CAMPO
+                        c.execute("INSERT OR REPLACE INTO active_roster (uid, team, status) VALUES (?, ?, 'IN')", (uid, team))
                         conn.commit()
                     logger.info(f"[KIOSK] Operatore {uid} assegnato al team {team} ed entrato in campo.")
                     broadcast_roster()
@@ -329,7 +322,7 @@ def receive_data_from_bridge():
         logger.error(f"Errore forward: {e}")
         return jsonify({"status": "error"}), 500
     
-# --- WEBSOCKET EVENTI ROSTER ARENA ---
+# --- WEBSOCKET EVENTI ---
 @socketio.on('request_roster')
 def handle_request_roster():
     broadcast_roster()
@@ -371,7 +364,6 @@ def handle_clear_roster():
         conn.commit()
     broadcast_roster()
 
-# --- WEBSOCKET EVENTI DATABASE GLOBALE E PROFILO ---
 @socketio.on('request_database')
 def handle_request_database():
     with sqlite3.connect(DB_PATH) as conn:
@@ -414,7 +406,6 @@ def handle_save_notes(data):
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute("UPDATE players SET notes = ? WHERE uid = ?", (notes, uid))
 
-# --- EVENTI SERVER-TDM ---
 @socketio.on('start_tdm_game')
 def handle_start_tdm(data):
     dur = data.get('duration', 15)
@@ -460,8 +451,19 @@ def handle_socket_command(data):
                 
                 doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": state_str, "game_time": tdm_state['time_left'] } }
                 socketio.emit('esp_event', {"parsed_data": doc})
-                return
+            return
         
+        # --- FIX SIRENA: INTERCETTAZIONE BROADCAST_ENV ---
+        if target_id == "BROADCAST_ENV":
+            active_devs, _ = registry.get_active_devices()
+            for dev in active_devs:
+                if dev.get('mode') == 'KIOSK':
+                    bridge_payload = {"target_id": dev["id"], "command": cmd_str}
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                    sock.sendto(json.dumps(bridge_payload).encode('utf-8'), (BRIDGE_IP, BRIDGE_PORT))
+            return
+        # --------------------------------------------------
+
         payload = {"target_id": target_id, "command": cmd_str}
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.sendto(json.dumps(payload).encode('utf-8'), (BRIDGE_IP, BRIDGE_PORT))
