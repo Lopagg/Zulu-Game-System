@@ -81,7 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentGameState = 'STANDBY'; 
     let currentProfileUid = null;
     
-    let globalPlayersDB = []; // --- NUOVO: Archivia i giocatori per aggiungerli manualmente
+    let globalPlayersDB = []; 
 
     let debounceTimer1 = null;
     let debounceTimer2 = null;
@@ -91,9 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
         elMissionClock.textContent = now.toLocaleTimeString('it-IT', { hour12: false });
     }, 1000);
 
-    // --- AGGIORNAMENTO METEO TATTICO ---
     function fetchTacticalWeather() {
-        // Coordinate impostate su Uboldo (VA)
         fetch('https://api.open-meteo.com/v1/forecast?latitude=45.615&longitude=9.005&current_weather=true')
             .then(res => res.json())
             .then(data => {
@@ -117,8 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
             .catch(err => console.error("[SYS] Errore fetch meteo:", err));
     }
     fetchTacticalWeather();
-    setInterval(fetchTacticalWeather, 900000); // Aggiorna in background ogni 15 minuti
-    // -----------------------------------
+    setInterval(fetchTacticalWeather, 900000); 
 
     socket.on('connect', () => {
         logSystem("LINK ESTABLISHED WITH SOP SERVER.");
@@ -138,39 +135,13 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('roster_update', (rosterData) => {
         arenaRoster = rosterData;
         renderArenaRoster();
-        // Se il modal "Add Player" è aperto, ricarica la lista per nascondere chi è appena entrato
         if (!document.getElementById('add-player-modal').classList.contains('hidden')) {
             renderAddPlayerList();
         }
     });
 
-    // --- GESTIONE PULSANTI FISICI KIOSK ---
-    socket.on('kiosk_hardware_cmd', (data) => {
-        if (data.cmd === 'GAME_START') {
-            const btnStart = document.getElementById('btn-start-mission');
-            if (btnStart) {
-                logSystem("KIOSK: Rilevato pulsante hardware START.");
-                // Per lo START manteniamo il click simulato, così fa in automatico 
-                // i controlli sul roster (squadre sbilanciate, ecc.) e seleziona il terminale.
-                btnStart.click(); 
-            }
-        } else if (data.cmd === 'FORCE_END_GAME') {
-            logSystem("KIOSK: Rilevato pulsante hardware END. Terminazione immediata.");
-            
-            // Bypassiamo il popup di conferma del browser e inviamo subito il comando!
-            if (activeGameNodeId) {
-                socket.emit('send_command', { target_id: activeGameNodeId, command: { cmd: "FORCE_END_GAME" } });
-                logSystem(`SENDING TERMINATION SIGNAL TO NODE [${activeGameNodeId.slice(-4)}]...`);
-            } else {
-                logSystem("NESSUNA PARTITA ATTIVA RILEVATA DA TERMINARE.");
-            }
-        }
-    });
-
     socket.on('database_update', (players) => {
-        globalPlayersDB = players; // Salviamo nel database locale JS
-        
-        // Se il modal "Add Player" è aperto, ricarica la lista
+        globalPlayersDB = players; 
         if (!document.getElementById('add-player-modal').classList.contains('hidden')) {
             renderAddPlayerList();
         }
@@ -225,10 +196,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             controlsDiv.appendChild(btnRename);
             controlsDiv.appendChild(btnDel);
-
             li.appendChild(nameSpan);
             li.appendChild(controlsDiv);
-
             dbList.appendChild(li);
         });
     });
@@ -241,6 +210,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('esp_event', (msg) => {
         handleGameEvent(msg);
+    });
+
+    // --- GESTIONE PULSANTI FISICI KIOSK ---
+    socket.on('kiosk_hardware_cmd', (data) => {
+        if (data.cmd === 'GAME_START') {
+            const btnStart = document.getElementById('btn-start-mission');
+            if (btnStart) {
+                logSystem("KIOSK: Rilevato pulsante hardware START.");
+                btnStart.click(); 
+            }
+        } else if (data.cmd === 'FORCE_END_GAME') {
+            logSystem("KIOSK: Rilevato pulsante hardware END. Terminazione immediata.");
+            if (activeGameNodeId) {
+                socket.emit('send_command', { target_id: activeGameNodeId, command: { cmd: "FORCE_END_GAME" } });
+                socket.emit('send_command', { target_id: "BROADCAST_ENV", command: { cmd: "SIREN_LONG" } }); // SUONA A FINE FORZATA
+                logSystem(`SENDING TERMINATION SIGNAL TO NODE [${activeGameNodeId.slice(-4)}]...`);
+            } else {
+                logSystem("NESSUNA PARTITA ATTIVA RILEVATA DA TERMINARE.");
+            }
+        }
     });
 
     function renderArenaRoster() {
@@ -421,19 +410,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 logSystem("!!! TEAM ALPHA ELIMINATO - VITTORIA BRAVO !!!");
                 socket.emit('send_command', { target_id: activeGameNodeId, command: { cmd: "FORCE_WIN", winner: "BRAVO" } });
                 currentGameState = 'BRAVO WINS'; 
+                socket.emit('send_command', { target_id: "BROADCAST_ENV", command: { cmd: "SIREN_LONG" } }); // SUONA A FINE ROSTER
             } else if (bravoInCount === 0 && alphaInCount > 0) {
                 logSystem("!!! TEAM BRAVO ELIMINATO - VITTORIA ALPHA !!!");
                 socket.emit('send_command', { target_id: activeGameNodeId, command: { cmd: "FORCE_WIN", winner: "ALPHA" } });
                 currentGameState = 'ALPHA WINS'; 
+                socket.emit('send_command', { target_id: "BROADCAST_ENV", command: { cmd: "SIREN_LONG" } }); // SUONA A FINE ROSTER
             } else if (alphaInCount === 0 && bravoInCount === 0) {
                 logSystem("!!! MUTUA DISTRUZIONE - PARTITA TERMINATA !!!");
                 socket.emit('send_command', { target_id: activeGameNodeId, command: { cmd: "FORCE_END_GAME" } });
                 currentGameState = 'DRAW';
+                socket.emit('send_command', { target_id: "BROADCAST_ENV", command: { cmd: "SIREN_LONG" } }); // SUONA A FINE ROSTER
             }
         }
     }
 
-    // --- NUOVO: LOGICA AGGIUNTA GIOCATORI DAL DB ---
     window.openAddPlayerModal = function() {
         socket.emit('request_database');
         document.getElementById('add-player-modal').classList.remove('hidden');
@@ -448,7 +439,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!list) return;
         list.innerHTML = '';
 
-        // Filtra giocatori non ancora nel roster
         const availablePlayers = globalPlayersDB.filter(p => !arenaRoster[p.uid]);
 
         if (availablePlayers.length === 0) {
@@ -476,7 +466,6 @@ document.addEventListener('DOMContentLoaded', () => {
             btnAlpha.style.marginRight = '10px';
             btnAlpha.onclick = () => {
                 socket.emit('register_operator', { uid: player.uid, team: 'ALPHA' });
-                // Il renderArenaRoster via socket ricaricherà anche questa lista per toglierlo
             };
 
             const btnBravo = document.createElement('button');
@@ -497,7 +486,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- LOGICA DEL PROFILO MODAL E UPLOAD FOTO ---
     window.openOperatorProfile = function(uid) {
         currentProfileUid = uid;
         socket.emit('request_profile', {uid: uid});
@@ -563,7 +551,6 @@ document.addEventListener('DOMContentLoaded', () => {
             alert('Errore di rete durante l\'upload.');
         });
     };
-    // -----------------------------------------------------
 
     function updateDeviceList(devices) {
         elDeviceList.innerHTML = ''; 
@@ -663,7 +650,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if(elInspIp) elInspIp.textContent = device.ip || 'UNKNOWN';
         if(elInspFwVer) elInspFwVer.textContent = `FW_VER: ${device.version || '--'}`;
 
-        // --- NUOVO: AGGIORNA LA DESCRIZIONE IN BASE AL TIPO DI DISPOSITIVO ---
         const descTitle = document.querySelector('.asset-desc h4');
         const descText = document.querySelector('.asset-desc .desc-text');
         
@@ -709,6 +695,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if(confirm("ATTENZIONE: Terminare forzatamente la partita?")) {
             socket.emit('send_command', { target_id: activeGameNodeId, command: { cmd: "FORCE_END_GAME" } });
+            socket.emit('send_command', { target_id: "BROADCAST_ENV", command: { cmd: "SIREN_LONG" } }); // SUONA A FINE FORZATA
             logSystem(`SENDING TERMINATION SIGNAL TO NODE [${activeGameNodeId.slice(-4)}]...`);
         }
     });
@@ -745,11 +732,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (type === 'TAG_ASSIGN') {
             socket.emit('register_operator', { uid: payload.uid, team: payload.team });
             return; 
-        }
-
-        if (type === 'SD_UPDATE' || type === 'DOM_UPDATE') {
-            const time = new Date().toLocaleTimeString().split(' ')[0];
-            console.log(`[${time}] ${type} | State: ${payload.state} | Bomb: ${payload.bomb_time}s | Arm: ${payload.arm_prog}% | Def: ${payload.def_prog}%`);
         }
 
         if (type === 'TIME_UPDATE') {
@@ -815,6 +797,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (payload.state && elSdBombStatus) {
+                
+                // --- SUONA LA SIRENA QUANDO LA PARTITA FINISCE DA SOLA ---
+                const endStates = ['T WINS', 'CT WINS', 'ALPHA WINS', 'BRAVO WINS', 'DRAW', 'STOPPED'];
+                if (endStates.includes(payload.state) && !endStates.includes(currentGameState)) {
+                    logSystem(`!!! PARTITA TERMINATA (${payload.state}) - ATTIVAZIONE SIRENA !!!`);
+                    socket.emit('send_command', { target_id: "BROADCAST_ENV", command: { cmd: "SIREN_LONG" } });
+                }
+
                 currentGameState = payload.state;
                 elSdBombStatus.textContent = payload.state;
                 const s = payload.state;
@@ -1010,13 +1000,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const mode = elSetupModeSelect.value;
             let targetId = elSetupTargetSelect.value;
             
-            // Auto-selezione del terminale se dimenticato
             if (mode !== 'tdm' && !targetId) { 
                 const targetSelect = document.getElementById('setup-target-select');
                 if (targetSelect && targetSelect.options.length > 1) {
                     targetSelect.selectedIndex = 1;
                     targetId = targetSelect.value;
-                    logSystem("KIOSK: Terminale auto-selezionato.");
                 } else {
                     alert("Nessun terminale di gioco connesso per avviare la missione!");
                     return; 
@@ -1055,6 +1043,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (mode === 'tdm') {
                 const dur = parseInt(document.getElementById('tdm-game-dur').value) || 15;
                 socket.emit('start_tdm_game', { duration: dur });
+                socket.emit('send_command', { target_id: "BROADCAST_ENV", command: { cmd: "SIREN_LONG" } }); // SUONA A INIZIO TDM
                 logSystem(`START MISSION: TEAM DEATHMATCH (${dur} min).`);
                 resetMonitorData();
                 showView('monitor');
@@ -1063,6 +1052,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let commandData = { cmd: (mode === 'sd') ? "START_SD_GAME" : "START_DOM_GAME" };
             socket.emit('send_command', { target_id: targetId, command: commandData });
+            socket.emit('send_command', { target_id: "BROADCAST_ENV", command: { cmd: "SIREN_LONG" } }); // SUONA A INIZIO NORMALE
             logSystem(`START MISSION SIGNAL SENT TO ${targetId}.`);
             
             resetMonitorData();
