@@ -232,6 +232,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // --- NUOVI EVENTI DI CONTROLLO MISSIONE DAL SERVER ---
+    socket.on('mission_start_error', (data) => {
+        alert(data.msg);
+    });
+
+    socket.on('mission_start_warning', (data) => {
+        if(confirm(data.msg)) {
+            // Se l'utente approva, rimanda la richiesta con la forzatura
+            socket.emit('request_mission_start', { ...data.original_request, force: true });
+        }
+    });
+
+    socket.on('mission_start_success', () => {
+        resetMonitorData();
+        showView('monitor');
+    });
+
     function renderArenaRoster() {
         const listAlphaManage = document.getElementById('roster-alpha-manage');
         const listBravoManage = document.getElementById('roster-bravo-manage');
@@ -407,15 +424,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (gameIsRunning) {
             if (alphaInCount === 0 && bravoInCount > 0) {
-                logSystem("!!! TEAM ALPHA ELIMINATO - VITTORIA BRAVO !!!");
                 socket.emit('send_command', { target_id: activeGameNodeId, command: { cmd: "FORCE_WIN", winner: "BRAVO" } });
                 currentGameState = 'BRAVO WINS'; 
             } else if (bravoInCount === 0 && alphaInCount > 0) {
-                logSystem("!!! TEAM BRAVO ELIMINATO - VITTORIA ALPHA !!!");
                 socket.emit('send_command', { target_id: activeGameNodeId, command: { cmd: "FORCE_WIN", winner: "ALPHA" } });
                 currentGameState = 'ALPHA WINS'; 
             } else if (alphaInCount === 0 && bravoInCount === 0) {
-                logSystem("!!! MUTUA DISTRUZIONE - PARTITA TERMINATA !!!");
                 socket.emit('send_command', { target_id: activeGameNodeId, command: { cmd: "FORCE_END_GAME" } });
                 currentGameState = 'DRAW';
             }
@@ -800,17 +814,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (payload.state && elSdBombStatus) {
-                
-                const endStates = ['T WINS', 'CT WINS', 'ALPHA WINS', 'BRAVO WINS', 'DRAW', 'STOPPED'];
-                if (endStates.includes(payload.state) && !endStates.includes(currentGameState)) {
-                    logSystem(`!!! PARTITA TERMINATA (${payload.state}) !!!`);
-                }
-
-                const startStates = ['ACTIVE', 'SAFE', 'NEUTRAL'];
-                if (currentGameState === 'PREPARING' && startStates.includes(payload.state)) {
-                    logSystem(`!!! PARTITA INIZIATA (${payload.state}) !!!`);
-                }
-
                 currentGameState = payload.state;
                 elSdBombStatus.textContent = payload.state;
                 const s = payload.state;
@@ -1001,6 +1004,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- NUOVA LOGICA PULSANTE INITIATE MISSION ---
     if (btnStartMission) {
         btnStartMission.addEventListener('click', () => {
             const mode = elSetupModeSelect.value;
@@ -1017,50 +1021,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            const players = Object.values(arenaRoster);
-            const playersOut = players.filter(p => p.status !== 'IN');
+            const dur = parseInt(document.getElementById('tdm-game-dur').value) || 15;
             
-            let alphaIn = 0;
-            let bravoIn = 0;
-            players.forEach(p => {
-                if(p.status === 'IN') {
-                    if(p.team === 'ALPHA') alphaIn++;
-                    if(p.team === 'BRAVO') bravoIn++;
-                }
+            // Demandiamo tutto al Server Python
+            socket.emit('request_mission_start', {
+                mode: mode,
+                target_id: targetId,
+                duration: dur,
+                force: false
             });
-
-            if (players.length === 0) {
-                if(!confirm("ATTENZIONE: Il Roster è completamente vuoto. Vuoi avviare la missione comunque?")) {
-                    return;
-                }
-            } else {
-                if (playersOut.length > 0) {
-                    alert(`OPERAZIONE INTERROTTA:\nCi sono ${playersOut.length} operatori fuori dal campo.\nTutti i giocatori registrati devono risultare "IN CAMPO" per poter avviare la missione.`);
-                    return;
-                }
-                
-                if (alphaIn === 0 || bravoIn === 0) {
-                    if(!confirm(`ATTENZIONE: Una delle due squadre non ha operatori in campo (Alpha: ${alphaIn} | Bravo: ${bravoIn}).\nSicuro di voler avviare una partita sbilanciata?`)) {
-                        return;
-                    }
-                }
-            }
-
-            if (mode === 'tdm') {
-                const dur = parseInt(document.getElementById('tdm-game-dur').value) || 15;
-                socket.emit('start_tdm_game', { duration: dur });
-                logSystem(`START MISSION: TEAM DEATHMATCH (${dur} min).`);
-                resetMonitorData();
-                showView('monitor');
-                return;
-            }
-
-            let commandData = { cmd: (mode === 'sd') ? "START_SD_GAME" : "START_DOM_GAME" };
-            socket.emit('send_command', { target_id: targetId, command: commandData });
-            logSystem(`START MISSION SIGNAL SENT TO ${targetId}.`);
-            
-            resetMonitorData();
-            showView('monitor');
         });
     }
 

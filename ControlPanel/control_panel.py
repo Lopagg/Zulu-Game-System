@@ -144,7 +144,7 @@ background_thread_started = False
 
 # --- TRACKER STATI DI GIOCO (ARBITRO SERVER) ---
 tdm_state = { "active": False, "time_left": 0, "duration": 0 }
-node_game_states = {} # Mantiene la memoria dell'ultimo stato per calcolare le transizioni
+node_game_states = {} 
 
 def trigger_siren(cmd_type="SIREN_LONG"):
     """Invia autonomamente un segnale hardware ai Kiosk bypassando il sito web"""
@@ -182,21 +182,21 @@ def background_cleanup():
                 if alpha_in == 0 and bravo_in > 0:
                     tdm_state['active'] = False
                     state_str = "BRAVO WINS"
-                    trigger_siren("SIREN_LONG") # Sirena Server-Side
+                    trigger_siren("SIREN_LONG") 
                 elif bravo_in == 0 and alpha_in > 0:
                     tdm_state['active'] = False
                     state_str = "ALPHA WINS"
-                    trigger_siren("SIREN_LONG") # Sirena Server-Side
+                    trigger_siren("SIREN_LONG") 
                 elif alpha_in == 0 and bravo_in == 0:
                     tdm_state['active'] = False
                     state_str = "DRAW"
-                    trigger_siren("SIREN_LONG") # Sirena Server-Side
+                    trigger_siren("SIREN_LONG") 
                 elif tdm_state['time_left'] == 0:
                     tdm_state['active'] = False
                     if alpha_in > bravo_in: state_str = "ALPHA WINS"
                     elif bravo_in > alpha_in: state_str = "BRAVO WINS"
                     else: state_str = "DRAW"
-                    trigger_siren("SIREN_LONG") # Sirena Server-Side
+                    trigger_siren("SIREN_LONG") 
                 
                 doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": state_str, "game_time": tdm_state['time_left'] } }
                 socketio.emit('esp_event', {"parsed_data": doc})
@@ -451,19 +451,69 @@ def handle_save_notes(data):
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute("UPDATE players SET notes = ? WHERE uid = ?", (notes, uid))
 
-@socketio.on('start_tdm_game')
-def handle_start_tdm(data):
+# --- VALIDAZIONE START MISSIONE ---
+@socketio.on('request_mission_start')
+def handle_request_mission_start(data):
+    mode = data.get('mode')
+    target_id = data.get('target_id')
     dur = data.get('duration', 15)
-    tdm_state['active'] = True
-    tdm_state['duration'] = dur * 60
-    tdm_state['time_left'] = dur * 60
+    force = data.get('force', False)
     
-    doc = { "id": "SERVER-TDM", "type": "MODE_ENTER", "payload": {"mode": "TEAM_DEATHMATCH"} }
-    socketio.emit('esp_event', {"parsed_data": doc})
+    with sqlite3.connect(DB_PATH) as conn:
+        c = conn.cursor()
+        c.execute("SELECT team, status FROM active_roster")
+        players = c.fetchall()
+        
+    total_players = len(players)
+    players_out = sum(1 for p in players if p[1] != 'IN')
+    alpha_in = sum(1 for p in players if p[0] == 'ALPHA' and p[1] == 'IN')
+    bravo_in = sum(1 for p in players if p[0] == 'BRAVO' and p[1] == 'IN')
     
-    rules_doc = { "id": "SERVER-TDM", "type": "SETTINGS_UPDATE", "payload": {"mode": "TEAM_DEATHMATCH", "game_duration": dur} }
-    socketio.emit('esp_event', {"parsed_data": rules_doc})
-    trigger_siren("SIREN_LONG") # Avvio TDM lato Server
+    if not force:
+        if total_players == 0:
+            emit('mission_start_warning', {
+                'msg': "ATTENZIONE: Il Roster è completamente vuoto. Vuoi avviare la missione comunque?",
+                'original_request': data
+            })
+            return
+        
+        if players_out > 0:
+            emit('mission_start_error', {
+                'msg': f"OPERAZIONE INTERROTTA:\nCi sono {players_out} operatori fuori dal campo.\nTutti i giocatori registrati devono risultare 'IN CAMPO' per poter avviare la missione."
+            })
+            return
+            
+        if alpha_in == 0 or bravo_in == 0:
+            emit('mission_start_warning', {
+                'msg': f"ATTENZIONE: Una delle due squadre non ha operatori in campo (Alpha: {alpha_in} | Bravo: {bravo_in}).\nSicuro di voler avviare una partita sbilanciata?",
+                'original_request': data
+            })
+            return
+            
+    # Se i controlli sono passati o bypassati (force=True), avvia la partita
+    if mode == 'tdm':
+        tdm_state['active'] = True
+        tdm_state['duration'] = dur * 60
+        tdm_state['time_left'] = dur * 60
+        
+        doc = { "id": "SERVER-TDM", "type": "MODE_ENTER", "payload": {"mode": "TEAM_DEATHMATCH"} }
+        socketio.emit('esp_event', {"parsed_data": doc})
+        
+        rules_doc = { "id": "SERVER-TDM", "type": "SETTINGS_UPDATE", "payload": {"mode": "TEAM_DEATHMATCH", "game_duration": dur} }
+        socketio.emit('esp_event', {"parsed_data": rules_doc})
+        logger.info(f"START MISSION: TEAM DEATHMATCH ({dur} min).")
+    else:
+        cmd_str = "START_SD_GAME" if mode == 'sd' else "START_DOM_GAME"
+        payload = {"target_id": target_id, "command": {"cmd": cmd_str}}
+        BRIDGE_IP, BRIDGE_PORT = '127.0.0.1', 1234
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.sendto(json.dumps(payload).encode('utf-8'), (BRIDGE_IP, BRIDGE_PORT))
+            logger.info(f"START MISSION SIGNAL SENT TO {target_id}.")
+        except Exception as e:
+            logger.error(f"[ERROR SOCKET] {e}")
+            
+    emit('mission_start_success')
 
 @socketio.on('rename_device')
 def handle_rename(data):
@@ -497,7 +547,7 @@ def handle_socket_command(data):
                 
                 doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": state_str, "game_time": tdm_state['time_left'] } }
                 socketio.emit('esp_event', {"parsed_data": doc})
-                trigger_siren("SIREN_LONG") # Fine forzata TDM lato Server
+                trigger_siren("SIREN_LONG")
             return
         
         if target_id == "BROADCAST_ENV":
