@@ -176,7 +176,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const listBravoIn = document.getElementById('track-bravo-in');
         const listBravoOut = document.getElementById('track-bravo-out');
         
-        // Nuove liste per il monitor widget
         const listMonitorAlpha = document.getElementById('monitor-roster-alpha');
         const listMonitorBravo = document.getElementById('monitor-roster-bravo');
         
@@ -321,6 +320,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (elScoreA) elScoreA.textContent = alphaInCount;
         if (elScoreB) elScoreB.textContent = bravoInCount;
+
+        // --- NUOVO: AGGIORNAMENTO PANNELLO RIEPILOGO IN SETUP ---
+        const setupAlphaCount = document.getElementById('setup-alpha-count');
+        const setupBravoCount = document.getElementById('setup-bravo-count');
+        if (setupAlphaCount) {
+            setupAlphaCount.textContent = `${alphaInCount}/${alphaCount}`;
+        }
+        if (setupBravoCount) {
+            setupBravoCount.textContent = `${bravoInCount}/${bravoCount}`;
+        }
+        // --------------------------------------------------------
 
         const activeStates = ['SAFE', 'ARMING...', 'ARMED', 'DEFUSING...', 'NEUTRAL', 'OWNED ALPHA', 'OWNED BRAVO', 'CAPTURING A...', 'CAPTURING B...'];
         const gameIsRunning = activeStates.includes(currentGameState) && activeGameNodeId !== null;

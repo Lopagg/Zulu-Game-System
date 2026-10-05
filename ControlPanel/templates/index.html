@@ -7,9 +7,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=10">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=11">
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-    <script src="{{ url_for('static', filename='app.js') }}?v=12" defer></script>
+    <script src="{{ url_for('static', filename='app.js') }}?v=13" defer></script>
 </head>
 <body class="sop-theme">
 
@@ -103,6 +103,19 @@
                         <button class="back-btn deck-btn" onclick="showView('hub')">[ CANCEL ]</button>
                     </div>
                     <div class="panel-body">
+
+                        <!-- --- NUOVO: RIEPILOGO ROSTER IN FASE DI SETUP --- -->
+                        <div class="setup-roster-summary">
+                            <div class="setup-roster-team">
+                                <div class="setup-roster-label">ALPHA READY</div>
+                                <div id="setup-alpha-count" class="setup-roster-count setup-roster-alpha">0/0</div>
+                            </div>
+                            <div class="setup-roster-team">
+                                <div class="setup-roster-label">BRAVO READY</div>
+                                <div id="setup-bravo-count" class="setup-roster-count setup-roster-bravo">0/0</div>
+                            </div>
+                        </div>
+                        <!-- ------------------------------------------------ -->
                         
                         <div class="input-group-tactical" style="margin-bottom: 25px;">
                             <label class="setup-label">SELECT OPERATION MODE:</label>
@@ -176,7 +189,6 @@
                 </div>
             </div>
 
-            <!-- === SCHERMATA MONITOR (AGGIORNATA) === -->
             <div id="view-monitor" class="view-panel hidden">
                 <div class="monitor-controls">
                     <button class="back-btn deck-btn" onclick="showView('hub')" style="margin-bottom: 10px;">[ < RETURN TO HUB ]</button>

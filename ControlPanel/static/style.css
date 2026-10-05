@@ -184,6 +184,18 @@ body {
 .setup-params-group h3 { font-size: 20px; letter-spacing: 2px; text-shadow: 0 0 5px rgba(0, 255, 204, 0.3); }
 .row-inputs { display: flex; gap: 20px; }
 
+/* --- SETUP ROSTER SUMMARY --- */
+.setup-roster-summary {
+    display: flex; justify-content: space-around; align-items: center;
+    background: rgba(0, 0, 0, 0.4); border: 1px solid var(--sop-dim);
+    padding: 15px; margin-bottom: 25px; border-radius: 4px;
+}
+.setup-roster-team { text-align: center; width: 45%; }
+.setup-roster-label { font-size: 14px; color: #888; letter-spacing: 2px; font-weight: bold; }
+.setup-roster-count { font-size: 36px; font-weight: bold; margin-top: 5px; font-family: 'Share Tech Mono', monospace; text-shadow: 0 0 10px currentColor; }
+.setup-roster-alpha { color: var(--sop-alert); }
+.setup-roster-bravo { color: #55ff55; }
+
 /* --- MONITOR DASHBOARD --- */
 .monitor-controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding: 0 10px; }
 .monitor-label { float: right; font-size: 12px; letter-spacing: 1px; color: #888; margin-top: 5px; }
@@ -222,7 +234,7 @@ body {
     list-style: none; padding: 0; margin: 0; width: 48%;
 }
 .monitor-roster-list li {
-    font-size: 14px; padding: 4px 0; border-bottom: 1px dashed rgba(255,255,255,0.1); text-align: center;
+    font-size: 22px; font-weight: bold; padding: 8px 0; border-bottom: 1px dashed rgba(255,255,255,0.1); text-align: center;
 }
 .alpha-list li { color: #ff5555; }
 .bravo-list li { color: #55ff55; }
