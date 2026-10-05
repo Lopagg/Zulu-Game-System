@@ -176,9 +176,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const listBravoIn = document.getElementById('track-bravo-in');
         const listBravoOut = document.getElementById('track-bravo-out');
         
+        // Nuove liste per il monitor widget
+        const listMonitorAlpha = document.getElementById('monitor-roster-alpha');
+        const listMonitorBravo = document.getElementById('monitor-roster-bravo');
+        
         if(!listAlphaManage || !listAlphaIn) return;
         
         [listAlphaManage, listBravoManage, listAlphaIn, listAlphaOut, listBravoIn, listBravoOut].forEach(el => el.innerHTML = '');
+        if(listMonitorAlpha) listMonitorAlpha.innerHTML = '';
+        if(listMonitorBravo) listMonitorBravo.innerHTML = '';
         
         let alphaCount = 0, bravoCount = 0, inFieldCount = 0;
         let alphaInCount = 0, alphaOutCount = 0;
@@ -189,9 +195,24 @@ document.addEventListener('DOMContentLoaded', () => {
             const isInField = player.status === 'IN';
             
             if(isAlpha) alphaCount++; else bravoCount++;
+            
             if(isInField) {
                 inFieldCount++;
-                if(isAlpha) alphaInCount++; else bravoInCount++;
+                if(isAlpha) {
+                    alphaInCount++;
+                    if(listMonitorAlpha) {
+                        const liMon = document.createElement('li');
+                        liMon.textContent = player.name;
+                        listMonitorAlpha.appendChild(liMon);
+                    }
+                } else {
+                    bravoInCount++;
+                    if(listMonitorBravo) {
+                        const liMon = document.createElement('li');
+                        liMon.textContent = player.name;
+                        listMonitorBravo.appendChild(liMon);
+                    }
+                }
             } else {
                 if(isAlpha) alphaOutCount++; else bravoOutCount++;
             }
@@ -300,6 +321,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (elScoreA) elScoreA.textContent = alphaInCount;
         if (elScoreB) elScoreB.textContent = bravoInCount;
+
+        const activeStates = ['SAFE', 'ARMING...', 'ARMED', 'DEFUSING...', 'NEUTRAL', 'OWNED ALPHA', 'OWNED BRAVO', 'CAPTURING A...', 'CAPTURING B...'];
+        const gameIsRunning = activeStates.includes(currentGameState) && activeGameNodeId !== null;
+
+        if (gameIsRunning) {
+            if (alphaInCount === 0 && bravoInCount > 0) {
+                logSystem("!!! TEAM ALPHA ELIMINATO - VITTORIA BRAVO !!!");
+                socket.emit('send_command', { target_id: activeGameNodeId, command: { cmd: "FORCE_WIN", winner: "BRAVO" } });
+                currentGameState = 'BRAVO WINS'; 
+            } else if (bravoInCount === 0 && alphaInCount > 0) {
+                logSystem("!!! TEAM BRAVO ELIMINATO - VITTORIA ALPHA !!!");
+                socket.emit('send_command', { target_id: activeGameNodeId, command: { cmd: "FORCE_WIN", winner: "ALPHA" } });
+                currentGameState = 'ALPHA WINS'; 
+            } else if (alphaInCount === 0 && bravoInCount === 0) {
+                logSystem("!!! MUTUA DISTRUZIONE - PARTITA TERMINATA !!!");
+                socket.emit('send_command', { target_id: activeGameNodeId, command: { cmd: "FORCE_END_GAME" } });
+                currentGameState = 'DRAW';
+            }
+        }
     }
 
     function updateDeviceList(devices) {
@@ -357,7 +397,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(elTacticalTitle) elTacticalTitle.textContent = "TACTICAL FEED // TDM";
                 if(elBombContainer) elBombContainer.classList.add('hidden');    
                 if(elDomScores) elDomScores.classList.add('hidden');
-                if(progSection) progSection.classList.add('hidden'); // Nasconde le barre
+                if(progSection) progSection.classList.add('hidden'); 
             }
             if(elSdArmBar) elSdArmBar.style.width = "0%";
             if(elSdDefuseBar) elSdDefuseBar.style.width = "0%";
