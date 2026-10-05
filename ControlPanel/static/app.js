@@ -225,7 +225,6 @@ document.addEventListener('DOMContentLoaded', () => {
             logSystem("KIOSK: Rilevato pulsante hardware END. Terminazione immediata.");
             if (activeGameNodeId) {
                 socket.emit('send_command', { target_id: activeGameNodeId, command: { cmd: "FORCE_END_GAME" } });
-                socket.emit('send_command', { target_id: "BROADCAST_ENV", command: { cmd: "SIREN_LONG" } }); 
                 logSystem(`SENDING TERMINATION SIGNAL TO NODE [${activeGameNodeId.slice(-4)}]...`);
             } else {
                 logSystem("NESSUNA PARTITA ATTIVA RILEVATA DA TERMINARE.");
@@ -693,7 +692,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if(confirm("ATTENZIONE: Terminare forzatamente la partita?")) {
             socket.emit('send_command', { target_id: activeGameNodeId, command: { cmd: "FORCE_END_GAME" } });
-            socket.emit('send_command', { target_id: "BROADCAST_ENV", command: { cmd: "SIREN_LONG" } }); 
             logSystem(`SENDING TERMINATION SIGNAL TO NODE [${activeGameNodeId.slice(-4)}]...`);
         }
     });
@@ -803,18 +801,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (payload.state && elSdBombStatus) {
                 
-                // --- SUONA LA SIRENA QUANDO LA PARTITA FINISCE EFFETTIVAMENTE ---
                 const endStates = ['T WINS', 'CT WINS', 'ALPHA WINS', 'BRAVO WINS', 'DRAW', 'STOPPED'];
                 if (endStates.includes(payload.state) && !endStates.includes(currentGameState)) {
-                    logSystem(`!!! PARTITA TERMINATA (${payload.state}) - ATTIVAZIONE SIRENA !!!`);
-                    socket.emit('send_command', { target_id: "BROADCAST_ENV", command: { cmd: "SIREN_LONG" } });
+                    logSystem(`!!! PARTITA TERMINATA (${payload.state}) !!!`);
                 }
 
-                // --- SUONA LA SIRENA QUANDO LA PARTITA INIZIA EFFETTIVAMENTE ---
                 const startStates = ['ACTIVE', 'SAFE', 'NEUTRAL'];
                 if (currentGameState === 'PREPARING' && startStates.includes(payload.state)) {
-                    logSystem(`!!! PARTITA INIZIATA (${payload.state}) - ATTIVAZIONE SIRENA !!!`);
-                    socket.emit('send_command', { target_id: "BROADCAST_ENV", command: { cmd: "SIREN_LONG" } });
+                    logSystem(`!!! PARTITA INIZIATA (${payload.state}) !!!`);
                 }
 
                 currentGameState = payload.state;

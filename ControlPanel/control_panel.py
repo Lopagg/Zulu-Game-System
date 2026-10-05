@@ -142,8 +142,24 @@ class DeviceRegistry:
 registry = DeviceRegistry()
 background_thread_started = False
 
-# --- GESTORE TDM VIRTUALE ---
+# --- TRACKER STATI DI GIOCO (ARBITRO SERVER) ---
 tdm_state = { "active": False, "time_left": 0, "duration": 0 }
+node_game_states = {} # Mantiene la memoria dell'ultimo stato per calcolare le transizioni
+
+def trigger_siren(cmd_type="SIREN_LONG"):
+    """Invia autonomamente un segnale hardware ai Kiosk bypassando il sito web"""
+    BRIDGE_IP, BRIDGE_PORT = '127.0.0.1', 1234
+    try:
+        active_devs, _ = registry.get_active_devices()
+        for dev in active_devs:
+            if dev.get('mode') == 'KIOSK':
+                command_str = json.dumps({"cmd": cmd_type})
+                bridge_payload = {"target_id": dev["id"], "command": command_str}
+                sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                sock.sendto(json.dumps(bridge_payload).encode('utf-8'), (BRIDGE_IP, BRIDGE_PORT))
+                logger.info(f"[ARBITRO SERVER] Inviato {cmd_type} automatico al Kiosk {dev['id']}")
+    except Exception as e:
+        logger.error(f"[ERROR SIREN SERVER] {e}")
 
 def background_cleanup():
     logger.info("[SYSTEM] Task di Pulizia e Arbitro TDM AVVIATO.")
@@ -166,17 +182,21 @@ def background_cleanup():
                 if alpha_in == 0 and bravo_in > 0:
                     tdm_state['active'] = False
                     state_str = "BRAVO WINS"
+                    trigger_siren("SIREN_LONG") # Sirena Server-Side
                 elif bravo_in == 0 and alpha_in > 0:
                     tdm_state['active'] = False
                     state_str = "ALPHA WINS"
+                    trigger_siren("SIREN_LONG") # Sirena Server-Side
                 elif alpha_in == 0 and bravo_in == 0:
                     tdm_state['active'] = False
                     state_str = "DRAW"
+                    trigger_siren("SIREN_LONG") # Sirena Server-Side
                 elif tdm_state['time_left'] == 0:
                     tdm_state['active'] = False
                     if alpha_in > bravo_in: state_str = "ALPHA WINS"
                     elif bravo_in > alpha_in: state_str = "BRAVO WINS"
                     else: state_str = "DRAW"
+                    trigger_siren("SIREN_LONG") # Sirena Server-Side
                 
                 doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": state_str, "game_time": tdm_state['time_left'] } }
                 socketio.emit('esp_event', {"parsed_data": doc})
@@ -312,6 +332,31 @@ def receive_data_from_bridge():
             
             if msg_type not in ['TAG_SCANNED', 'TAG_ASSIGN']:
                 socketio.emit('esp_event', data)
+
+            # --- ARBITRO LATO SERVER (Transizioni di Stato) ---
+            if msg_type in ['SD_UPDATE', 'DOM_UPDATE', 'TDM_UPDATE']:
+                new_state = payload.get('state')
+                if new_state:
+                    old_state = node_game_states.get(device_id, 'STANDBY')
+                    if new_state != old_state:
+                        node_game_states[device_id] = new_state
+                        
+                        end_states = ['T WINS', 'CT WINS', 'ALPHA WINS', 'BRAVO WINS', 'DRAW', 'STOPPED']
+                        start_states = ['ACTIVE', 'SAFE', 'NEUTRAL']
+                        
+                        if new_state in end_states and old_state not in end_states:
+                            logger.info(f"[ARBITRO SERVER] Partita su {device_id} terminata ({new_state}).")
+                            trigger_siren("SIREN_LONG")
+                        
+                        if old_state == 'PREPARING' and new_state in start_states:
+                            logger.info(f"[ARBITRO SERVER] Partita su {device_id} iniziata ({new_state}).")
+                            trigger_siren("SIREN_LONG")
+                            
+            elif msg_type == 'MODE_EXIT':
+                node_game_states[device_id] = 'STANDBY'
+            elif msg_type == 'MODE_ENTER':
+                node_game_states[device_id] = 'PREPARING'
+            # --------------------------------------------------
             
             if has_changed:
                 active_devs, _ = registry.get_active_devices()
@@ -418,6 +463,7 @@ def handle_start_tdm(data):
     
     rules_doc = { "id": "SERVER-TDM", "type": "SETTINGS_UPDATE", "payload": {"mode": "TEAM_DEATHMATCH", "game_duration": dur} }
     socketio.emit('esp_event', {"parsed_data": rules_doc})
+    trigger_siren("SIREN_LONG") # Avvio TDM lato Server
 
 @socketio.on('rename_device')
 def handle_rename(data):
@@ -451,9 +497,9 @@ def handle_socket_command(data):
                 
                 doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": state_str, "game_time": tdm_state['time_left'] } }
                 socketio.emit('esp_event', {"parsed_data": doc})
+                trigger_siren("SIREN_LONG") # Fine forzata TDM lato Server
             return
         
-        # --- FIX SIRENA: INTERCETTAZIONE BROADCAST_ENV ---
         if target_id == "BROADCAST_ENV":
             active_devs, _ = registry.get_active_devices()
             for dev in active_devs:
@@ -462,7 +508,6 @@ def handle_socket_command(data):
                     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                     sock.sendto(json.dumps(bridge_payload).encode('utf-8'), (BRIDGE_IP, BRIDGE_PORT))
             return
-        # --------------------------------------------------
 
         payload = {"target_id": target_id, "command": cmd_str}
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
