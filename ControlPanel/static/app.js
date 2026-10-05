@@ -150,13 +150,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const btnStart = document.getElementById('btn-start-mission');
             if (btnStart) {
                 logSystem("KIOSK: Rilevato pulsante hardware START.");
-                btnStart.click(); // Avvia la missione leggendo i dati dalla pagina web
+                // Per lo START manteniamo il click simulato, così fa in automatico 
+                // i controlli sul roster (squadre sbilanciate, ecc.) e seleziona il terminale.
+                btnStart.click(); 
             }
         } else if (data.cmd === 'FORCE_END_GAME') {
-            const btnEnd = document.getElementById('btn-force-end');
-            if (btnEnd) {
-                logSystem("KIOSK: Rilevato pulsante hardware END.");
-                btnEnd.click(); // Interrompe in sicurezza
+            logSystem("KIOSK: Rilevato pulsante hardware END. Terminazione immediata.");
+            
+            // Bypassiamo il popup di conferma del browser e inviamo subito il comando!
+            if (activeGameNodeId) {
+                socket.emit('send_command', { target_id: activeGameNodeId, command: { cmd: "FORCE_END_GAME" } });
+                logSystem(`SENDING TERMINATION SIGNAL TO NODE [${activeGameNodeId.slice(-4)}]...`);
+            } else {
+                logSystem("NESSUNA PARTITA ATTIVA RILEVATA DA TERMINARE.");
             }
         }
     });
