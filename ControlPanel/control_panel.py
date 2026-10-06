@@ -2,16 +2,16 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for, f
 from flask_socketio import SocketIO, emit
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.utils import secure_filename
+import paho.mqtt.client as mqtt # <--- NUOVA LIBRERIA MQTT
 import logging
 import json
-import socket
 import time
 import threading
 from threading import Lock
 import sqlite3
 import os
 import datetime
-import urllib.request # Aggiunto per il meteo
+import urllib.request
 
 # --- CONFIGURAZIONE ---
 logging.basicConfig(level=logging.INFO)
@@ -46,7 +46,7 @@ class User(UserMixin):
 def load_user(user_id):
     return User.get(user_id)
 
-# --- DATABASE SETUP (PHILANTHROPY) ---
+# --- DATABASE SETUP ---
 DB_PATH = 'philanthropy_arena.db'
 
 def get_current_time():
@@ -87,14 +87,14 @@ def broadcast_roster():
             
     socketio.emit('roster_update', roster)
 
-# --- METEO TATTICO CENTRALIZZATO ---
+# --- METEO ---
 last_weather_update = 0
 cached_weather = "--°C // SCANNING..."
 
 def fetch_weather():
     global last_weather_update, cached_weather
     now = time.time()
-    if now - last_weather_update > 900: # Aggiorna ogni 15 minuti (900 sec)
+    if now - last_weather_update > 900: 
         try:
             req = urllib.request.urlopen('https://api.open-meteo.com/v1/forecast?latitude=45.615&longitude=9.005&current_weather=true', timeout=5)
             data = json.loads(req.read().decode('utf-8'))
@@ -115,7 +115,7 @@ def fetch_weather():
             logger.error(f"[ERROR METEO] {e}")
     return cached_weather
 
-# --- AGGIORNAMENTO STATISTICHE GIOCATORI ---
+# --- STATISTICHE ---
 def update_match_stats(winner_state):
     winning_team = None
     if winner_state in ['ALPHA WINS', 'OWNED ALPHA', 'T WINS']:
@@ -129,34 +129,29 @@ def update_match_stats(winner_state):
             c.execute("SELECT uid, team FROM active_roster WHERE status='IN'")
             players = c.fetchall()
             for uid, team in players:
-                # Aggiunge +1 partita giocata a tutti quelli in campo
                 c.execute("UPDATE players SET games_played = games_played + 1 WHERE uid = ?", (uid,))
-                # Aggiunge +1 vittoria se sono nel team vincente
                 if winning_team and team == winning_team:
                     c.execute("UPDATE players SET wins = wins + 1 WHERE uid = ?", (uid,))
             conn.commit()
-            logger.info(f"[STATS] Aggiornate statistiche per {len(players)} operatori. Team Vittorioso: {winning_team or 'NESSUNO (DRAW/STOP)'}")
+            logger.info(f"[STATS] Aggiornate statistiche per {len(players)} operatori. Team Vittorioso: {winning_team or 'NESSUNO'}")
     except Exception as e:
         logger.error(f"[ERROR STATS] {e}")
 
-# --- DEVICE REGISTRY (Thread-Safe) ---
+# --- DEVICE REGISTRY ---
 class DeviceRegistry:
     def __init__(self):
         self.devices = {}
         self.timeout_seconds = 15 
         self.lock = Lock()
 
-    def update_device(self, device_id, ip_info, msg_type, mode=None, version=None):
+    def update_device(self, device_id, msg_type, mode=None, version=None):
         now = time.time()
         changed = False
         with self.lock:
             if device_id not in self.devices:
-                self.devices[device_id] = { "id": device_id, "name": device_id, "type": "NODE", "mode": "BOOTING...", "version": "Unknown" }
+                self.devices[device_id] = { "id": device_id, "name": device_id, "type": "NODE", "mode": "BOOTING...", "version": "Unknown", "ip": "MQTT" }
                 changed = True 
             self.devices[device_id]["last_seen"] = now
-            new_ip = ip_info[0] if isinstance(ip_info, list) else ip_info
-            if self.devices[device_id].get("ip") != new_ip:
-                self.devices[device_id]["ip"] = new_ip
             self.devices[device_id]["status"] = "ONLINE"
             if version and self.devices[device_id].get("version") != version:
                 self.devices[device_id]["version"] = version
@@ -195,22 +190,124 @@ class DeviceRegistry:
 registry = DeviceRegistry()
 background_thread_started = False
 
-# --- TRACKER STATI DI GIOCO (ARBITRO SERVER) ---
+# --- TRACKER STATI DI GIOCO ---
 tdm_state = { "active": False, "time_left": 0, "duration": 0 }
 node_game_states = {} 
 
-def trigger_siren(cmd_type="SIREN_LONG"):
-    """Invia autonomamente un segnale hardware ai Kiosk bypassando il sito web"""
-    BRIDGE_IP, BRIDGE_PORT = '127.0.0.1', 1234
+# --- CLIENT MQTT SETUP ---
+mqtt_client = mqtt.Client(client_id="ZuluServer")
+
+def on_mqtt_connect(client, userdata, flags, rc):
+    logger.info(f"[MQTT] Connesso al Broker con codice: {rc}")
+    # Ci iscriviamo a tutti i messaggi in ingresso dai dispositivi
+    client.subscribe("zulu/telemetry/#")
+
+def on_mqtt_message(client, userdata, msg):
     try:
-        active_devs, _ = registry.get_active_devices()
-        for dev in active_devs:
-            if dev.get('mode') == 'KIOSK':
-                command_str = json.dumps({"cmd": cmd_type})
-                bridge_payload = {"target_id": dev["id"], "command": command_str}
-                sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                sock.sendto(json.dumps(bridge_payload).encode('utf-8'), (BRIDGE_IP, BRIDGE_PORT))
-                logger.info(f"[ARBITRO SERVER] Inviato {cmd_type} automatico al Kiosk {dev['id']}")
+        payload_str = msg.payload.decode('utf-8')
+        parsed = json.loads(payload_str)
+        
+        device_id = parsed.get('id')
+        msg_type = parsed.get('type')
+        payload = parsed.get('payload', {})
+        
+        if device_id:
+            # --- GESTIONE KIOSK ---
+            if msg_type == 'KIOSK_CMD':
+                cmd = payload.get('cmd')
+                if cmd:
+                    socketio.emit('kiosk_hardware_cmd', {'cmd': cmd})
+                return
+
+            elif msg_type == 'TAG_SCANNED':
+                uid = payload.get('uid')
+                reply_action = "UNKNOWN"
+                if uid:
+                    with sqlite3.connect(DB_PATH) as conn:
+                        c = conn.cursor()
+                        c.execute("SELECT status, team FROM active_roster WHERE uid = ?", (uid,))
+                        row = c.fetchone()
+                        
+                        if row:
+                            new_status = 'FUORI' if row[0] == 'IN' else 'IN'
+                            c.execute("UPDATE active_roster SET status = ? WHERE uid = ?", (new_status, uid))
+                            conn.commit()
+                            reply_action = f"{new_status}_{row[1]}" 
+                            broadcast_roster()
+                        else:
+                            reply_action = "WAIT_ASSIGN"
+                
+                # Invia risposta via MQTT al Kiosk
+                reply_payload = {"cmd": "KIOSK_REPLY", "action": reply_action}
+                mqtt_client.publish(f"zulu/cmd/{device_id}", json.dumps(reply_payload))
+
+            elif msg_type == 'TAG_ASSIGN':
+                uid = payload.get('uid')
+                team = payload.get('team')
+                if uid and team:
+                    with sqlite3.connect(DB_PATH) as conn:
+                        c = conn.cursor()
+                        c.execute("INSERT OR IGNORE INTO players (uid, alias, registered_at) VALUES (?, ?, ?)", (uid, f"OP-{uid[:4]}", get_current_time()))
+                        c.execute("INSERT OR REPLACE INTO active_roster (uid, team, status) VALUES (?, ?, 'IN')", (uid, team))
+                        conn.commit()
+                    broadcast_roster()
+            
+            # --- AGGIORNAMENTO REGISTRO NODI ---
+            mode = payload.get('mode') or parsed.get('mode')
+            version = payload.get('version') or parsed.get('version')
+            
+            has_changed = registry.update_device(device_id, msg_type, mode, version)
+            
+            if msg_type not in ['TAG_SCANNED', 'TAG_ASSIGN']:
+                # Avvolgiamo i dati nel formato atteso dalla dashboard
+                socketio.emit('esp_event', {"parsed_data": parsed})
+
+            # --- ARBITRO LATO SERVER ---
+            if msg_type in ['SD_UPDATE', 'DOM_UPDATE']:
+                new_state = payload.get('state')
+                if new_state:
+                    old_state = node_game_states.get(device_id, 'STANDBY')
+                    if new_state != old_state:
+                        node_game_states[device_id] = new_state
+                        
+                        end_states = ['T WINS', 'CT WINS', 'ALPHA WINS', 'BRAVO WINS', 'DRAW', 'STOPPED']
+                        start_states = ['ACTIVE', 'SAFE', 'NEUTRAL']
+                        
+                        if new_state in end_states and old_state not in end_states:
+                            logger.info(f"[ARBITRO SERVER] Partita su {device_id} terminata ({new_state}).")
+                            trigger_siren("SIREN_LONG")
+                            update_match_stats(new_state) 
+                        
+                        if old_state == 'PREPARING' and new_state in start_states:
+                            logger.info(f"[ARBITRO SERVER] Partita su {device_id} iniziata ({new_state}).")
+                            trigger_siren("SIREN_LONG")
+                            
+            elif msg_type == 'MODE_EXIT':
+                node_game_states[device_id] = 'STANDBY'
+            elif msg_type == 'MODE_ENTER':
+                node_game_states[device_id] = 'PREPARING'
+            
+            if has_changed:
+                active_devs, _ = registry.get_active_devices()
+                socketio.emit('devices_update', active_devs)
+
+    except Exception as e:
+        logger.error(f"[MQTT ERROR] Eccezione nel parsing del messaggio: {e}")
+
+mqtt_client.on_connect = on_mqtt_connect
+mqtt_client.on_message = on_mqtt_message
+# Avvio del thread in background per la rete MQTT
+mqtt_client.connect("127.0.0.1", 1883, 60)
+mqtt_client.loop_start()
+
+
+def trigger_siren(cmd_type="SIREN_LONG"):
+    """Invia segnale MQTT hardware ai Kiosk (o nodi che gestiscono la sirena)"""
+    try:
+        command_str = json.dumps({"cmd": cmd_type})
+        # Manda il comando a tutti in ascolto sul topic broadcast
+        mqtt_client.publish("zulu/cmd/broadcast", command_str)
+        logger.info(f"[ARBITRO SERVER] Inviato broadcast {cmd_type} alla rete")
     except Exception as e:
         logger.error(f"[ERROR SIREN SERVER] {e}")
 
@@ -221,7 +318,6 @@ def background_cleanup():
         socketio.sleep(1) 
         tick_counter += 1
         
-        # 1. Recupero situazione Roster
         with sqlite3.connect(DB_PATH) as conn:
             c = conn.cursor()
             c.execute("SELECT team FROM active_roster WHERE status='IN'")
@@ -229,7 +325,7 @@ def background_cleanup():
             alpha_in = sum(1 for p in players if p[0] == 'ALPHA')
             bravo_in = sum(1 for p in players if p[0] == 'BRAVO')
         
-        # --- ARBITRO TEAM DEATHMATCH (Virtuale) ---
+        # --- ARBITRO TEAM DEATHMATCH ---
         if tdm_state['active']:
             if tdm_state['time_left'] > 0:
                 tdm_state['time_left'] -= 1
@@ -255,12 +351,12 @@ def background_cleanup():
             if tdm_ends:
                 tdm_state['active'] = False
                 trigger_siren("SIREN_LONG") 
-                update_match_stats(state_str) # Salva statistiche TDM
+                update_match_stats(state_str)
             
             doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": state_str, "game_time": tdm_state['time_left'] } }
             socketio.emit('esp_event', {"parsed_data": doc})
 
-        # --- ARBITRO TERMINALI HARDWARE (Fisici) ---
+        # --- ARBITRO TERMINALI HARDWARE ---
         active_hw_states = ['SAFE', 'ARMING...', 'ARMED', 'DEFUSING...', 'NEUTRAL', 'OWNED ALPHA', 'OWNED BRAVO', 'CAPTURING A...', 'CAPTURING B...']
         for dev_id, state in list(node_game_states.items()):
             if state in active_hw_states:
@@ -273,26 +369,18 @@ def background_cleanup():
                     cmd_to_send = {"cmd": "FORCE_END_GAME"}
                 
                 if cmd_to_send:
-                    # FIX: Usiamo uno stato di transizione temporaneo invece di 'STOPPED'
-                    # per non ingannare la macchina a stati del server.
                     node_game_states[dev_id] = 'WAITING_END_ACK' 
-                    logger.info(f"[ARBITRO SERVER] Rilevata eliminazione team! Invio {cmd_to_send['cmd']} al nodo {dev_id}")
+                    logger.info(f"[ARBITRO SERVER] Rilevata eliminazione team! Invio comando MQTT al nodo {dev_id}")
                     try:
-                        bridge_payload = {"target_id": dev_id, "command": cmd_to_send}
-                        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                        sock.sendto(json.dumps(bridge_payload).encode('utf-8'), ('127.0.0.1', 1234))
+                        mqtt_client.publish(f"zulu/cmd/{dev_id}", json.dumps(cmd_to_send))
                     except Exception as e:
-                        logger.error(f"[ERROR UDP FORCE_WIN] {e}")
+                        logger.error(f"[ERROR MQTT FORCE_WIN] {e}")
 
-        # 2. Pulizia Nodi Disconnessi e Sincronizzazione Meteo
+        # 2. Pulizia Nodi Disconnessi
         if tick_counter % 2 == 0:
-            try:
-                active_devs, removed_something = registry.get_active_devices()
-                if removed_something:
-                    logger.info(f"[SYSTEM] Dispositivo disconnesso. Nodi rimasti: {len(active_devs)}")
-                    socketio.emit('devices_update', active_devs)
-            except Exception as e:
-                logger.error(f"[CRITICAL] Errore nel thread di pulizia: {e}")
+            active_devs, removed_something = registry.get_active_devices()
+            if removed_something:
+                socketio.emit('devices_update', active_devs)
                 
         if tick_counter % 10 == 0:
             weather_data = fetch_weather()
@@ -351,113 +439,6 @@ def upload_photo():
         return jsonify({"status": "ok", "filename": filename})
     return jsonify({"status": "error"}), 400
 
-@app.route('/internal/forward_data', methods=['POST'])
-def receive_data_from_bridge():
-    try:
-        data = request.json
-        if not data: return jsonify({"status": "error"}), 400
-        
-        parsed = data.get('parsed_data', {})
-        ip_info = data.get('device_ip_info', [])
-        
-        device_id = parsed.get('id')
-        msg_type = parsed.get('type')
-        payload = parsed.get('payload', {})
-        
-        if device_id:
-            # --- GESTIONE KIOSK BIDIREZIONALE ---
-            if msg_type == 'KIOSK_CMD':
-                cmd = payload.get('cmd')
-                if cmd:
-                    logger.info(f"[KIOSK HARDWARE CMD] Richiesta comando alla Dashboard: {cmd}")
-                    socketio.emit('kiosk_hardware_cmd', {'cmd': cmd})
-                return jsonify({"status": "ok"}), 200
-
-            elif msg_type == 'TAG_SCANNED':
-                uid = payload.get('uid')
-                reply_action = "UNKNOWN"
-                if uid:
-                    with sqlite3.connect(DB_PATH) as conn:
-                        c = conn.cursor()
-                        c.execute("SELECT status, team FROM active_roster WHERE uid = ?", (uid,))
-                        row = c.fetchone()
-                        
-                        if row:
-                            new_status = 'FUORI' if row[0] == 'IN' else 'IN'
-                            c.execute("UPDATE active_roster SET status = ? WHERE uid = ?", (new_status, uid))
-                            conn.commit()
-                            logger.info(f"[KIOSK] Operatore {uid} ({row[1]}) cambiato in stato: {new_status}")
-                            reply_action = f"{new_status}_{row[1]}" 
-                            broadcast_roster()
-                        else:
-                            logger.info(f"[KIOSK] Tessera {uid} non nel roster. Prego assegnare squadra.")
-                            reply_action = "WAIT_ASSIGN"
-                
-                if device_id in registry.devices and "ip" in registry.devices[device_id]:
-                    try:
-                        reply_payload = {"target_id": device_id, "command": {"cmd": "KIOSK_REPLY", "action": reply_action}}
-                        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                        sock.sendto(json.dumps(reply_payload).encode('utf-8'), ('127.0.0.1', 1234))
-                    except Exception as e:
-                        logger.error(f"[ERROR UDP REPLY] {e}")
-
-            elif msg_type == 'TAG_ASSIGN':
-                uid = payload.get('uid')
-                team = payload.get('team')
-                if uid and team:
-                    with sqlite3.connect(DB_PATH) as conn:
-                        c = conn.cursor()
-                        c.execute("INSERT OR IGNORE INTO players (uid, alias, registered_at) VALUES (?, ?, ?)", (uid, f"OP-{uid[:4]}", get_current_time()))
-                        c.execute("INSERT OR REPLACE INTO active_roster (uid, team, status) VALUES (?, ?, 'IN')", (uid, team))
-                        conn.commit()
-                    logger.info(f"[KIOSK] Operatore {uid} assegnato al team {team} ed entrato in campo.")
-                    broadcast_roster()
-            # ----------------------------------------------
-            
-            mode = payload.get('mode') or parsed.get('mode')
-            version = payload.get('version') or parsed.get('version')
-            
-            has_changed = registry.update_device(device_id, ip_info, msg_type, mode, version)
-            
-            if msg_type not in ['TAG_SCANNED', 'TAG_ASSIGN']:
-                socketio.emit('esp_event', data)
-
-            # --- ARBITRO LATO SERVER (Transizioni di Stato per Terminali) ---
-            if msg_type in ['SD_UPDATE', 'DOM_UPDATE']:
-                new_state = payload.get('state')
-                if new_state:
-                    old_state = node_game_states.get(device_id, 'STANDBY')
-                    if new_state != old_state:
-                        node_game_states[device_id] = new_state
-                        
-                        end_states = ['T WINS', 'CT WINS', 'ALPHA WINS', 'BRAVO WINS', 'DRAW', 'STOPPED']
-                        start_states = ['ACTIVE', 'SAFE', 'NEUTRAL']
-                        
-                        if new_state in end_states and old_state not in end_states:
-                            logger.info(f"[ARBITRO SERVER] Partita su {device_id} terminata ({new_state}).")
-                            trigger_siren("SIREN_LONG")
-                            update_match_stats(new_state) # Salva le statistiche della partita fisica
-                        
-                        if old_state == 'PREPARING' and new_state in start_states:
-                            logger.info(f"[ARBITRO SERVER] Partita su {device_id} iniziata ({new_state}).")
-                            trigger_siren("SIREN_LONG")
-                            
-            elif msg_type == 'MODE_EXIT':
-                node_game_states[device_id] = 'STANDBY'
-            elif msg_type == 'MODE_ENTER':
-                node_game_states[device_id] = 'PREPARING'
-            # --------------------------------------------------
-            
-            if has_changed:
-                active_devs, _ = registry.get_active_devices()
-                socketio.emit('devices_update', active_devs)
-
-        return jsonify({"status": "ok"}), 200
-    except Exception as e:
-        logger.error(f"Errore forward: {e}")
-        return jsonify({"status": "error"}), 500
-    
-# --- WEBSOCKET EVENTI ---
 @socketio.on('request_roster')
 def handle_request_roster():
     broadcast_roster()
@@ -596,14 +577,13 @@ def handle_request_mission_start(data):
         
     else:
         cmd_str = "START_SD_GAME" if mode == 'sd' else "START_DOM_GAME"
-        payload = {"target_id": target_id, "command": {"cmd": cmd_str}}
-        BRIDGE_IP, BRIDGE_PORT = '127.0.0.1', 1234
+        cmd_payload = {"cmd": cmd_str}
         try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            sock.sendto(json.dumps(payload).encode('utf-8'), (BRIDGE_IP, BRIDGE_PORT))
-            logger.info(f"START MISSION SIGNAL SENT TO {target_id}.")
+            # Pubblica via MQTT invece che socket UDP
+            mqtt_client.publish(f"zulu/cmd/{target_id}", json.dumps(cmd_payload))
+            logger.info(f"START MISSION SIGNAL SENT TO {target_id} VIA MQTT.")
         except Exception as e:
-            logger.error(f"[ERROR SOCKET] {e}")
+            logger.error(f"[ERROR MQTT START] {e}")
             
     emit('mission_start_success')
 
@@ -623,7 +603,6 @@ def handle_manual_scan():
 
 @socketio.on('send_command')
 def handle_socket_command(data):
-    BRIDGE_IP, BRIDGE_PORT = '127.0.0.1', 1234
     try:
         target_id = data.get('target_id')
         command_obj = data.get('command')
@@ -640,23 +619,16 @@ def handle_socket_command(data):
                 doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": state_str, "game_time": tdm_state['time_left'] } }
                 socketio.emit('esp_event', {"parsed_data": doc})
                 trigger_siren("SIREN_LONG")
-                update_match_stats(state_str) # Salva le statistiche in caso di fine manuale
+                update_match_stats(state_str) 
             return
         
         if target_id == "BROADCAST_ENV":
-            active_devs, _ = registry.get_active_devices()
-            for dev in active_devs:
-                if dev.get('mode') == 'KIOSK':
-                    bridge_payload = {"target_id": dev["id"], "command": cmd_str}
-                    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                    sock.sendto(json.dumps(bridge_payload).encode('utf-8'), (BRIDGE_IP, BRIDGE_PORT))
+            mqtt_client.publish("zulu/cmd/broadcast", cmd_str)
             return
 
-        payload = {"target_id": target_id, "command": cmd_str}
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.sendto(json.dumps(payload).encode('utf-8'), (BRIDGE_IP, BRIDGE_PORT))
+        mqtt_client.publish(f"zulu/cmd/{target_id}", cmd_str)
     except Exception as e:
-        logger.error(f"[ERROR SOCKET] {e}")
+        logger.error(f"[ERROR SOCKET CMD] {e}")
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)

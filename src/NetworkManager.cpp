@@ -1,3 +1,5 @@
+// src/NetworkManager.cpp
+
 #include "NetworkManager.h"
 #include "app_common.h"
 #include <ArduinoJson.h>
@@ -6,6 +8,7 @@
 #include <TelnetStream.h>
 
 String deviceId = "";   // Variabile globale per il MAC Address
+extern NetworkManager networkManager; // Referenza all'istanza creata in main.cpp per la callback
 
 // --- Lista delle reti Wi-Fi conosciute ---
 struct WifiCredential {
@@ -15,22 +18,37 @@ struct WifiCredential {
 
 const WifiCredential knownNetworks[] = {
     {"MELONE", "wirelessmelone"},               // Rete casa
-    {"Som🅱️​rero🔆", "cristone"},       // telefono ceri
+    {"Sombrero", "cristone"},       // telefono ceri
     {"S20Lorenzo", "Satana666"}   // hotspot
 };
 const int numKnownNetworks = sizeof(knownNetworks) / sizeof(knownNetworks[0]);
 
 // Il tuo server DDNS
 const char* SERVER_HOSTNAME = "zuluserver.ddns.net";
+const int MQTT_PORT = 1883;
+
+// --- CALLBACK MQTT GLOBALE ---
+// Viene richiamata in automatico ogni volta che arriva un comando dal server sul topic ascoltato
+void mqttCallback(char* topic, byte* payload, unsigned int length) {
+    String msg;
+    for (unsigned int i = 0; i < length; i++) {
+        msg += (char)payload[i];
+    }
+    
+    // Passa il messaggio alla nostra classe NetworkManager
+    networkManager.setReceivedMessage(msg);
+}
 
 // Costruttore
-NetworkManager::NetworkManager() : _udpPort(1234), _ipResolved(false), _hardware(nullptr) {}
+NetworkManager::NetworkManager() : _hardware(nullptr) {
+    _mqttClient.setClient(_espClient);
+}
 
 void NetworkManager::initialize(HardwareManager* hardware) {
     // Salviamo il riferimento all'hardware per usarlo anche in update() (es. per il Reset)
     _hardware = hardware;
 
-    Serial.println("--- Inizializzazione Rete ---");
+    Serial.println("--- Inizializzazione Rete (MQTT) ---");
     Serial.print("Firmware Version: ");
     Serial.println(FIRMWARE_VERSION);
 
@@ -99,16 +117,11 @@ connection_success:
         delay(2000); 
         hardware->syncWithNTP();
         
-        _udp.begin(_udpPort);
-        
-        // Risoluzione IP Server
-        resolveServerIP();
+        // --- CONFIGURAZIONE MQTT ---
+        _mqttClient.setServer(SERVER_HOSTNAME, MQTT_PORT);
+        _mqttClient.setCallback(mqttCallback);
 
-        // Invia evento di BOOT con la VERSIONE REALE
-        JsonDocument bootDoc;
-        bootDoc["mode"] = "MAIN MENU"; 
-        bootDoc["version"] = FIRMWARE_VERSION;
-        sendEvent("DEVICE_ONLINE", bootDoc);
+        // (L'evento DEVICE_ONLINE viene ora inviato da reconnectMQTT per sicurezza)
 
         // --- AVVIO OTA SOLO SE CONNESSO ---
         ArduinoOTA.setHostname("ZULU-TERMINAL");
@@ -121,35 +134,51 @@ connection_success:
     }
 }
 
-void NetworkManager::resolveServerIP() {
-    Serial.print("Risoluzione DNS server: ");
-    Serial.println(SERVER_HOSTNAME);
-    
-    // Prova a risolvere il nome a dominio
-    if (WiFi.hostByName(SERVER_HOSTNAME, _serverIP)) {
-        _ipResolved = true;
-        Serial.print("Server IP trovato: ");
-        Serial.println(_serverIP);
-    } else {
-        _ipResolved = false;
-        Serial.println("Errore DNS! Impossibile trovare il server.");
-        if (_hardware) _hardware->printLcd(0, 1, "DNS Error!");
+void NetworkManager::reconnectMQTT() {
+    // Tenta di riconnettersi se non è connesso al Broker
+    if (!_mqttClient.connected()) {
+        Serial.print("Tentativo di connessione MQTT...");
+        
+        // Creazione dell'LWT (Last Will and Testament)
+        // Se l'ESP32 perde l'alimentazione, il broker pubblicherà questo pacchetto per lui
+        String willTopic = "zulu/telemetry/" + deviceId;
+        String willPayload = "{\"id\":\"" + deviceId + "\", \"type\":\"MODE_EXIT\", \"payload\":{\"mode\":\"OFFLINE\"}}";
+        
+        if (_mqttClient.connect(deviceId.c_str(), "admin", "admin", willTopic.c_str(), 1, true, willPayload.c_str())) {
+            Serial.println("Connesso al Broker!");
+            
+            // Si iscrive al topic generico e a quello specifico per questo nodo
+            _mqttClient.subscribe("zulu/cmd/broadcast");
+            String myTopic = "zulu/cmd/" + deviceId;
+            _mqttClient.subscribe(myTopic.c_str());
+            
+            // Invia evento di BOOT con la VERSIONE REALE
+            JsonDocument bootDoc;
+            bootDoc["mode"] = "MAIN MENU"; 
+            bootDoc["version"] = FIRMWARE_VERSION;
+            sendEvent("DEVICE_ONLINE", bootDoc);
+            
+        } else {
+            Serial.print("Fallito, rc=");
+            Serial.print(_mqttClient.state());
+            Serial.println(" riprova al prossimo giro.");
+        }
     }
 }
 
 void NetworkManager::update() {
     ArduinoOTA.handle();
 
-    int packetSize = _udp.parsePacket();
-    if (packetSize) {
-        char incomingPacket[512];
-        int len = _udp.read(incomingPacket, 512);
-        if (len > 0) incomingPacket[len] = 0;
-        
-        _lastMessage = String(incomingPacket);
-        _lastSenderIP = _udp.remoteIP();
-        
-        Serial.printf("RX [%s]: %s\n", _lastSenderIP.toString().c_str(), _lastMessage.c_str());
+    // Mantiene viva la connessione MQTT
+    if (WiFi.status() == WL_CONNECTED) {
+        if (!_mqttClient.connected()) {
+            reconnectMQTT();
+        }
+        _mqttClient.loop(); // Gestisce la ricezione dei pacchetti
+    }
+
+    if (_lastMessage != "") {
+        Serial.printf("RX MQTT: %s\n", _lastMessage.c_str());
 
         // --- INTERCETTAZIONE COMANDI GLOBALI (SYSTEM LEVEL) ---
         JsonDocument doc;
@@ -176,10 +205,9 @@ void NetworkManager::update() {
 }
 
 void NetworkManager::sendEvent(const String& eventType, const JsonDocument& data) {
-    // Se il DNS non è risolto o la connessione è caduta, riprova
-    if (!isConnected() || !_ipResolved) {
-        if (isConnected()) resolveServerIP();
-        if (!_ipResolved) return; // Se fallisce ancora, non inviare nulla
+    // Se la connessione MQTT è caduta, non possiamo inviare pacchetti
+    if (!isConnected() || !_mqttClient.connected()) {
+        return; 
     }
 
     // 1. Crea il pacchetto JSON
@@ -193,16 +221,19 @@ void NetworkManager::sendEvent(const String& eventType, const JsonDocument& data
     String jsonString;
     serializeJson(doc, jsonString);
 
-    // 3. Invia
-    _udp.beginPacket(_serverIP, _udpPort);
-    _udp.print(jsonString);
-    _udp.endPacket();
+    // 3. Invia direttamente sul topic di telemetria (Il server Python ascolterà qui)
+    String topic = "zulu/telemetry/" + deviceId;
+    _mqttClient.publish(topic.c_str(), jsonString.c_str());
 }
 
 // Override per eventi semplici
 void NetworkManager::sendEvent(const String& eventType) {
     JsonDocument emptyDoc;
     sendEvent(eventType, emptyDoc);
+}
+
+void NetworkManager::setReceivedMessage(String msg) {
+    _lastMessage = msg;
 }
 
 String NetworkManager::getReceivedMessage() {
