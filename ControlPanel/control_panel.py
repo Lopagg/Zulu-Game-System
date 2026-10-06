@@ -1,6 +1,3 @@
-import eventlet
-eventlet.monkey_patch()
-
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
 from flask_socketio import SocketIO, emit
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
@@ -27,7 +24,7 @@ UPLOAD_FOLDER = os.path.join(app.root_path, 'static', 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 login_manager = LoginManager()
 login_manager.init_app(app)
