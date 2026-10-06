@@ -118,10 +118,9 @@ connection_success:
         hardware->syncWithNTP();
         
         // --- CONFIGURAZIONE MQTT ---
+        // Impostiamo un timeout molto basso (2 secondi) per evitare freeze prolungati
         _mqttClient.setServer(SERVER_HOSTNAME, MQTT_PORT);
         _mqttClient.setCallback(mqttCallback);
-
-        // (L'evento DEVICE_ONLINE viene ora inviato da reconnectMQTT per sicurezza)
 
         // --- AVVIO OTA SOLO SE CONNESSO ---
         ArduinoOTA.setHostname("ZULU-TERMINAL");
@@ -135,46 +134,48 @@ connection_success:
 }
 
 void NetworkManager::reconnectMQTT() {
-    // Tenta di riconnettersi se non è connesso al Broker
-    if (!_mqttClient.connected()) {
-        Serial.print("Tentativo di connessione MQTT...");
+    Serial.print("Tentativo di connessione MQTT...");
+    
+    // Creazione dell'LWT (Last Will and Testament)
+    String willTopic = "zulu/telemetry/" + deviceId;
+    String willPayload = "{\"id\":\"" + deviceId + "\", \"type\":\"MODE_EXIT\", \"payload\":{\"mode\":\"OFFLINE\"}}";
+    
+    if (_mqttClient.connect(deviceId.c_str(), "admin", "admin", willTopic.c_str(), 1, true, willPayload.c_str())) {
+        Serial.println("Connesso al Broker!");
         
-        // Creazione dell'LWT (Last Will and Testament)
-        // Se l'ESP32 perde l'alimentazione, il broker pubblicherà questo pacchetto per lui
-        String willTopic = "zulu/telemetry/" + deviceId;
-        String willPayload = "{\"id\":\"" + deviceId + "\", \"type\":\"MODE_EXIT\", \"payload\":{\"mode\":\"OFFLINE\"}}";
+        // Si iscrive al topic generico e a quello specifico per questo nodo
+        _mqttClient.subscribe("zulu/cmd/broadcast");
+        String myTopic = "zulu/cmd/" + deviceId;
+        _mqttClient.subscribe(myTopic.c_str());
         
-        if (_mqttClient.connect(deviceId.c_str(), "admin", "admin", willTopic.c_str(), 1, true, willPayload.c_str())) {
-            Serial.println("Connesso al Broker!");
-            
-            // Si iscrive al topic generico e a quello specifico per questo nodo
-            _mqttClient.subscribe("zulu/cmd/broadcast");
-            String myTopic = "zulu/cmd/" + deviceId;
-            _mqttClient.subscribe(myTopic.c_str());
-            
-            // Invia evento di BOOT con la VERSIONE REALE
-            JsonDocument bootDoc;
-            bootDoc["mode"] = "MAIN MENU"; 
-            bootDoc["version"] = FIRMWARE_VERSION;
-            sendEvent("DEVICE_ONLINE", bootDoc);
-            
-        } else {
-            Serial.print("Fallito, rc=");
-            Serial.print(_mqttClient.state());
-            Serial.println(" riprova al prossimo giro.");
-        }
+        // Invia evento di BOOT
+        JsonDocument bootDoc;
+        bootDoc["mode"] = "MAIN MENU"; 
+        bootDoc["version"] = FIRMWARE_VERSION;
+        sendEvent("DEVICE_ONLINE", bootDoc);
+        
+    } else {
+        Serial.print("Fallito, rc=");
+        Serial.print(_mqttClient.state());
+        Serial.println(" riprova al prossimo giro.");
     }
 }
 
 void NetworkManager::update() {
     ArduinoOTA.handle();
 
-    // Mantiene viva la connessione MQTT
+    // Mantiene viva la connessione MQTT in modo NON BLOCCANTE
     if (WiFi.status() == WL_CONNECTED) {
         if (!_mqttClient.connected()) {
-            reconnectMQTT();
+            static unsigned long lastReconnectAttempt = 0;
+            // Tenta la riconnessione SOLO una volta ogni 5 secondi
+            if (millis() - lastReconnectAttempt > 5000) {
+                lastReconnectAttempt = millis();
+                reconnectMQTT();
+            }
+        } else {
+            _mqttClient.loop(); // Gestisce la ricezione dei pacchetti se connesso
         }
-        _mqttClient.loop(); // Gestisce la ricezione dei pacchetti
     }
 
     if (_lastMessage != "") {
@@ -185,18 +186,15 @@ void NetworkManager::update() {
         DeserializationError error = deserializeJson(doc, _lastMessage);
 
         if (!error) {
-            // Cerca il comando RESET
             const char* cmd = doc["cmd"];
             if (cmd && strcmp(cmd, "RESET") == 0) {
                 Serial.println("!!! GLOBAL SYSTEM RESET RECEIVED !!!");
                 
-                // Feedback visivo
                 if (_hardware) {
                     _hardware->clearLcd();
                     _hardware->printLcd(0, 0, "SYSTEM RESET");
                     _hardware->printLcd(0, 1, "Riavvio...");
                 }
-                
                 delay(1000); 
                 ESP.restart();
             }
@@ -205,28 +203,22 @@ void NetworkManager::update() {
 }
 
 void NetworkManager::sendEvent(const String& eventType, const JsonDocument& data) {
-    // Se la connessione MQTT è caduta, non possiamo inviare pacchetti
     if (!isConnected() || !_mqttClient.connected()) {
         return; 
     }
 
-    // 1. Crea il pacchetto JSON
     JsonDocument doc;
     doc["id"] = deviceId;
     doc["type"] = eventType;
-    // Copia i dati del payload (deep copy per sicurezza)
     doc["payload"] = data;
 
-    // 2. Serializza
     String jsonString;
     serializeJson(doc, jsonString);
 
-    // 3. Invia direttamente sul topic di telemetria (Il server Python ascolterà qui)
     String topic = "zulu/telemetry/" + deviceId;
     _mqttClient.publish(topic.c_str(), jsonString.c_str());
 }
 
-// Override per eventi semplici
 void NetworkManager::sendEvent(const String& eventType) {
     JsonDocument emptyDoc;
     sendEvent(eventType, emptyDoc);
