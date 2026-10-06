@@ -273,10 +273,9 @@ def background_cleanup():
                     cmd_to_send = {"cmd": "FORCE_END_GAME"}
                 
                 if cmd_to_send:
-                    # Invia il comando al terminale per fargli fermare la partita.
-                    # Non aggiorniamo le statistiche qui, aspettiamo che sia il 
-                    # terminale a confermarci la fine effettiva tramite UDP.
-                    node_game_states[dev_id] = 'STOPPED' 
+                    # FIX: Usiamo uno stato di transizione temporaneo invece di 'STOPPED'
+                    # per non ingannare la macchina a stati del server.
+                    node_game_states[dev_id] = 'WAITING_END_ACK' 
                     logger.info(f"[ARBITRO SERVER] Rilevata eliminazione team! Invio {cmd_to_send['cmd']} al nodo {dev_id}")
                     try:
                         bridge_payload = {"target_id": dev_id, "command": cmd_to_send}
