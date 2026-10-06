@@ -592,6 +592,9 @@ def handle_request_mission_start(data):
         rules_doc = { "id": "SERVER-TDM", "type": "SETTINGS_UPDATE", "payload": {"mode": "TEAM_DEATHMATCH", "game_duration": dur} }
         socketio.emit('esp_event', {"parsed_data": rules_doc})
         logger.info(f"START MISSION: TEAM DEATHMATCH ({dur} min).")
+
+        trigger_siren("SIREN_LONG")
+        
     else:
         cmd_str = "START_SD_GAME" if mode == 'sd' else "START_DOM_GAME"
         payload = {"target_id": target_id, "command": {"cmd": cmd_str}}
