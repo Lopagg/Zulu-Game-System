@@ -296,9 +296,14 @@ def on_mqtt_message(client, userdata, msg):
 
 mqtt_client.on_connect = on_mqtt_connect
 mqtt_client.on_message = on_mqtt_message
-# Avvio del thread in background per la rete MQTT
-mqtt_client.connect("127.0.0.1", 1883, 60)
-mqtt_client.loop_start()
+
+try:
+    mqtt_client.connect("127.0.0.1", 1883, 60)
+    mqtt_client.loop_start()
+    logger.info("[MQTT] Servizio MQTT in background avviato.")
+except Exception as e:
+    logger.error(f"[CRITICAL MQTT] Impossibile collegarsi a Mosquitto: {e}")
+    logger.error("=> Assicurati di aver installato e avviato Eclipse Mosquitto su questo PC!")
 
 
 def trigger_siren(cmd_type="SIREN_LONG"):
