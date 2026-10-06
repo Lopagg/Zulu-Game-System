@@ -195,7 +195,7 @@ tdm_state = { "active": False, "time_left": 0, "duration": 0 }
 node_game_states = {} 
 
 # --- CLIENT MQTT SETUP ---
-mqtt_client = mqtt.Client(client_id="ZuluServer")
+mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
 
 def on_mqtt_connect(client, userdata, flags, rc):
     logger.info(f"[MQTT] Connesso al Broker con codice: {rc}")

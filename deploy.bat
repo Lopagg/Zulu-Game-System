@@ -9,7 +9,7 @@ ssh %SERVER_USER%@%SERVER_IP% "cd %REMOTE_DIR% && git pull origin main"
 
 echo [2/2] Riavvio dei servizi Python...
 :: Riavvia Flask e il Bridge UDP
-ssh %SERVER_USER%@%SERVER_IP% "sudo systemctl restart controlpanel udpbridge"
+ssh %SERVER_USER%@%SERVER_IP% "sudo systemctl restart controlpanel"
 
 echo.
 echo === DEPLOY COMPLETATO ===
