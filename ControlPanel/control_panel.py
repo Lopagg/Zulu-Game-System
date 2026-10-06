@@ -2,7 +2,7 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for, f
 from flask_socketio import SocketIO, emit
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.utils import secure_filename
-import paho.mqtt.client as mqtt # <--- NUOVA LIBRERIA MQTT
+import paho.mqtt.client as mqtt 
 import logging
 import json
 import time
@@ -199,7 +199,6 @@ mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
 
 def on_mqtt_connect(client, userdata, flags, rc):
     logger.info(f"[MQTT] Connesso al Broker con codice: {rc}")
-    # Ci iscriviamo a tutti i messaggi in ingresso dai dispositivi
     client.subscribe("zulu/telemetry/#")
 
 def on_mqtt_message(client, userdata, msg):
@@ -210,6 +209,10 @@ def on_mqtt_message(client, userdata, msg):
         device_id = parsed.get('id')
         msg_type = parsed.get('type')
         payload = parsed.get('payload', {})
+        
+        # LOG IN INGRESSO (Solo se non è un Heartbeat o Time Update per evitare spam)
+        if msg_type not in ['HEARTBEAT', 'TIME_UPDATE', 'DOM_UPDATE', 'SD_UPDATE']:
+            logger.info(f"[MQTT RX] {device_id} -> TYPE: {msg_type} | PAYLOAD: {payload}")
         
         if device_id:
             # --- GESTIONE KIOSK ---
@@ -240,6 +243,7 @@ def on_mqtt_message(client, userdata, msg):
                 # Invia risposta via MQTT al Kiosk
                 reply_payload = {"cmd": "KIOSK_REPLY", "action": reply_action}
                 mqtt_client.publish(f"zulu/cmd/{device_id}", json.dumps(reply_payload))
+                logger.info(f"[MQTT TX] Verso {device_id} -> {reply_payload}")
 
             elif msg_type == 'TAG_ASSIGN':
                 uid = payload.get('uid')
@@ -259,7 +263,6 @@ def on_mqtt_message(client, userdata, msg):
             has_changed = registry.update_device(device_id, msg_type, mode, version)
             
             if msg_type not in ['TAG_SCANNED', 'TAG_ASSIGN']:
-                # Avvolgiamo i dati nel formato atteso dalla dashboard
                 socketio.emit('esp_event', {"parsed_data": parsed})
 
             # --- ARBITRO LATO SERVER ---
@@ -303,16 +306,13 @@ try:
     logger.info("[MQTT] Servizio MQTT in background avviato.")
 except Exception as e:
     logger.error(f"[CRITICAL MQTT] Impossibile collegarsi a Mosquitto: {e}")
-    logger.error("=> Assicurati di aver installato e avviato Eclipse Mosquitto su questo PC!")
 
 
 def trigger_siren(cmd_type="SIREN_LONG"):
-    """Invia segnale MQTT hardware ai Kiosk (o nodi che gestiscono la sirena)"""
     try:
         command_str = json.dumps({"cmd": cmd_type})
-        # Manda il comando a tutti in ascolto sul topic broadcast
         mqtt_client.publish("zulu/cmd/broadcast", command_str)
-        logger.info(f"[ARBITRO SERVER] Inviato broadcast {cmd_type} alla rete")
+        logger.info(f"[MQTT TX] Broadcast Sirena inviato alla rete -> {cmd_type}")
     except Exception as e:
         logger.error(f"[ERROR SIREN SERVER] {e}")
 
@@ -378,6 +378,7 @@ def background_cleanup():
                     logger.info(f"[ARBITRO SERVER] Rilevata eliminazione team! Invio comando MQTT al nodo {dev_id}")
                     try:
                         mqtt_client.publish(f"zulu/cmd/{dev_id}", json.dumps(cmd_to_send))
+                        logger.info(f"[MQTT TX] Comando Force Win/End inviato a {dev_id}")
                     except Exception as e:
                         logger.error(f"[ERROR MQTT FORCE_WIN] {e}")
 
@@ -584,9 +585,8 @@ def handle_request_mission_start(data):
         cmd_str = "START_SD_GAME" if mode == 'sd' else "START_DOM_GAME"
         cmd_payload = {"cmd": cmd_str}
         try:
-            # Pubblica via MQTT invece che socket UDP
             mqtt_client.publish(f"zulu/cmd/{target_id}", json.dumps(cmd_payload))
-            logger.info(f"START MISSION SIGNAL SENT TO {target_id} VIA MQTT.")
+            logger.info(f"[MQTT TX] Comando Start Mission inviato a {target_id} -> {cmd_payload}")
         except Exception as e:
             logger.error(f"[ERROR MQTT START] {e}")
             
@@ -629,9 +629,11 @@ def handle_socket_command(data):
         
         if target_id == "BROADCAST_ENV":
             mqtt_client.publish("zulu/cmd/broadcast", cmd_str)
+            logger.info(f"[MQTT TX] Override Ambientale Broadcast -> {cmd_str}")
             return
 
         mqtt_client.publish(f"zulu/cmd/{target_id}", cmd_str)
+        logger.info(f"[MQTT TX] Comando Manuale verso {target_id} -> {cmd_str}")
     except Exception as e:
         logger.error(f"[ERROR SOCKET CMD] {e}")
 

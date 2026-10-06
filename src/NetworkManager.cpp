@@ -121,6 +121,7 @@ connection_success:
         // Impostiamo un timeout molto basso (2 secondi) per evitare freeze prolungati
         _mqttClient.setServer(SERVER_HOSTNAME, MQTT_PORT);
         _mqttClient.setCallback(mqttCallback);
+        _mqttClient.setBufferSize(512);
 
         // --- AVVIO OTA SOLO SE CONNESSO ---
         ArduinoOTA.setHostname("ZULU-TERMINAL");
