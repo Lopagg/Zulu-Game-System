@@ -9,7 +9,7 @@
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=13">
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-    <script src="{{ url_for('static', filename='app.js') }}?v=16" defer></script>
+    <script src="{{ url_for('static', filename='app.js') }}?v=17" defer></script>
 </head>
 <body class="sop-theme">
 
@@ -190,40 +190,84 @@
                 </div>
             </div>
 
-            <!-- === VISTA MONITOR (Multi-Nodo) === -->
+            <!-- === VISTA MONITOR === -->
             <div id="view-monitor" class="view-panel hidden">
                 <div class="monitor-controls">
                     <button class="back-btn deck-btn" onclick="showView('hub')" style="margin-bottom: 10px;">[ < RETURN TO HUB ]</button>
                     <span class="monitor-label">STATUS: <span style="color:var(--sop-primary)">GLOBAL TELEMETRY</span></span>
                 </div>
-                
-                <!-- Layout Tattico -->
-                <div class="tactical-layout">
-                    
-                    <!-- Il contenitore per le schede dei nodi (Generato da JS in ensureNodeCard) -->
-                    <div id="widget-sd-tactical" class="tactical-widget hidden">
-                        <h2 class="widget-title" id="tactical-panel-title" style="margin-bottom: 15px; color:var(--sop-dim); text-align:center;">TACTICAL FEED // LIVE MATCH</h2>
-                        <!-- Iniezione DOM JS qui: <div id="nodes-container"> -->
-                    </div>
-
-                    <!-- Mappa (Mostrata solo quando nessun nodo gioca) -->
-                    <div id="widget-generic-map" class="widget sop-card widget-map" style="width: 100%; margin-top: 20px;">
-                        <div class="widget-header">TACTICAL MAP</div>
+                <div class="grid-dashboard">
+                    <div class="widget sop-card widget-timer">
+                        <div class="widget-header">MATCH TIMER</div>
                         <div class="widget-body">
-                            <p class="no-data">STANDARD TELEMETRY ACTIVE<br><br>Nessun nodo operativo rilevato sul campo.</p>
+                            <h1 id="global-timer-display">--:--</h1>
                         </div>
                     </div>
                     
-                    <!-- Regole Partita Condivise (Opzionale) -->
-                    <div id="widget-sd-rules" class="widget sop-card widget-rules hidden" style="width: 100%; max-width: 600px; margin: 20px auto 0 auto;">
+                    <div class="widget sop-card widget-factions">
+                        <div class="widget-header">OPERATOR COUNT</div>
+                        <div class="widget-body faction-container">
+                            <div class="faction-grid">
+                                <div class="faction faction-a">
+                                    <span class="faction-score" id="score-a">0</span>
+                                    <span class="faction-name">TEAM ALPHA</span>
+                                </div>
+                                <div class="vs-divider">VS</div>
+                                <div class="faction faction-b">
+                                    <span class="faction-score" id="score-b">0</span>
+                                    <span class="faction-name">TEAM BRAVO</span>
+                                </div>
+                            </div>
+                            <div class="faction-rosters">
+                                <ul id="monitor-roster-alpha" class="monitor-roster-list alpha-list"></ul>
+                                <ul id="monitor-roster-bravo" class="monitor-roster-list bravo-list"></ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="widget-sd-tactical" class="widget sop-card widget-tactical hidden">
+                        <div id="tactical-panel-title" class="widget-header">TACTICAL FEED</div>
+                        <div class="widget-body tactical-body">
+                            <div class="bomb-status-box">
+                                <span class="label">STATUS:</span>
+                                <span id="sd-bomb-status" class="status-value">SAFE</span>
+                            </div>
+                            <div class="bomb-timer-container">
+                                <span class="detonation-title">DETONATION SEQUENCE</span>
+                                <div id="sd-bomb-timer" class="digital-clock">00:00</div>
+                            </div>
+                            <div id="domination-scores" class="dom-scores-box hidden">
+                                <div class="d-score"><span class="d-label">ALPHA</span><span id="d-val-a" class="d-val-red">0</span></div>
+                                <div class="d-vs">VS</div>
+                                <div class="d-score"><span class="d-label">BRAVO</span><span id="d-val-b" class="d-val-green">0</span></div>
+                            </div>
+                            <div class="progress-section">
+                                <div class="prog-group"><span id="lbl-prog-1" class="prog-label">ACTION 1</span><div class="progress-track"><div id="sd-arm-bar" class="progress-fill fill-red" style="width: 0%"></div></div></div>
+                                <div class="prog-group"><span id="lbl-prog-2" class="prog-label">ACTION 2</span><div class="progress-track"><div id="sd-defuse-bar" class="progress-fill fill-green" style="width: 0%"></div></div></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="widget-generic-map" class="widget sop-card widget-map">
+                        <div class="widget-header">TACTICAL MAP</div>
+                        <div class="widget-body">
+                            <p class="no-data">STANDARD TELEMETRY ACTIVE</p>
+                        </div>
+                    </div>
+                    
+                    <div id="widget-sd-rules" class="widget sop-card widget-rules hidden">
                         <div class="widget-header">MISSION INTEL // RULES</div>
                         <div class="widget-body rules-body">
                             <ul id="sd-rules-list" class="rules-list">
                                 <li>WAITING FOR TELEMETRY...</li>
                             </ul>
+                            <div class="rules-footer">
+                                <button id="btn-force-end" class="deck-btn btn-danger full-width">
+                                    [ TERMINATE MISSION ]
+                                </button>
+                            </div>
                         </div>
                     </div>
-
                 </div>
             </div>
 
