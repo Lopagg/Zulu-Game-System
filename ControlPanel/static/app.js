@@ -664,6 +664,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Crea dinamicamente l'interfaccia se la scheda per il nodo non esiste
     function ensureNodeCard(deviceId, mode, deviceName) {
+        // --- FIX VISIBILITÀ: Nasconde la mappa e mostra la dashboard ---
+        const map = document.getElementById('widget-generic-map');
+        const tactical = document.getElementById('widget-sd-tactical');
+        const rules = document.getElementById('widget-sd-rules');
+        if(map) map.classList.add('hidden');
+        if(tactical) tactical.classList.remove('hidden');
+        if(rules) rules.classList.remove('hidden');
+        // -------------------------------------------------------------
+
         let container = document.getElementById('nodes-container');
         if (!container) {
             container = document.createElement('div');
@@ -672,10 +681,11 @@ document.addEventListener('DOMContentLoaded', () => {
             container.style.gridTemplateColumns = 'repeat(auto-fit, minmax(320px, 1fr))';
             container.style.gap = '20px';
             container.style.paddingTop = '15px';
-            const monitorSection = document.querySelector('.tactical-layout');
-            if(monitorSection) {
-                // Inserisce il contenitore nodi prima delle regole
-                monitorSection.insertBefore(container, monitorSection.firstChild);
+            
+            // Cerca il contenitore tattico principale nel tuo HTML
+            const tacticalSection = document.getElementById('widget-sd-tactical');
+            if(tacticalSection) {
+                tacticalSection.appendChild(container);
             }
         }
 
@@ -686,7 +696,6 @@ document.addEventListener('DOMContentLoaded', () => {
             card.className = 'tactical-widget node-card'; 
             card.setAttribute('data-device-id', deviceId);
             
-            // Stile base (può essere integrato nel tuo style.css in futuro)
             card.style.border = '1px solid var(--sop-dim)';
             card.style.padding = '15px';
             card.style.backgroundColor = 'rgba(0,0,0,0.5)';
@@ -842,6 +851,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (type === 'MODE_EXIT') {
             removeNodeCard(senderId);
             logSystem(`NODE [${shortId}] EXIT DETECTED.`);
+            
+            // --- FIX VISIBILITÀ: Se non ci sono più nodi attivi, torna alla mappa ---
+            const remainingNodes = document.querySelectorAll('.node-card');
+            if (remainingNodes.length === 0) {
+                const map = document.getElementById('widget-generic-map');
+                const tactical = document.getElementById('widget-sd-tactical');
+                const rules = document.getElementById('widget-sd-rules');
+                if(map) map.classList.remove('hidden');
+                if(tactical) tactical.classList.add('hidden');
+                if(rules) rules.classList.add('hidden');
+            }
             return;
         }
 
