@@ -137,7 +137,7 @@ def update_match_stats(winner_state):
     except Exception as e:
         logger.error(f"[ERROR STATS] {e}")
 
-# --- DEVICE REGISTRY ---
+# --- DEVICE REGISTRY (Multi-Node Architecture) ---
 class DeviceRegistry:
     def __init__(self):
         self.devices = {}
@@ -149,19 +149,45 @@ class DeviceRegistry:
         changed = False
         with self.lock:
             if device_id not in self.devices:
-                self.devices[device_id] = { "id": device_id, "name": device_id, "type": "NODE", "mode": "BOOTING...", "version": "Unknown", "ip": "MQTT" }
+                self.devices[device_id] = { 
+                    "id": device_id, 
+                    "name": device_id, 
+                    "type": "NODE", 
+                    "mode": "BOOTING...", 
+                    "version": "Unknown", 
+                    "ip": "MQTT",
+                    "game_state": "STANDBY",
+                    "telemetry": {}
+                }
                 changed = True 
+                
             self.devices[device_id]["last_seen"] = now
             self.devices[device_id]["status"] = "ONLINE"
+            
             if version and self.devices[device_id].get("version") != version:
                 self.devices[device_id]["version"] = version
                 changed = True
+                
             if mode and self.devices[device_id].get("mode") != mode:
                  self.devices[device_id]["mode"] = mode
                  changed = True
+                 
             elif msg_type == "MODE_EXIT" and self.devices[device_id].get("mode") != "MAIN MENU":
                 self.devices[device_id]["mode"] = "MAIN MENU"
+                self.devices[device_id]["game_state"] = "STANDBY"
+                self.devices[device_id]["telemetry"] = {}
                 changed = True
+                
+        return changed
+
+    def update_telemetry(self, device_id, payload, new_state=None):
+        changed = False
+        with self.lock:
+            if device_id in self.devices:
+                self.devices[device_id]["telemetry"].update(payload)
+                if new_state and self.devices[device_id]["game_state"] != new_state:
+                    self.devices[device_id]["game_state"] = new_state
+                    changed = True
         return changed
 
     def rename_device(self, device_id, new_name):
@@ -190,9 +216,8 @@ class DeviceRegistry:
 registry = DeviceRegistry()
 background_thread_started = False
 
-# --- TRACKER STATI DI GIOCO ---
+# --- TRACKER TDM GLOBALE ---
 tdm_state = { "active": False, "time_left": 0, "duration": 0 }
-node_game_states = {} 
 
 # --- CLIENT MQTT SETUP ---
 mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
@@ -210,7 +235,6 @@ def on_mqtt_message(client, userdata, msg):
         msg_type = parsed.get('type')
         payload = parsed.get('payload', {})
         
-        # LOG IN INGRESSO (Solo se non è un Heartbeat o Time Update per evitare spam)
         if msg_type not in ['HEARTBEAT', 'TIME_UPDATE', 'DOM_UPDATE', 'SD_UPDATE']:
             logger.info(f"[MQTT RX] {device_id} -> TYPE: {msg_type} | PAYLOAD: {payload}")
         
@@ -240,10 +264,8 @@ def on_mqtt_message(client, userdata, msg):
                         else:
                             reply_action = "WAIT_ASSIGN"
                 
-                # Invia risposta via MQTT al Kiosk
                 reply_payload = {"cmd": "KIOSK_REPLY", "action": reply_action}
                 mqtt_client.publish(f"zulu/cmd/{device_id}", json.dumps(reply_payload))
-                logger.info(f"[MQTT TX] Verso {device_id} -> {reply_payload}")
 
             elif msg_type == 'TAG_ASSIGN':
                 uid = payload.get('uid')
@@ -265,30 +287,28 @@ def on_mqtt_message(client, userdata, msg):
             if msg_type not in ['TAG_SCANNED', 'TAG_ASSIGN']:
                 socketio.emit('esp_event', {"parsed_data": parsed})
 
-            # --- ARBITRO LATO SERVER ---
+            # --- GESTIONE TELEMETRIA & ARBITRO PER SINGOLO NODO ---
             if msg_type in ['SD_UPDATE', 'DOM_UPDATE']:
                 new_state = payload.get('state')
-                if new_state:
-                    old_state = node_game_states.get(device_id, 'STANDBY')
-                    if new_state != old_state:
-                        node_game_states[device_id] = new_state
-                        
-                        end_states = ['T WINS', 'CT WINS', 'ALPHA WINS', 'BRAVO WINS', 'DRAW', 'STOPPED']
-                        start_states = ['ACTIVE', 'SAFE', 'NEUTRAL']
-                        
-                        if new_state in end_states and old_state not in end_states:
-                            logger.info(f"[ARBITRO SERVER] Partita su {device_id} terminata ({new_state}).")
-                            trigger_siren("SIREN_LONG")
-                            update_match_stats(new_state) 
-                        
-                        if old_state == 'PREPARING' and new_state in start_states:
-                            logger.info(f"[ARBITRO SERVER] Partita su {device_id} iniziata ({new_state}).")
-                            trigger_siren("SIREN_LONG")
+                old_state = registry.devices[device_id].get("game_state", "STANDBY")
+                
+                state_changed = registry.update_telemetry(device_id, payload, new_state)
+                
+                if state_changed:
+                    end_states = ['T WINS', 'CT WINS', 'ALPHA WINS', 'BRAVO WINS', 'DRAW', 'STOPPED']
+                    start_states = ['ACTIVE', 'SAFE', 'NEUTRAL']
+                    
+                    if new_state in end_states and old_state not in end_states:
+                        logger.info(f"[ARBITRO SERVER] Partita su nodo {device_id} terminata ({new_state}).")
+                        trigger_siren("SIREN_LONG")
+                        update_match_stats(new_state) 
+                    
+                    if old_state == 'PREPARING' and new_state in start_states:
+                        logger.info(f"[ARBITRO SERVER] Partita su nodo {device_id} iniziata ({new_state}).")
+                        trigger_siren("SIREN_LONG")
                             
-            elif msg_type == 'MODE_EXIT':
-                node_game_states[device_id] = 'STANDBY'
             elif msg_type == 'MODE_ENTER':
-                node_game_states[device_id] = 'PREPARING'
+                registry.update_telemetry(device_id, {}, "PREPARING")
             
             if has_changed:
                 active_devs, _ = registry.get_active_devices()
@@ -307,12 +327,10 @@ try:
 except Exception as e:
     logger.error(f"[CRITICAL MQTT] Impossibile collegarsi a Mosquitto: {e}")
 
-
 def trigger_siren(cmd_type="SIREN_LONG"):
     try:
         command_str = json.dumps({"cmd": cmd_type})
         mqtt_client.publish("zulu/cmd/broadcast", command_str)
-        logger.info(f"[MQTT TX] Broadcast Sirena inviato alla rete -> {cmd_type}")
     except Exception as e:
         logger.error(f"[ERROR SIREN SERVER] {e}")
 
@@ -361,28 +379,31 @@ def background_cleanup():
             doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": state_str, "game_time": tdm_state['time_left'] } }
             socketio.emit('esp_event', {"parsed_data": doc})
 
-        # --- ARBITRO TERMINALI HARDWARE ---
+        # --- ARBITRO TERMINALI HARDWARE MULTI-NODO ---
         active_hw_states = ['SAFE', 'ARMING...', 'ARMED', 'DEFUSING...', 'NEUTRAL', 'OWNED ALPHA', 'OWNED BRAVO', 'CAPTURING A...', 'CAPTURING B...']
-        for dev_id, state in list(node_game_states.items()):
-            if state in active_hw_states:
-                cmd_to_send = None
-                if alpha_in == 0 and bravo_in > 0:
-                    cmd_to_send = {"cmd": "FORCE_WIN", "winner": "BRAVO"}
-                elif bravo_in == 0 and alpha_in > 0:
-                    cmd_to_send = {"cmd": "FORCE_WIN", "winner": "ALPHA"}
-                elif alpha_in == 0 and bravo_in == 0:
-                    cmd_to_send = {"cmd": "FORCE_END_GAME"}
-                
-                if cmd_to_send:
-                    node_game_states[dev_id] = 'WAITING_END_ACK' 
-                    logger.info(f"[ARBITRO SERVER] Rilevata eliminazione team! Invio comando MQTT al nodo {dev_id}")
-                    try:
-                        mqtt_client.publish(f"zulu/cmd/{dev_id}", json.dumps(cmd_to_send))
-                        logger.info(f"[MQTT TX] Comando Force Win/End inviato a {dev_id}")
-                    except Exception as e:
-                        logger.error(f"[ERROR MQTT FORCE_WIN] {e}")
+        
+        # Scansiona direttamente il DeviceRegistry
+        with registry.lock:
+            for dev_id, data in registry.devices.items():
+                state = data.get("game_state")
+                if state in active_hw_states:
+                    cmd_to_send = None
+                    if alpha_in == 0 and bravo_in > 0:
+                        cmd_to_send = {"cmd": "FORCE_WIN", "winner": "BRAVO"}
+                    elif bravo_in == 0 and alpha_in > 0:
+                        cmd_to_send = {"cmd": "FORCE_WIN", "winner": "ALPHA"}
+                    elif alpha_in == 0 and bravo_in == 0:
+                        cmd_to_send = {"cmd": "FORCE_END_GAME"}
+                    
+                    if cmd_to_send:
+                        data["game_state"] = 'WAITING_END_ACK' 
+                        logger.info(f"[ARBITRO SERVER] Rilevata eliminazione team! Invio comando MQTT al nodo {dev_id}")
+                        try:
+                            mqtt_client.publish(f"zulu/cmd/{dev_id}", json.dumps(cmd_to_send))
+                        except Exception as e:
+                            logger.error(f"[ERROR MQTT FORCE_WIN] {e}")
 
-        # 2. Pulizia Nodi Disconnessi
+        # Pulizia Nodi Disconnessi
         if tick_counter % 2 == 0:
             active_devs, removed_something = registry.get_active_devices()
             if removed_something:
@@ -629,11 +650,9 @@ def handle_socket_command(data):
         
         if target_id == "BROADCAST_ENV":
             mqtt_client.publish("zulu/cmd/broadcast", cmd_str)
-            logger.info(f"[MQTT TX] Override Ambientale Broadcast -> {cmd_str}")
             return
 
         mqtt_client.publish(f"zulu/cmd/{target_id}", cmd_str)
-        logger.info(f"[MQTT TX] Comando Manuale verso {target_id} -> {cmd_str}")
     except Exception as e:
         logger.error(f"[ERROR SOCKET CMD] {e}")
 

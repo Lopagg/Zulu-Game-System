@@ -24,10 +24,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if(viewName === 'hub') {
             activeInspectorId = null;
-            monitoredDeviceId = null; 
-            lastConfiguredMode = null;
-            activeGameNodeId = null; 
-            currentGameState = 'STANDBY';
             document.querySelectorAll('.device-item').forEach(el => el.classList.remove('active'));
         }
         
@@ -47,27 +43,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const elGlobalStatus = document.getElementById('global-status');
     const elMissionClock = document.getElementById('mission-clock');
 
-    const elWidgetSdTactical = document.getElementById('widget-sd-tactical');
-    const elWidgetSdRules = document.getElementById('widget-sd-rules');
-    const elWidgetGenericMap = document.getElementById('widget-generic-map');
-
-    const elGlobalTimer = document.getElementById('global-timer-display');
-    const elScoreA = document.getElementById('score-a');
-    const elScoreB = document.getElementById('score-b');
-    const elMonitorTargetId = document.getElementById('monitoring-target-id');
-
-    const elSdBombStatus = document.getElementById('sd-bomb-status');
-    const elSdBombTimer = document.getElementById('sd-bomb-timer');
-    const elBombContainer = document.querySelector('.bomb-timer-container');
-    const elDomScores = document.getElementById('domination-scores');
-    const elDomValA = document.getElementById('d-val-a');
-    const elDomValB = document.getElementById('d-val-b');
-    
-    const elTacticalTitle = document.getElementById('tactical-panel-title');
-    const elSdArmBar = document.getElementById('sd-arm-bar');
-    const elSdDefuseBar = document.getElementById('sd-defuse-bar');
-    const elSdRulesList = document.getElementById('sd-rules-list');
-
     const elInspTitle = document.getElementById('inspector-title');
     const elInspMode = document.getElementById('insp-mode');
     const elInspState = document.getElementById('insp-state');
@@ -76,39 +51,38 @@ document.addEventListener('DOMContentLoaded', () => {
     const elInspFwVer = document.getElementById('insp-fw-ver');
     
     let activeInspectorId = null;
-    let activeGameNodeId = null; 
     let currentDevices = [];
-    let lastConfiguredMode = null; 
     let arenaRoster = {}; 
-    let currentGameState = 'STANDBY'; 
     let currentProfileUid = null;
-    
     let globalPlayersDB = []; 
-
-    let debounceTimer1 = null;
-    let debounceTimer2 = null;
+    
+    // Dizionario globale per i timer di rimbalzo delle barre di progresso multi-nodo
+    const debounceTimers = {};
 
     setInterval(() => {
         const now = new Date();
-        elMissionClock.textContent = now.toLocaleTimeString('it-IT', { hour12: false });
+        if(elMissionClock) elMissionClock.textContent = now.toLocaleTimeString('it-IT', { hour12: false });
     }, 1000);
 
     socket.on('connect', () => {
         logSystem("LINK ESTABLISHED WITH SOP SERVER.");
-        elGlobalStatus.textContent = "ONLINE";
-        elGlobalStatus.classList.remove('status-alert');
-        elGlobalStatus.classList.add('status-normal');
+        if(elGlobalStatus) {
+            elGlobalStatus.textContent = "ONLINE";
+            elGlobalStatus.classList.remove('status-alert');
+            elGlobalStatus.classList.add('status-normal');
+        }
         socket.emit('request_roster');
     });
 
     socket.on('disconnect', () => {
         logSystem("CONNECTION LOST - RETRYING...");
-        elGlobalStatus.textContent = "OFFLINE";
-        elGlobalStatus.classList.remove('status-normal');
-        elGlobalStatus.classList.add('status-alert');
+        if(elGlobalStatus) {
+            elGlobalStatus.textContent = "OFFLINE";
+            elGlobalStatus.classList.remove('status-normal');
+            elGlobalStatus.classList.add('status-alert');
+        }
     });
     
-    // --- GESTORE METEO CENTRALIZZATO (Dal Server Python) ---
     socket.on('weather_update', (data) => {
         const weatherEl = document.getElementById('weather-display');
         if (weatherEl && data.weather) {
@@ -119,14 +93,16 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('roster_update', (rosterData) => {
         arenaRoster = rosterData;
         renderArenaRoster();
-        if (!document.getElementById('add-player-modal').classList.contains('hidden')) {
+        const addPlayerModal = document.getElementById('add-player-modal');
+        if (addPlayerModal && !addPlayerModal.classList.contains('hidden')) {
             renderAddPlayerList();
         }
     });
 
     socket.on('database_update', (players) => {
         globalPlayersDB = players; 
-        if (!document.getElementById('add-player-modal').classList.contains('hidden')) {
+        const addPlayerModal = document.getElementById('add-player-modal');
+        if (addPlayerModal && !addPlayerModal.classList.contains('hidden')) {
             renderAddPlayerList();
         }
 
@@ -204,10 +180,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnStart.click(); 
             }
         } else if (data.cmd === 'FORCE_END_GAME') {
-            logSystem("KIOSK: Rilevato pulsante hardware END. Terminazione immediata.");
-            if (activeGameNodeId) {
-                socket.emit('send_command', { target_id: activeGameNodeId, command: { cmd: "FORCE_END_GAME" } });
-                logSystem(`SENDING TERMINATION SIGNAL TO NODE [${activeGameNodeId.slice(-4)}]...`);
+            logSystem("KIOSK: Rilevato pulsante hardware END. Terminazione immediata globale.");
+            // Invia segnale di kill a tutti i nodi in stato attivo (recuperandoli dal DOM generato)
+            const activeNodeCards = document.querySelectorAll('.node-card');
+            if(activeNodeCards.length > 0) {
+                activeNodeCards.forEach(card => {
+                    const devId = card.getAttribute('data-device-id');
+                    if(devId) {
+                        window.forceEndNode(devId);
+                    }
+                });
             } else {
                 logSystem("NESSUNA PARTITA ATTIVA RILEVATA DA TERMINARE.");
             }
@@ -225,7 +207,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('mission_start_success', () => {
-        resetMonitorData();
         showView('monitor');
     });
 
@@ -386,7 +367,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if(headerBravoIn) headerBravoIn.textContent = `BRAVO IN CAMPO (${bravoInCount})`;
         if(headerBravoOut) headerBravoOut.textContent = `BRAVO FUORI (${bravoOutCount})`;
         if(trackInCount) trackInCount.textContent = inFieldCount;
-
+        
+        const elScoreA = document.getElementById('score-a');
+        const elScoreB = document.getElementById('score-b');
         if (elScoreA) elScoreA.textContent = alphaInCount;
         if (elScoreB) elScoreB.textContent = bravoInCount;
 
@@ -402,11 +385,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.openAddPlayerModal = function() {
         socket.emit('request_database');
-        document.getElementById('add-player-modal').classList.remove('hidden');
+        const modal = document.getElementById('add-player-modal');
+        if(modal) modal.classList.remove('hidden');
     };
 
     window.closeAddPlayerModal = function() {
-        document.getElementById('add-player-modal').classList.add('hidden');
+        const modal = document.getElementById('add-player-modal');
+        if(modal) modal.classList.add('hidden');
     };
 
     function renderAddPlayerList() {
@@ -467,28 +452,39 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     window.closeModal = function() {
-        document.getElementById('operator-modal').classList.add('hidden');
+        const modal = document.getElementById('operator-modal');
+        if(modal) modal.classList.add('hidden');
     };
 
     socket.on('profile_data', (data) => {
-        document.getElementById('modal-op-name').textContent = `PROFILE // ${data.alias}`;
-        document.getElementById('modal-op-uid').textContent = data.uid;
-        document.getElementById('modal-op-date').textContent = data.registered_at || 'Sconosciuta';
-        document.getElementById('modal-op-games').textContent = data.games_played || 0;
-        document.getElementById('modal-op-notes').value = data.notes || '';
+        const nameEl = document.getElementById('modal-op-name');
+        if(nameEl) nameEl.textContent = `PROFILE // ${data.alias}`;
+        const uidEl = document.getElementById('modal-op-uid');
+        if(uidEl) uidEl.textContent = data.uid;
+        const dateEl = document.getElementById('modal-op-date');
+        if(dateEl) dateEl.textContent = data.registered_at || 'Sconosciuta';
+        const gamesEl = document.getElementById('modal-op-games');
+        if(gamesEl) gamesEl.textContent = data.games_played || 0;
+        const notesEl = document.getElementById('modal-op-notes');
+        if(notesEl) notesEl.value = data.notes || '';
         
         const photoEl = document.getElementById('modal-op-photo');
-        if(data.photo) {
-            photoEl.src = `/static/uploads/${data.photo}?t=${new Date().getTime()}`;
-        } else {
-            photoEl.src = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIiBmaWxsPSIjMzMzIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjM1IiByPSIyMCIvPjxwYXRoIGQ9Ik0yMCA5MCBRMjAgNjAgNTAgNjAgUTgwIDYwIDgwIDkwIFoiLz48L3N2Zz4=";
+        if(photoEl) {
+            if(data.photo) {
+                photoEl.src = `/static/uploads/${data.photo}?t=${new Date().getTime()}`;
+            } else {
+                photoEl.src = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIiBmaWxsPSIjMzMzIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjM1IiByPSIyMCIvPjxwYXRoIGQ9Ik0yMCA5MCBRMjAgNjAgNTAgNjAgUTgwIDYwIDgwIDkwIFoiLz48L3N2Zz4=";
+            }
         }
         
-        document.getElementById('operator-modal').classList.remove('hidden');
+        const modal = document.getElementById('operator-modal');
+        if(modal) modal.classList.remove('hidden');
     });
 
     window.saveOperatorNotes = function() {
-        const notes = document.getElementById('modal-op-notes').value;
+        const notesEl = document.getElementById('modal-op-notes');
+        if(!notesEl) return;
+        const notes = notesEl.value;
         if(currentProfileUid) {
             socket.emit('save_notes', {uid: currentProfileUid, notes: notes});
             logSystem(`NOTE SALVATE PER [${currentProfileUid}]`);
@@ -514,7 +510,7 @@ document.addEventListener('DOMContentLoaded', () => {
         .then(data => {
             if(data.status === 'ok') {
                 const photoEl = document.getElementById('modal-op-photo');
-                photoEl.src = `/static/uploads/${data.filename}?t=${new Date().getTime()}`;
+                if(photoEl) photoEl.src = `/static/uploads/${data.filename}?t=${new Date().getTime()}`;
                 logSystem(`FOTO PROFILO AGGIORNATA.`);
             } else {
                 alert('Errore durante il caricamento della foto.');
@@ -528,8 +524,9 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     function updateDeviceList(devices) {
+        if(!elDeviceList) return;
         elDeviceList.innerHTML = ''; 
-        elAssetCount.textContent = devices.length;
+        if(elAssetCount) elAssetCount.textContent = devices.length;
         if (devices.length === 0) {
             elDeviceList.innerHTML = '<li class="placeholder-msg">SCANNING NETWORK...</li>';
             return;
@@ -557,63 +554,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (device.id === activeInspectorId) updateInspectorData(device);
         });
     }
-    
-    function updateMonitorLayout(mode) {
-        if (!mode || mode === lastConfiguredMode) return;
-        lastConfiguredMode = mode;
-        if (mode === 'SEARCH_AND_DESTROY' || mode === 'DOMINATION' || mode === 'TEAM_DEATHMATCH') {
-            elWidgetSdTactical.classList.remove('hidden');
-            elWidgetSdRules.classList.remove('hidden');
-            elWidgetGenericMap.classList.add('hidden');
-            
-            const progSection = document.querySelector('.progress-section');
-            
-            if (mode === 'SEARCH_AND_DESTROY') {
-                if(elTacticalTitle) elTacticalTitle.textContent = "TACTICAL FEED // BOMB STATUS";
-                if(elBombContainer) elBombContainer.classList.remove('hidden'); 
-                if(elDomScores) elDomScores.classList.add('hidden');
-                if(progSection) progSection.classList.remove('hidden');
-                if(elLblProg1) elLblProg1.textContent = "ARMING PROGRESS";
-                if(elLblProg2) elLblProg2.textContent = "DEFUSING PROGRESS";
-            } else if (mode === 'DOMINATION') {
-                if(elTacticalTitle) elTacticalTitle.textContent = "TACTICAL FEED // ZONE CONTROL";
-                if(elBombContainer) elBombContainer.classList.add('hidden');    
-                if(elDomScores) elDomScores.classList.remove('hidden');
-                if(progSection) progSection.classList.remove('hidden');
-                if(elLblProg1) elLblProg1.textContent = "ALPHA ACTION";
-                if(elLblProg2) elLblProg2.textContent = "BRAVO ACTION";
-            } else if (mode === 'TEAM_DEATHMATCH') {
-                if(elTacticalTitle) elTacticalTitle.textContent = "TACTICAL FEED // TDM";
-                if(elBombContainer) elBombContainer.classList.add('hidden');    
-                if(elDomScores) elDomScores.classList.add('hidden');
-                if(progSection) progSection.classList.add('hidden'); 
-            }
-            if(elSdArmBar) elSdArmBar.style.width = "0%";
-            if(elSdDefuseBar) elSdDefuseBar.style.width = "0%";
-        } else {
-            elWidgetSdTactical.classList.add('hidden');
-            elWidgetSdRules.classList.add('hidden');
-            elWidgetGenericMap.classList.remove('hidden');
-        }
-    }
-
-    function resetMonitorData() {
-        if(elSdBombTimer) elSdBombTimer.textContent = "00:00";
-        if(elSdBombStatus) elSdBombStatus.textContent = "WAITING...";
-        if(elSdBombStatus) elSdBombStatus.style.color = "#fff";
-        if(elDomValA) elDomValA.textContent = "00:00";
-        if(elDomValB) elDomValB.textContent = "00:00";
-        if(elSdArmBar) elSdArmBar.style.width = "0%";
-        if(elSdDefuseBar) elSdDefuseBar.style.width = "0%";
-        if(elSdRulesList) elSdRulesList.innerHTML = '<li>WAITING FOR TELEMETRY...</li>';
-        if(elGlobalTimer) elGlobalTimer.textContent = "--:--";
-    }
 
     function openInspector(device) {
         activeInspectorId = device.id;
         const displayName = device.name || device.id;
-        elInspTitle.textContent = `${displayName} // CONFIG`;
-        elInspAliasInput.value = (device.name === device.id) ? "" : device.name;
+        if(elInspTitle) elInspTitle.textContent = `${displayName} // CONFIG`;
+        if(elInspAliasInput) elInspAliasInput.value = (device.name === device.id) ? "" : device.name;
         updateInspectorData(device);
         showView('inspector');
         logSystem(`ACCESSING NODE: ${device.id}`);
@@ -662,22 +608,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    const btnForceEnd = document.getElementById('btn-force-end');
-    if(btnForceEnd) btnForceEnd.addEventListener('click', () => {
-        if(!activeGameNodeId) {
-            alert("Nessuna partita attiva rilevata sul campo.");
-            return;
-        }
-        if(confirm("ATTENZIONE: Terminare forzatamente la partita?")) {
-            socket.emit('send_command', { target_id: activeGameNodeId, command: { cmd: "FORCE_END_GAME" } });
-            logSystem(`SENDING TERMINATION SIGNAL TO NODE [${activeGameNodeId.slice(-4)}]...`);
-        }
-    });
-
     const btnScan = document.getElementById('scan-btn');
     if(btnScan) btnScan.addEventListener('click', () => {
         logSystem("INITIATING NETWORK SCAN...");
-        elDeviceList.innerHTML = '<li class="placeholder-msg blink">SCANNING FREQUENCIES...</li>';
+        if(elDeviceList) elDeviceList.innerHTML = '<li class="placeholder-msg blink">SCANNING FREQUENCIES...</li>';
         btnScan.disabled = true;
         btnScan.style.opacity = "0.5";
         setTimeout(() => {
@@ -688,6 +622,212 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 800); 
     });
 
+    // --- FUNZIONI UTILITY PER SCHEDE MULTI-NODO ---
+    function formatTime(s) {
+        if(s === undefined || isNaN(s)) return "00:00";
+        const m = Math.floor(s / 60);
+        const sec = s % 60;
+        return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+    }
+
+    function getDeviceName(id) {
+        const dev = currentDevices.find(d => d.id === id);
+        return dev && dev.name ? dev.name : id;
+    }
+
+    // Forza la chiusura della partita su uno specifico nodo
+    window.forceEndNode = function(deviceId) {
+        if(confirm(`ATTENZIONE: Terminare forzatamente la partita sul nodo [${deviceId.slice(-4)}]?`)) {
+            socket.emit('send_command', { target_id: deviceId, command: { cmd: "FORCE_END_GAME" } });
+            logSystem(`SENDING TERMINATION SIGNAL TO NODE [${deviceId.slice(-4)}]...`);
+        }
+    };
+
+    function updateBarMulti(barId, width, isActive) {
+        const barElem = document.getElementById(barId);
+        if(!barElem) return;
+        if(isActive) {
+            clearTimeout(debounceTimers[barId]); 
+            debounceTimers[barId] = null;
+            barElem.style.width = `${width}%`;
+        } else {
+            if(barElem.style.width !== '0%') {
+                if(!debounceTimers[barId]) {
+                    debounceTimers[barId] = setTimeout(() => { 
+                        barElem.style.width = '0%'; 
+                        debounceTimers[barId] = null; 
+                    }, 200);
+                }
+            }
+        }
+    }
+
+    // Crea dinamicamente l'interfaccia se la scheda per il nodo non esiste
+    function ensureNodeCard(deviceId, mode, deviceName) {
+        let container = document.getElementById('nodes-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'nodes-container';
+            container.style.display = 'grid';
+            container.style.gridTemplateColumns = 'repeat(auto-fit, minmax(320px, 1fr))';
+            container.style.gap = '20px';
+            container.style.paddingTop = '15px';
+            const monitorSection = document.querySelector('.tactical-layout');
+            if(monitorSection) {
+                // Inserisce il contenitore nodi prima delle regole
+                monitorSection.insertBefore(container, monitorSection.firstChild);
+            }
+        }
+
+        let card = document.getElementById(`node-card-${deviceId}`);
+        if (!card) {
+            card = document.createElement('div');
+            card.id = `node-card-${deviceId}`;
+            card.className = 'tactical-widget node-card'; 
+            card.setAttribute('data-device-id', deviceId);
+            
+            // Stile base (può essere integrato nel tuo style.css in futuro)
+            card.style.border = '1px solid var(--sop-dim)';
+            card.style.padding = '15px';
+            card.style.backgroundColor = 'rgba(0,0,0,0.5)';
+            card.style.display = 'flex';
+            card.style.flexDirection = 'column';
+
+            let innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px dashed var(--sop-dim); padding-bottom:10px; margin-bottom:15px;">
+                    <h3 style="margin:0; color:var(--sop-primary); font-size:16px;">
+                        ${deviceName} <br><span style="font-size:12px; color:var(--sop-text); font-weight:normal;">[${mode}]</span>
+                    </h3>
+                    <button class="action-btn" style="color:var(--sop-alert); border:1px solid var(--sop-alert); background:transparent; padding:4px 8px; cursor:pointer;" onclick="window.forceEndNode('${deviceId}')">END</button>
+                </div>
+                
+                <div style="font-size:28px; font-weight:bold; text-align:center; margin-bottom:15px; letter-spacing:1px;" id="status-${deviceId}">WAITING...</div>
+                
+                <div style="display:flex; justify-content:space-around; font-family:monospace; font-size:20px; margin-bottom:15px;">
+                    <div>GAME:<br><span id="game-time-${deviceId}" style="color:var(--sop-primary);">00:00</span></div>
+                    ${mode !== 'TEAM_DEATHMATCH' && mode !== 'DOMINATION' ? `<div>BOMB:<br><span id="bomb-time-${deviceId}" style="color:var(--sop-alert);">00:00</span></div>` : ''}
+                </div>
+            `;
+
+            if (mode === 'DOMINATION') {
+                innerHTML += `
+                    <div style="display:flex; justify-content:space-around; font-family:monospace; font-size:22px; margin-bottom:15px; padding:10px; background:#111;">
+                        <div style="color:var(--sop-alert); text-align:center;">ALPHA<br><span id="score-a-${deviceId}">00:00</span></div>
+                        <div style="color:#55ff55; text-align:center;">BRAVO<br><span id="score-b-${deviceId}">00:00</span></div>
+                    </div>
+                `;
+            }
+
+            if (mode !== 'TEAM_DEATHMATCH') {
+                let lbl1 = mode === 'SEARCH_AND_DESTROY' ? 'ARMING PROGRESS' : 'ALPHA CAPTURE';
+                let lbl2 = mode === 'SEARCH_AND_DESTROY' ? 'DEFUSING PROGRESS' : 'BRAVO CAPTURE';
+                let color1 = 'var(--sop-alert)';
+                let color2 = '#55ff55';
+
+                innerHTML += `
+                    <div style="margin-top:auto;">
+                        <div style="margin-bottom:10px;">
+                            <div style="font-size:12px; color:var(--sop-dim); margin-bottom:4px;">${lbl1}</div>
+                            <div style="height:12px; background:#111; border:1px solid #333; width:100%; position:relative;">
+                                <div id="prog-1-${deviceId}" style="height:100%; width:0%; background:${color1}; transition:width 0.2s;"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div style="font-size:12px; color:var(--sop-dim); margin-bottom:4px;">${lbl2}</div>
+                            <div style="height:12px; background:#111; border:1px solid #333; width:100%; position:relative;">
+                                <div id="prog-2-${deviceId}" style="height:100%; width:0%; background:${color2}; transition:width 0.2s;"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            card.innerHTML = innerHTML;
+            container.appendChild(card);
+        }
+        return card;
+    }
+
+    // Rimuove la scheda visiva se il nodo esce dalla modalità gioco
+    function removeNodeCard(deviceId) {
+        const card = document.getElementById(`node-card-${deviceId}`);
+        if(card) {
+            card.remove();
+        }
+    }
+
+    // Aggiorna dinamicamente solo i valori all'interno della specifica scheda
+    function updateNodeCard(deviceId, type, payload) {
+        const elStatus = document.getElementById(`status-${deviceId}`);
+        const elGameTime = document.getElementById(`game-time-${deviceId}`);
+        const elBombTime = document.getElementById(`bomb-time-${deviceId}`);
+        const elScoreA = document.getElementById(`score-a-${deviceId}`);
+        const elScoreB = document.getElementById(`score-b-${deviceId}`);
+
+        if (payload.state && elStatus) {
+            elStatus.textContent = payload.state;
+            const s = payload.state;
+            if (s.includes('DEFUS') || s.includes('CT WINS') || s.includes('CAPTURING B') || s.includes('OWNED BRAVO') || s.includes('BRAVO WINS')) {
+                elStatus.style.color = '#55ff55';
+            } else if (s.includes('ARM') || s.includes('EXPLODED') || s.includes('T WINS') || s.includes('CAPTURING A') || s.includes('OWNED ALPHA') || s.includes('ALPHA WINS')) {
+                elStatus.style.color = 'var(--sop-alert)';
+            } else if (s === 'STANDBY' || s === 'PREPARING' || s === 'DRAW') {
+                elStatus.style.color = '#ff9900';
+            } else {
+                elStatus.style.color = 'var(--sop-primary)';
+            }
+        }
+
+        // TDM Countdown globale
+        if (type === 'COUNTDOWN_UPDATE') {
+            if(payload.time !== undefined && elGameTime) {
+                elGameTime.textContent = `T-${payload.time}`;
+                elGameTime.style.color = '#ff9900';
+            }
+            if(elStatus) {
+                elStatus.textContent = "PREPARING";
+                elStatus.style.color = "#ff9900";
+            }
+            return;
+        } else if (elGameTime && elGameTime.style.color === 'rgb(255, 153, 0)') {
+            // Ripristina colore normale dopo il countdown
+            elGameTime.style.color = 'var(--sop-primary)';
+        }
+
+        if (payload.game_time !== undefined && elGameTime) {
+            elGameTime.textContent = formatTime(payload.game_time);
+        } else if (payload.time_left !== undefined && elGameTime) {
+            elGameTime.textContent = formatTime(payload.time_left);
+        }
+
+        if (payload.bomb_time !== undefined && elBombTime) {
+            elBombTime.textContent = formatTime(payload.bomb_time);
+        }
+        if (payload.score_a !== undefined && elScoreA) {
+            elScoreA.textContent = formatTime(payload.score_a);
+        }
+        if (payload.score_b !== undefined && elScoreB) {
+            elScoreB.textContent = formatTime(payload.score_b);
+        }
+
+        let width1 = 0, width2 = 0, bar1Active = false, bar2Active = false;
+        const isDom = (type === 'DOM_UPDATE');
+
+        if (!isDom && type !== 'TDM_UPDATE') {
+            if(payload.arm_prog !== undefined) { width1 = payload.arm_prog; bar1Active = width1 > 0; }
+            if(payload.def_prog !== undefined) { width2 = payload.def_prog; bar2Active = width2 > 0; }
+        } else if (isDom) {
+            const prog = payload.capture_prog || 0;
+            const state = payload.state || '';
+            if (state.includes('CAPTURING A')) { width1 = prog; bar1Active = true; }
+            else if (state.includes('CAPTURING B')) { width2 = prog; bar2Active = true; }
+        }
+
+        updateBarMulti(`prog-1-${deviceId}`, width1, bar1Active);
+        updateBarMulti(`prog-2-${deviceId}`, width2, bar2Active);
+    }
+
+    // Gestore Principale Eventi MQTT inoltrati
     function handleGameEvent(msg) {
         const raw = msg.parsed_data || {};
         const senderId = raw.id || 'UNK';
@@ -699,173 +839,41 @@ document.addEventListener('DOMContentLoaded', () => {
             logSystem(`[${shortId}] ${type}`);
         }
 
-        if (['MODE_ENTER', 'COUNTDOWN_UPDATE', 'SD_UPDATE', 'DOM_UPDATE', 'TIME_UPDATE', 'TDM_UPDATE'].includes(type)) {
-            activeGameNodeId = senderId;
+        if (type === 'MODE_EXIT') {
+            removeNodeCard(senderId);
+            logSystem(`NODE [${shortId}] EXIT DETECTED.`);
+            return;
         }
-
-        if (type === 'HEARTBEAT' && activeGameNodeId && senderId !== activeGameNodeId) {
-            return; 
-        }
-
-        let mode = payload.mode || raw.mode || (type === 'SD_UPDATE' ? 'SEARCH_AND_DESTROY' : (type === 'DOM_UPDATE' ? 'DOMINATION' : (type === 'TDM_UPDATE' ? 'TEAM_DEATHMATCH' : null)));
-        if (mode === 'SEARCH_DESTROY') mode = 'SEARCH_AND_DESTROY';
-
-        if (mode === 'KIOSK') return; 
 
         if (type === 'TAG_ASSIGN') {
             socket.emit('register_operator', { uid: payload.uid, team: payload.team });
             return; 
         }
 
-        if (type === 'TIME_UPDATE') {
-            if (payload.time_left !== undefined && elGlobalTimer) {
-                const m = Math.floor(payload.time_left / 60);
-                const s = payload.time_left % 60;
-                elGlobalTimer.textContent = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-            }
+        let mode = payload.mode || raw.mode;
+        if(!mode) {
+             if (type === 'SD_UPDATE') mode = 'SEARCH_AND_DESTROY';
+             else if (type === 'DOM_UPDATE') mode = 'DOMINATION';
+             else if (type === 'TDM_UPDATE') mode = 'TEAM_DEATHMATCH';
+        }
+        if (mode === 'SEARCH_DESTROY') mode = 'SEARCH_AND_DESTROY';
+
+        if (mode === 'KIOSK') return; 
+
+        if (mode && type !== 'SETTINGS_UPDATE') {
+            ensureNodeCard(senderId, mode, getDeviceName(senderId));
         }
 
-        if (type === 'MODE_EXIT') {
-            currentGameState = 'STANDBY';
-            activeGameNodeId = null; 
-            resetMonitorData();
-            updateMonitorLayout(null);
-            logSystem(`GLOBAL MODE EXIT DETECTED.`);
-        }
-        if (type === 'MODE_ENTER') {
-            currentGameState = 'PREPARING';
-            resetMonitorData();
-            updateMonitorLayout(mode);
-            if(elGlobalTimer) elGlobalTimer.textContent = "--:--"; 
-            logSystem(`GLOBAL MODE ENTER: ${mode}`);
-        }
-        if (type === 'COUNTDOWN_UPDATE') {
-            if (payload.time !== undefined && elGlobalTimer) {
-                elGlobalTimer.textContent = `T-${payload.time}`;
-                elGlobalTimer.style.color = '#ff9900'; 
-            }
-            if(elDomValA) elDomValA.textContent = "0";
-            if(elDomValB) elDomValB.textContent = "0";
-            
-            if(elSdBombStatus) {
-                elSdBombStatus.textContent = "PREPARING";
-                elSdBombStatus.style.color = "#ff9900"; 
-            }
-        }
-
-        if (mode && (type === 'HEARTBEAT' || type === 'MODE_ENTER' || type === 'SD_UPDATE' || type === 'DOM_UPDATE' || type === 'SETTINGS_UPDATE' || type === 'TDM_UPDATE')) {
-            updateMonitorLayout(mode);
-        }
+        updateNodeCard(senderId, type, payload);
         
         if (type === 'SETTINGS_UPDATE' || (type === 'MODE_ENTER' && payload.bomb_time)) {
-            renderRules(payload);
-        }
-
-        if (type === 'SD_UPDATE' || type === 'DOM_UPDATE' || type === 'TDM_UPDATE') {
-            const isDom = (type === 'DOM_UPDATE');
-            const isTdm = (type === 'TDM_UPDATE');
-            
-            if (isDom) {
-                if (elBombContainer) elBombContainer.classList.add('hidden');
-                if (elDomScores) elDomScores.classList.remove('hidden');
-            } else if (isTdm) {
-                if (elBombContainer) elBombContainer.classList.add('hidden');
-                if (elDomScores) elDomScores.classList.add('hidden');
-            } else {
-                if (elBombContainer) elBombContainer.classList.remove('hidden');
-                if (elDomScores) elDomScores.classList.add('hidden');
-                if (elSdBombTimer) elSdBombTimer.style.color = 'var(--sop-alert)';
-            }
-
-            if (payload.state && elSdBombStatus) {
-                currentGameState = payload.state;
-                elSdBombStatus.textContent = payload.state;
-                const s = payload.state;
-                if (s.includes('DEFUS') || s.includes('CT WINS') || s.includes('CAPTURING B') || s.includes('OWNED BRAVO') || s.includes('BRAVO WINS')) {
-                    elSdBombStatus.style.color = '#55ff55'; 
-                } else if (s.includes('ARM') || s.includes('EXPLODED') || s.includes('T WINS') || s.includes('CAPTURING A') || s.includes('OWNED ALPHA') || s.includes('ALPHA WINS')) {
-                    elSdBombStatus.style.color = 'var(--sop-alert)'; 
-                } else if (s === 'STANDBY' || s === 'PREPARING' || s === 'DRAW') {
-                    elSdBombStatus.style.color = '#ff9900'; 
-                } else {
-                    elSdBombStatus.style.color = 'var(--sop-primary)';
-                }
-            }
-
-            if (payload.game_time !== undefined && elGlobalTimer) {
-                const m = Math.floor(payload.game_time / 60);
-                const s = payload.game_time % 60;
-                elGlobalTimer.textContent = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-            }
-            if (!isDom && !isTdm && payload.bomb_time !== undefined && elSdBombTimer) {
-                const bm = Math.floor(payload.bomb_time / 60);
-                const bs = payload.bomb_time % 60;
-                elSdBombTimer.textContent = `${bm.toString().padStart(2, '0')}:${bs.toString().padStart(2, '0')}`;
-            }
-            if (elGlobalTimer && payload.state !== 'STANDBY') {
-                if (!elGlobalTimer.style.color || elGlobalTimer.style.color === 'var(--sop-text)' || elGlobalTimer.style.color === 'white') {
-                        elGlobalTimer.style.color = 'var(--sop-primary)';
-                }
-                elGlobalTimer.style.color = 'var(--sop-primary)';
-            }
-
-            if (isDom) {
-                const formatScore = (s) => {
-                    if (s === undefined) return "00:00";
-                    const m = Math.floor(s / 60);
-                    const sec = s % 60;
-                    return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
-                };
-                if (payload.score_a !== undefined && elDomValA) elDomValA.textContent = formatScore(payload.score_a);
-                if (payload.score_b !== undefined && elDomValB) elDomValB.textContent = formatScore(payload.score_b);
-            }
-
-            let width1 = 0, width2 = 0, bar1Active = false, bar2Active = false;
-
-            if (!isDom && !isTdm) {
-                if(payload.arm_prog !== undefined) { width1 = payload.arm_prog; bar1Active = width1 > 0; }
-                if(payload.def_prog !== undefined) { width2 = payload.def_prog; bar2Active = width2 > 0; }
-            } else if (isDom) {
-                const prog = payload.capture_prog || 0;
-                const state = payload.state || '';
-                if (state.includes('CAPTURING A')) { width1 = prog; bar1Active = true; }
-                else if (state.includes('CAPTURING B')) { width2 = prog; bar2Active = true; }
-            }
-
-            const updateBar = (barElem, width, isActive, timerRefName) => {
-                if(!barElem) return;
-                if (isActive) {
-                    if (timerRefName === 1) { clearTimeout(debounceTimer1); debounceTimer1 = null; }
-                    else { clearTimeout(debounceTimer2); debounceTimer2 = null; }
-                    barElem.style.width = `${width}%`;
-                } else {
-                    if (barElem.style.width !== '0%') {
-                        if (timerRefName === 1) {
-                            if(!debounceTimer1) debounceTimer1 = setTimeout(() => { barElem.style.width = "0%"; debounceTimer1 = null; }, 200); 
-                        } else {
-                            if(!debounceTimer2) debounceTimer2 = setTimeout(() => { barElem.style.width = "0%"; debounceTimer2 = null; }, 200);
-                        }
-                    }
-                }
-            };
-
-            updateBar(elSdArmBar, width1, bar1Active, 1);
-            updateBar(elSdDefuseBar, width2, bar2Active, 2);
-            updateForceEndButton(payload.state);
+            renderRules(payload, senderId);
         }
     }
 
-    function updateForceEndButton(state) {
-        const btnForceEnd = document.getElementById('btn-force-end');
-        if (btnForceEnd) {
-            const footer = btnForceEnd.parentElement;
-            const activeStates = ['SAFE', 'ARMING...', 'ARMED', 'DEFUSING...', 'NEUTRAL', 'OWNED ALPHA', 'OWNED BRAVO', 'CAPTURING A...', 'CAPTURING B...', 'ACTIVE'];
-            if (activeStates.includes(state)) footer.classList.remove('hidden');
-            else footer.classList.add('hidden');
-        }
-    }
-
-    function renderRules(payload) {
+    // Le regole per ora vengono accumulate (o riscritte) nel pannello comune (o si possono vincolare al nodo se necessario)
+    function renderRules(payload, deviceId) {
+        const elSdRulesList = document.getElementById('sd-rules-list');
         if(!elSdRulesList) return;
         elSdRulesList.innerHTML = '';
         const keysMap = { 'bomb_time': 'TIMER BOMBA (Min)', 'arm_time': 'TEMPO INNESCO (Sec)', 'defuse_time': 'TEMPO DISINNESCO (Sec)', 'game_duration': 'DURATA ROUND (Min)', 'capture_time': 'TEMPO CATTURA (Sec)', 'countdown': 'START DELAY (Sec)' };
@@ -883,6 +891,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function logSystem(text) {
+        if(!elMiniLog) return;
         const div = document.createElement('div');
         div.textContent = `> ${text}`;
         elMiniLog.prepend(div);
@@ -1002,7 +1011,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const currentSelection = elSetupTargetSelect.value;
         elSetupTargetSelect.innerHTML = '<option value="">-- Seleziona un nodo nel Menu Principale --</option>';
         
-        // MODIFICA: Ora filtriamo per i dispositivi che si trovano nel Menu Principale (o nell'eventuale vecchia mod. terminale)
         const terminalDevices = currentDevices.filter(d => d.mode === 'MAIN MENU' || d.mode === 'TERMINAL');
         
         terminalDevices.forEach(d => {
@@ -1020,7 +1028,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 window.sendEnvCommand = function(envCmd) {
     if(confirm("Eseguire override ambientale: " + envCmd + "?")) {
-        socket.emit('send_command', { target_id: "BROADCAST_ENV", command: { cmd: envCmd } });
+        // Usa socket dalla finestra globale non è possibile se non esposto, quindi richiamiamo un custom event
+        document.dispatchEvent(new CustomEvent('send_env_command', { detail: envCmd }));
         console.log(`> SYS_OVERRIDE: ${envCmd}`);
         const miniLog = document.getElementById('mini-log');
         if(miniLog) {
@@ -1030,3 +1039,8 @@ window.sendEnvCommand = function(envCmd) {
         }
     }
 };
+
+document.addEventListener('send_env_command', function(e) {
+    const socket = io(); // Alternativa: gestire il socket globale
+    socket.emit('send_command', { target_id: "BROADCAST_ENV", command: { cmd: e.detail } });
+});
