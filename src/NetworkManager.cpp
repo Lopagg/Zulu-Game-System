@@ -6,22 +6,10 @@
 #include <ArduinoOTA.h>
 #include <esp_wifi.h>
 #include <TelnetStream.h>
+#include <WiFiManager.h>
 
 String deviceId = "";   // Variabile globale per il MAC Address
 extern NetworkManager networkManager; // Referenza all'istanza creata in main.cpp per la callback
-
-// --- Lista delle reti Wi-Fi conosciute ---
-struct WifiCredential {
-    const char* ssid;
-    const char* password;
-};
-
-const WifiCredential knownNetworks[] = {
-    {"MELONE", "wirelessmelone"},               // Rete casa
-    {"Sombrero", "cristone"},       // telefono ceri
-    {"S20Lorenzo", "Satana666"}   // hotspot
-};
-const int numKnownNetworks = sizeof(knownNetworks) / sizeof(knownNetworks[0]);
 
 // Il tuo server DDNS
 const char* SERVER_HOSTNAME = "zuluserver.ddns.net";
@@ -30,13 +18,14 @@ const int MQTT_PORT = 1883;
 // --- CALLBACK MQTT GLOBALE ---
 // Viene richiamata in automatico ogni volta che arriva un comando dal server sul topic ascoltato
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
-    String msg;
-    for (unsigned int i = 0; i < length; i++) {
-        msg += (char)payload[i];
-    }
+    if (length > 511) return; // Prevenzione Buffer Overflow
+    
+    char incomingBuffer[512];
+    memcpy(incomingBuffer, payload, length);
+    incomingBuffer[length] = '\0';
     
     // Passa il messaggio alla nostra classe NetworkManager
-    networkManager.setReceivedMessage(msg);
+    networkManager.setReceivedMessage(String(incomingBuffer));
 }
 
 // Costruttore
@@ -53,7 +42,8 @@ void NetworkManager::initialize(HardwareManager* hardware) {
     Serial.println(FIRMWARE_VERSION);
 
     hardware->clearLcd();
-    hardware->printLcd(0, 0, "Scansione WiFi...");
+    hardware->printLcd(0, 0, "Avvio Rete...");
+    hardware->printLcd(0, 1, "AP: ZULU-TERMINAL");
 
     // 1. Accendi l'antenna in modalità Station
     WiFi.mode(WIFI_STA);
@@ -62,92 +52,69 @@ void NetworkManager::initialize(HardwareManager* hardware) {
     WiFi.disconnect();
     delay(100);
 
-    int n = WiFi.scanNetworks();
-    if (n == 0) {
-        hardware->printLcd(0, 1, "Nessuna rete!");
-        return;
+    WiFiManager wm;
+    wm.setConfigPortalTimeout(180); 
+
+    if (!wm.autoConnect("ZULU-TERMINAL")) {
+        hardware->clearLcd();
+        hardware->printLcd(0, 0, "Timeout Rete!");
+        hardware->printLcd(0, 1, "Riavvio in corso...");
+        delay(3000);
+        ESP.restart();
     }
 
-    bool connected = false;
-    for (int i = 0; i < numKnownNetworks; i++) {
-        for (int j = 0; j < n; j++) {
-            if (strcmp(knownNetworks[i].ssid, WiFi.SSID(j).c_str()) == 0) {
-                hardware->clearLcd();
-                hardware->printLcd(0, 0, "Connessione a:");
-                hardware->printLcd(0, 1, knownNetworks[i].ssid);
-                
-                WiFi.begin(knownNetworks[i].ssid, knownNetworks[i].password);
-                
-                int attempts = 0;
-                while (WiFi.status() != WL_CONNECTED && attempts < 20) {
-                    delay(500);
-                    Serial.print(".");
-                    attempts++;
-                }
+    deviceId = WiFi.macAddress();
 
-                if (WiFi.status() == WL_CONNECTED) {
-                    connected = true;
-                    goto connection_success;
-                }
-            }
-        }
-    }
+    TelnetStream.begin();
+    TelnetStream.println("\n\n=== LOG DI RETE ATTIVATI ===");
+    TelnetStream.printf("Dispositivo connesso: %s\n", WiFi.localIP().toString().c_str());
 
-connection_success:
-    if (connected) {
-        deviceId = WiFi.macAddress();
+    // --- STAMPA IP VISIBILE ---
+    hardware->clearLcd();
+    hardware->printLcd(0, 0, "WiFi OK!");
+    hardware->printLcd(0, 1, "IP: " + WiFi.localIP().toString());
+    Serial.printf("\nConnesso! IP: %s, MAC: %s\n", WiFi.localIP().toString().c_str(), deviceId.c_str());
+    
+    delay(2000); // Lascia l'IP a schermo per 2 secondi
 
-        TelnetStream.begin();
-        TelnetStream.println("\n\n=== LOG DI RETE ATTIVATI ===");
-        TelnetStream.printf("Dispositivo connesso: %s\n", WiFi.localIP().toString().c_str());
+    // --- SEZIONE NTP ---
+    hardware->clearLcd();
+    hardware->printLcd(0, 0, "WiFi OK!");
+    hardware->printLcd(0, 1, "Sync Orario...");
+    configTime(3600, 3600, "pool.ntp.org", "time.nist.gov");
+    delay(2000); 
+    hardware->syncWithNTP();
+    
+    // --- CONFIGURAZIONE MQTT ---
+    // Impostiamo un timeout molto basso (2 secondi) per evitare freeze prolungati
+    _mqttClient.setServer(SERVER_HOSTNAME, MQTT_PORT);
+    _mqttClient.setCallback(mqttCallback);
+    _mqttClient.setBufferSize(512);
 
-        // --- STAMPA IP VISIBILE ---
-        hardware->clearLcd();
-        hardware->printLcd(0, 0, "WiFi OK!");
-        hardware->printLcd(0, 1, "IP: " + WiFi.localIP().toString());
-        Serial.printf("\nConnesso! IP: %s, MAC: %s\n", WiFi.localIP().toString().c_str(), deviceId.c_str());
-        
-        delay(2000); // Lascia l'IP a schermo per 2 secondi
-
-        // --- SEZIONE NTP ---
-        hardware->clearLcd();
-        hardware->printLcd(0, 0, "WiFi OK!");
-        hardware->printLcd(0, 1, "Sync Orario...");
-        configTime(3600, 3600, "pool.ntp.org", "time.nist.gov");
-        delay(2000); 
-        hardware->syncWithNTP();
-        
-        // --- CONFIGURAZIONE MQTT ---
-        // Impostiamo un timeout molto basso (2 secondi) per evitare freeze prolungati
-        _mqttClient.setServer(SERVER_HOSTNAME, MQTT_PORT);
-        _mqttClient.setCallback(mqttCallback);
-        _mqttClient.setBufferSize(512);
-
-        // --- AVVIO OTA SOLO SE CONNESSO ---
-        ArduinoOTA.setHostname("ZULU-TERMINAL");
-        ArduinoOTA.begin();
-
-    } else {
-        hardware->clearLcd();
-        hardware->printLcd(0, 0, "WiFi Fallita!");
-        delay(2000);
-    }
+    // --- AVVIO OTA SOLO SE CONNESSO ---
+    ArduinoOTA.setHostname("ZULU-TERMINAL");
+    ArduinoOTA.begin();
 }
 
 void NetworkManager::reconnectMQTT() {
     Serial.print("Tentativo di connessione MQTT...");
     
     // Creazione dell'LWT (Last Will and Testament)
-    String willTopic = "zulu/telemetry/" + deviceId;
-    String willPayload = "{\"id\":\"" + deviceId + "\", \"type\":\"MODE_EXIT\", \"payload\":{\"mode\":\"OFFLINE\"}}";
+    char willTopic[64];
+    snprintf(willTopic, sizeof(willTopic), "zulu/telemetry/%s", deviceId.c_str());
     
-    if (_mqttClient.connect(deviceId.c_str(), "admin", "admin", willTopic.c_str(), 1, true, willPayload.c_str())) {
+    char willPayload[128];
+    snprintf(willPayload, sizeof(willPayload), "{\"id\":\"%s\", \"type\":\"MODE_EXIT\", \"payload\":{\"mode\":\"OFFLINE\"}}", deviceId.c_str());
+    
+    if (_mqttClient.connect(deviceId.c_str(), "admin", "admin", willTopic, 1, true, willPayload)) {
         Serial.println("Connesso al Broker!");
         
         // Si iscrive al topic generico e a quello specifico per questo nodo
         _mqttClient.subscribe("zulu/cmd/broadcast");
-        String myTopic = "zulu/cmd/" + deviceId;
-        _mqttClient.subscribe(myTopic.c_str());
+        
+        char myTopic[64];
+        snprintf(myTopic, sizeof(myTopic), "zulu/cmd/%s", deviceId.c_str());
+        _mqttClient.subscribe(myTopic);
         
         // Invia evento di BOOT
         JsonDocument bootDoc;
@@ -213,11 +180,13 @@ void NetworkManager::sendEvent(const String& eventType, const JsonDocument& data
     doc["type"] = eventType;
     doc["payload"] = data;
 
-    String jsonString;
-    serializeJson(doc, jsonString);
+    char jsonBuffer[512];
+    serializeJson(doc, jsonBuffer);
 
-    String topic = "zulu/telemetry/" + deviceId;
-    _mqttClient.publish(topic.c_str(), jsonString.c_str());
+    char topicBuffer[64];
+    snprintf(topicBuffer, sizeof(topicBuffer), "zulu/telemetry/%s", deviceId.c_str());
+
+    _mqttClient.publish(topicBuffer, jsonBuffer);
 }
 
 void NetworkManager::sendEvent(const String& eventType) {
