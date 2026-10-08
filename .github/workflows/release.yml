@@ -3,7 +3,7 @@ name: Build, Release and Bump Version
 on:
   push:
     tags:
-      - 'v*' # Si innesca creando un tag come v0.3.7
+      - 'v*'
 
 permissions:
   contents: write
@@ -12,19 +12,14 @@ jobs:
   build_and_release:
     runs-on: ubuntu-latest
     
-    # Questo trucchetto zittisce il falso allarme di VS Code
-    env:
-      VERSION_NUM: "" 
-
     steps:
       - name: Checkout del codice
         uses: actions/checkout@v4
         with:
-          ref: main # RISOLVE L'ERRORE "detached HEAD" dicendo al bot di usare il ramo main
+          ref: main # Fondamentale: forza il bot a mettersi sul ramo main, non sul tag
 
       - name: Estrai numero di versione
         run: |
-          # Prende "refs/tags/v0.3.7" e taglia via tutto lasciando solo "0.3.7"
           TAG_NAME=${GITHUB_REF#refs/tags/v}
           echo "VERSION_NUM=$TAG_NAME" >> $GITHUB_ENV
 
@@ -41,6 +36,7 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "chore: bump version to ${{ env.VERSION_NUM }}"
+          branch: main # Risolve definitivamente il detached HEAD dicendo dove salvare
           file_pattern: src/app_common.h firmware.json
 
       - name: Setup Python

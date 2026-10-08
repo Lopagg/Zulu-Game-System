@@ -1,4 +1,4 @@
-#include "FoxhuntMode.h"
+#include "Foxhuntmode.h"
 #include <Keypad.h>
 
 // Costruttore

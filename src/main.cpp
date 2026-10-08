@@ -22,7 +22,7 @@
 #include "GameModes/SearchDestroySettings.h"
 #include "GameModes/DominationMode.h"
 #include "GameModes/DominationSettings.h"
-#include "GameModes/FoxhuntMode.h"
+#include "GameModes/Foxhuntmode.h"
 // Rimosso l'include di TerminalMode
 
 HardwareManager hardware;
