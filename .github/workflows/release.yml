@@ -16,28 +16,33 @@ jobs:
       - name: Checkout del codice
         uses: actions/checkout@v4
         with:
-          ref: main # Fondamentale: forza il bot a mettersi sul ramo main, non sul tag
-
-      - name: Estrai numero di versione
-        run: |
-          TAG_NAME=${GITHUB_REF#refs/tags/v}
-          echo "VERSION_NUM=$TAG_NAME" >> $GITHUB_ENV
+          ref: main 
 
       - name: Aggiorna app_common.h e firmware.json
         run: |
-          sed -i "s/#define FIRMWARE_VERSION .*/#define FIRMWARE_VERSION \"${{ env.VERSION_NUM }}\"/" src/app_common.h
+          # Estrai la versione (da "v0.3.9" diventa "0.3.9")
+          VERSION=${GITHUB_REF#refs/tags/v}
           
-          echo "{" > firmware.json
-          echo "  \"version\": \"${{ env.VERSION_NUM }}\"," >> firmware.json
-          echo "  \"url\": \"https://github.com/Lopagg/Zulu-Game-System/releases/download/v${{ env.VERSION_NUM }}/firmware.bin\"" >> firmware.json
-          echo "}" >> firmware.json
+          # Aggiorna il file C++
+          sed -i "s/#define FIRMWARE_VERSION .*/#define FIRMWARE_VERSION \"$VERSION\"/" src/app_common.h
+          
+          # Assicurati che la cartella firmware esista
+          mkdir -p firmware
+          
+          # Rigenera il manifesto nel percorso corretto
+          echo "{" > firmware/firmware.json
+          echo "  \"version\": \"$VERSION\"," >> firmware/firmware.json
+          echo "  \"url\": \"https://github.com/Lopagg/Zulu-Game-System/releases/download/v$VERSION/firmware.bin\"" >> firmware/firmware.json
+          echo "}" >> firmware/firmware.json
 
       - name: Push delle modifiche al repository
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "chore: bump version to ${{ env.VERSION_NUM }}"
-          branch: main # Risolve definitivamente il detached HEAD dicendo dove salvare
-          file_pattern: src/app_common.h firmware.json
+          # github.ref_name contiene già il nome del tag (es. v0.3.9), è nativo e non genera warning in VS Code
+          commit_message: "chore: bump version to ${{ github.ref_name }}"
+          branch: main 
+          # Modificato il file pattern per includere il percorso corretto
+          file_pattern: src/app_common.h firmware/firmware.json
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -56,4 +61,4 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: .pio/build/esp32dev/firmware.bin
-          name: Release v${{ env.VERSION_NUM }}
+          name: Release ${{ github.ref_name }}
