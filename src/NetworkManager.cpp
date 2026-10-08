@@ -75,14 +75,14 @@ void NetworkManager::initialize(HardwareManager* hardware) {
     hardware->printLcd(0, 1, "IP: " + WiFi.localIP().toString());
     Serial.printf("\nConnesso! IP: %s, MAC: %s\n", WiFi.localIP().toString().c_str(), deviceId.c_str());
     
-    delay(2000); // Lascia l'IP a schermo per 2 secondi
+    // delay(2000); // Lascia l'IP a schermo per 2 secondi
 
     // --- SEZIONE NTP ---
     hardware->clearLcd();
     hardware->printLcd(0, 0, "WiFi OK!");
     hardware->printLcd(0, 1, "Sync Orario...");
     configTime(3600, 3600, "pool.ntp.org", "time.nist.gov");
-    delay(2000); 
+    // delay(2000); 
     hardware->syncWithNTP();
     
     // --- CONFIGURAZIONE MQTT ---

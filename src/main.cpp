@@ -74,6 +74,11 @@ String getCurrentModeString() {
     }
 }
 
+// --- VARIABILI GLOBALI PER CONTROLLO OTA RITARDATO ---
+bool otaChecked = false;
+unsigned long bootTime = 0;
+// -----------------------------------------------------
+
 void setup() {
     Serial.begin(115200);
 
@@ -99,7 +104,8 @@ void setup() {
     networkManager.initialize(&hardware); 
     Serial.println("Avvio del sistema completato.");
 
-    updater.checkForUpdates();
+    // Salviamo il momento in cui il sistema ha finito di avviarsi
+    bootTime = millis();
 
     JsonDocument doc;
     doc["status"] = "ready";
@@ -116,6 +122,21 @@ void loop() {
     networkManager.update();
     
     handleNetworkCommands();
+
+    // --- CONTROLLO OTA RITARDATO (10 secondi dopo l'avvio) ---
+    if (!otaChecked && (millis() - bootTime > 10000)) {
+        otaChecked = true;
+        Serial.println("Controllo aggiornamenti OTA in background...");
+        updater.checkForUpdates();
+        
+        // Ridisegna il menu nel caso in cui updater abbia usato lo schermo
+        if (currentAppState == APP_STATE_MAIN_MENU) {
+            displayMainMenu();
+        } else if (currentAppState == APP_STATE_WELCOME) {
+            hardware.clearLcd();
+        }
+    }
+    // ---------------------------------------------------------
 
     if (millis() - lastHeartbeatTime > heartbeatInterval) {
         lastHeartbeatTime = millis();
@@ -264,7 +285,6 @@ void handleMainMenuState() {
                 networkManager.sendEvent("MODE_CHANGE", doc);
                 domMode->enter();
                 break;
-            // Indici aggiornati dopo la rimozione del terminale
             case 2: 
                 Serial.println("TRANSIZIONE: Main Menu -> Stanza dei Suoni");
                 currentAppState = APP_STATE_MUSIC_ROOM;
