@@ -99,6 +99,8 @@ void setup() {
     networkManager.initialize(&hardware); 
     Serial.println("Avvio del sistema completato.");
 
+    updater.checkForUpdates();
+
     JsonDocument doc;
     doc["status"] = "ready";
     doc["version"] = FIRMWARE_VERSION;

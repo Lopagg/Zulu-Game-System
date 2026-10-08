@@ -4,6 +4,7 @@
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <Update.h>
+#include <WiFiClientSecure.h>
 
 FirmwareUpdater::FirmwareUpdater(HardwareManager* hardware) : _hardware(hardware) {}
 
@@ -11,8 +12,12 @@ void FirmwareUpdater::checkForUpdates() {
     _hardware->clearLcd();
     _hardware->printLcd(0, 1, "Controllo aggiorn...");
     
+    // Inizializza un client sicuro ignorando la validazione del certificato
+    WiFiClientSecure client;
+    client.setInsecure();
+    
     HTTPClient http;
-    http.begin(_manifestUrl);
+    http.begin(client, _manifestUrl);
     int httpCode = http.GET();
 
     if (httpCode != HTTP_CODE_OK) {
@@ -47,7 +52,7 @@ void FirmwareUpdater::checkForUpdates() {
         const char* firmwareUrl = doc["url"];
         
         http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-        http.begin(firmwareUrl);
+        http.begin(client, firmwareUrl);
         int firmwareHttpCode = http.GET();
 
         if (firmwareHttpCode != HTTP_CODE_OK) {
