@@ -11,29 +11,42 @@ permissions:
 jobs:
   build_and_release:
     runs-on: ubuntu-latest
+    
+    # Questo trucchetto zittisce il falso allarme di VS Code
+    env:
+      VERSION_NUM: "" 
+
     steps:
       - name: Checkout del codice
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+        with:
+          ref: main # RISOLVE L'ERRORE "detached HEAD" dicendo al bot di usare il ramo main
+
+      - name: Estrai numero di versione
+        run: |
+          # Prende "refs/tags/v0.3.7" e taglia via tutto lasciando solo "0.3.7"
+          TAG_NAME=${GITHUB_REF#refs/tags/v}
+          echo "VERSION_NUM=$TAG_NAME" >> $GITHUB_ENV
 
       - name: Aggiorna app_common.h e firmware.json
         run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
-          sed -i "s/#define FIRMWARE_VERSION .*/#define FIRMWARE_VERSION \"$VERSION\"/" src/app_common.h
+          sed -i "s/#define FIRMWARE_VERSION .*/#define FIRMWARE_VERSION \"${{ env.VERSION_NUM }}\"/" src/app_common.h
+          
           echo "{" > firmware.json
-          echo "  \"version\": \"$VERSION\"," >> firmware.json
-          echo "  \"url\": \"https://github.com/Lopagg/Zulu-Game-System/releases/download/v$VERSION/firmware.bin\"" >> firmware.json
+          echo "  \"version\": \"${{ env.VERSION_NUM }}\"," >> firmware.json
+          echo "  \"url\": \"https://github.com/Lopagg/Zulu-Game-System/releases/download/v${{ env.VERSION_NUM }}/firmware.bin\"" >> firmware.json
           echo "}" >> firmware.json
 
       - name: Push delle modifiche al repository
-        uses: stefanzweifel/git-auto-commit-action@v4
+        uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "chore: bump version to ${{ env.VERSION }}"
+          commit_message: "chore: bump version to ${{ env.VERSION_NUM }}"
           file_pattern: src/app_common.h firmware.json
 
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.9'
+          python-version: '3.10'
 
       - name: Installa PlatformIO
         run: |
@@ -44,8 +57,7 @@ jobs:
         run: pio run
 
       - name: Pubblica la Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: .pio/build/esp32dev/firmware.bin
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: Release v${{ env.VERSION_NUM }}
