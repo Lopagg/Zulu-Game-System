@@ -6,13 +6,37 @@
 #include <Update.h>
 #include <WiFiClientSecure.h>
 
+// --- Funzione per il confronto intelligente delle versioni (SemVer) ---
+int compareVersions(const String& v1, const String& v2) {
+    int i = 0, j = 0;
+    while (i < v1.length() || j < v2.length()) {
+        int num1 = 0, num2 = 0;
+        // Estrai il blocco numerico di v1 fino al punto
+        while (i < v1.length() && v1[i] != '.') { 
+            num1 = num1 * 10 + (v1[i] - '0'); 
+            i++; 
+        }
+        // Estrai il blocco numerico di v2 fino al punto
+        while (j < v2.length() && v2[j] != '.') { 
+            num2 = num2 * 10 + (v2[j] - '0'); 
+            j++; 
+        }
+        
+        if (num1 > num2) return 1;
+        if (num1 < num2) return -1;
+        
+        i++; j++;
+    }
+    return 0;
+}
+// ----------------------------------------------------------------------
+
 FirmwareUpdater::FirmwareUpdater(HardwareManager* hardware) : _hardware(hardware) {}
 
 void FirmwareUpdater::checkForUpdates() {
     _hardware->clearLcd();
     _hardware->printLcd(0, 1, "Controllo aggiorn...");
     
-    // Inizializza un client sicuro ignorando la validazione del certificato
     WiFiClientSecure client;
     client.setInsecure();
     
@@ -44,7 +68,8 @@ void FirmwareUpdater::checkForUpdates() {
     const char* serverVersion = doc["version"];
     Serial.printf("Versione corrente: %s, Versione server: %s\n", FIRMWARE_VERSION, serverVersion);
 
-    if (strcmp(serverVersion, FIRMWARE_VERSION) > 0) {
+    // Usa la nuova funzione matematica invece di strcmp
+    if (compareVersions(String(serverVersion), String(FIRMWARE_VERSION)) > 0) {
         _hardware->clearLcd();
         _hardware->printLcd(0, 1, "Nuova vers. trovata!");
         _hardware->printLcd(0, 2, "Download in corso...");
