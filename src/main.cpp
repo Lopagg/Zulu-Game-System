@@ -123,21 +123,6 @@ void loop() {
     
     handleNetworkCommands();
 
-    // --- CONTROLLO OTA RITARDATO (10 secondi dopo l'avvio) ---
-    if (!otaChecked && (millis() - bootTime > 10000)) {
-        otaChecked = true;
-        Serial.println("Controllo aggiornamenti OTA in background...");
-        updater.checkForUpdates();
-        
-        // Ridisegna il menu nel caso in cui updater abbia usato lo schermo
-        if (currentAppState == APP_STATE_MAIN_MENU) {
-            displayMainMenu();
-        } else if (currentAppState == APP_STATE_WELCOME) {
-            hardware.clearLcd();
-        }
-    }
-    // ---------------------------------------------------------
-
     if (millis() - lastHeartbeatTime > heartbeatInterval) {
         lastHeartbeatTime = millis();
         
