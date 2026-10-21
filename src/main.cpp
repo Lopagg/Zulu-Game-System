@@ -74,11 +74,6 @@ String getCurrentModeString() {
     }
 }
 
-// --- VARIABILI GLOBALI PER CONTROLLO OTA RITARDATO ---
-bool otaChecked = false;
-unsigned long bootTime = 0;
-// -----------------------------------------------------
-
 void setup() {
     Serial.begin(115200);
 
@@ -103,9 +98,6 @@ void setup() {
     hardware.initialize();
     networkManager.initialize(&hardware); 
     Serial.println("Avvio del sistema completato.");
-
-    // Salviamo il momento in cui il sistema ha finito di avviarsi
-    bootTime = millis();
 
     JsonDocument doc;
     doc["status"] = "ready";
