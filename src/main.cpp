@@ -160,7 +160,8 @@ void handleWelcomeState() {
         firstEntry = false;
         welcomeStartTime = millis();
         hardware.clearLcd();
-        hardware.printLcd(2, 1, "ZULU GAME SYSTEM");
+        hardware.printLcd(7, 0, "REMOTE");
+        hardware.printLcd(3, 1, "ACCESS TERMINAL");
         String versionString = "Alpha ver. ";
         versionString += FIRMWARE_VERSION;
         hardware.printLcd(2, 2, versionString);
