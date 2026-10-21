@@ -42,58 +42,109 @@ void NetworkManager::initialize(HardwareManager* hardware) {
     Serial.println(FIRMWARE_VERSION);
 
     hardware->clearLcd();
-    hardware->printLcd(0, 0, "Avvio Rete...");
-    hardware->printLcd(0, 1, "AP: ZULU-TERMINAL");
+    hardware->printLcd(0, 0, "Connessione WiFi...");
 
     // 1. Accendi l'antenna in modalità Station
     WiFi.mode(WIFI_STA);
+    WiFi.begin();
 
-    // 3. Ora puoi scollegarti da vecchie sessioni e avviare la scansione
-    WiFi.disconnect();
-    delay(100);
+    int attempts = 0;
+    while (WiFi.status() != WL_CONNECTED && attempts < 20) {
+        delay(250);
+        attempts++;
+    }
 
-    WiFiManager wm;
-    wm.setConfigPortalTimeout(180); 
-
-    if (!wm.autoConnect("ZULU-TERMINAL")) {
+    if (WiFi.status() != WL_CONNECTED) {
         hardware->clearLcd();
-        hardware->printLcd(0, 0, "Timeout Rete!");
-        hardware->printLcd(0, 1, "Riavvio in corso...");
-        delay(3000);
-        ESP.restart();
+        hardware->printLcd(0, 0, "Rete non trovata!");
+        hardware->printLcd(0, 1, "P1: Gioca Offline");
+        hardware->printLcd(0, 2, "P2: Configura Rete");
+
+        hardware->clearOled1();
+        hardware->printOled1("OFFLINE", 2, 22, 25);
+        hardware->clearOled2();
+        hardware->printOled2("CONFIG", 2, 28, 25);
+
+        bool choice = false;
+        bool startAP = false;
+        while (!choice) {
+            hardware->updateButtons();
+            if (hardware->wasButton1Pressed()) {
+                startAP = false;
+                choice = true;
+                hardware->playTone(300, 70);
+            }
+            if (hardware->wasButton2Pressed()) {
+                startAP = true;
+                choice = true;
+                hardware->playTone(1200, 100);
+            }
+            delay(50);
+        }
+
+        hardware->clearOled1();
+        hardware->clearOled2();
+
+        if (startAP) {
+            hardware->clearLcd();
+            hardware->printLcd(0, 0, "Avvio Access Point");
+            hardware->printLcd(0, 1, "Rete: RAT-V1");
+            hardware->printLcd(0, 2, "IP: 192.168.4.1");
+            
+            WiFiManager wm;
+            wm.setConfigPortalTimeout(180); 
+
+            if (!wm.startConfigPortal("RAT-V1")) {
+                hardware->clearLcd();
+                hardware->printLcd(0, 0, "Timeout Setup!");
+                hardware->printLcd(0, 1, "Avvio offline...");
+                delay(3000);
+            }
+        }
     }
 
     deviceId = WiFi.macAddress();
 
-    TelnetStream.begin();
-    TelnetStream.println("\n\n=== LOG DI RETE ATTIVATI ===");
-    TelnetStream.printf("Dispositivo connesso: %s\n", WiFi.localIP().toString().c_str());
+    if (WiFi.status() == WL_CONNECTED) {
+        TelnetStream.begin();
+        TelnetStream.println("\n\n=== LOG DI RETE ATTIVATI ===");
+        TelnetStream.printf("Dispositivo connesso: %s\n", WiFi.localIP().toString().c_str());
 
-    // --- STAMPA IP VISIBILE ---
-    hardware->clearLcd();
-    hardware->printLcd(0, 0, "WiFi OK!");
-    hardware->printLcd(0, 1, "IP: " + WiFi.localIP().toString());
-    Serial.printf("\nConnesso! IP: %s, MAC: %s\n", WiFi.localIP().toString().c_str(), deviceId.c_str());
-    
-    // delay(2000); // Lascia l'IP a schermo per 2 secondi
+        // --- STAMPA IP VISIBILE ---
+        hardware->clearLcd();
+        hardware->printLcd(0, 0, "WiFi Connesso!");
+        
+        String ssid = WiFi.SSID();
+        if (ssid.length() > 20) ssid = ssid.substring(0, 20);
+        hardware->printLcd(0, 1, ssid);
+        
+        hardware->printLcd(0, 2, "IP: " + WiFi.localIP().toString());
+        Serial.printf("\nConnesso! IP: %s, MAC: %s\n", WiFi.localIP().toString().c_str(), deviceId.c_str());
+        
+        delay(2000);
 
-    // --- SEZIONE NTP ---
-    hardware->clearLcd();
-    hardware->printLcd(0, 0, "WiFi OK!");
-    hardware->printLcd(0, 1, "Sync Orario...");
-    configTime(3600, 3600, "pool.ntp.org", "time.nist.gov");
-    // delay(2000); 
-    hardware->syncWithNTP();
-    
-    // --- CONFIGURAZIONE MQTT ---
-    // Impostiamo un timeout molto basso (2 secondi) per evitare freeze prolungati
-    _mqttClient.setServer(SERVER_HOSTNAME, MQTT_PORT);
-    _mqttClient.setCallback(mqttCallback);
-    _mqttClient.setBufferSize(512);
+        // --- SEZIONE NTP ---
+        hardware->clearLcd();
+        hardware->printLcd(0, 0, "WiFi Connesso!");
+        hardware->printLcd(0, 1, "Sync Orario...");
+        configTime(3600, 3600, "pool.ntp.org", "time.nist.gov");
+        hardware->syncWithNTP();
+        
+        // --- CONFIGURAZIONE MQTT ---
+        // Impostiamo un timeout molto basso (2 secondi) per evitare freeze prolungati
+        _mqttClient.setServer(SERVER_HOSTNAME, MQTT_PORT);
+        _mqttClient.setCallback(mqttCallback);
+        _mqttClient.setBufferSize(512);
 
-    // --- AVVIO OTA SOLO SE CONNESSO ---
-    ArduinoOTA.setHostname("ZULU-TERMINAL");
-    ArduinoOTA.begin();
+        // --- AVVIO OTA SOLO SE CONNESSO ---
+        ArduinoOTA.setHostname("RAT-V1");
+        ArduinoOTA.begin();
+    } else {
+        hardware->clearLcd();
+        hardware->printLcd(0, 0, "Modalita' Offline");
+        hardware->printLcd(0, 1, "Rete disabilitata");
+        delay(2000);
+    }
 }
 
 void NetworkManager::reconnectMQTT() {
@@ -130,10 +181,10 @@ void NetworkManager::reconnectMQTT() {
 }
 
 void NetworkManager::update() {
-    ArduinoOTA.handle();
-
-    // Mantiene viva la connessione MQTT in modo NON BLOCCANTE
     if (WiFi.status() == WL_CONNECTED) {
+        ArduinoOTA.handle();
+
+        // Mantiene viva la connessione MQTT in modo NON BLOCCANTE
         if (!_mqttClient.connected()) {
             static unsigned long lastReconnectAttempt = 0;
             // Tenta la riconnessione SOLO una volta ogni 5 secondi

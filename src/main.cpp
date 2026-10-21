@@ -23,7 +23,6 @@
 #include "GameModes/DominationMode.h"
 #include "GameModes/DominationSettings.h"
 #include "GameModes/Foxhuntmode.h"
-// Rimosso l'include di TerminalMode
 
 HardwareManager hardware;
 NetworkManager networkManager;
@@ -34,7 +33,6 @@ DominationSettings* domSettings = nullptr;
 DominationMode* domMode = nullptr;
 FoxhuntMode* foxhuntMode = nullptr;
 MusicRoomMode* musicRoomMode = nullptr;
-// Rimosso il puntatore a TerminalMode
 
 void displayMainMenu();
 void handleNetworkCommands();
@@ -44,7 +42,6 @@ AppState* appState = &currentAppState;
 
 int mainMenuIndex = 0;
 
-// Rimosso "Mod. Terminale" dall'array
 String mainMenuOptions[] = { "Cerca & Distruggi", "Dominio", "Stanza dei Suoni", "Test Hardware" };
 int numMainMenuOptions = sizeof(mainMenuOptions) / sizeof(mainMenuOptions[0]);
 
