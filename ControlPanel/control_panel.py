@@ -343,11 +343,40 @@ def background_cleanup():
         
         with sqlite3.connect(DB_PATH) as conn:
             c = conn.cursor()
-            c.execute("SELECT team FROM active_roster WHERE status='IN'")
+            c.execute("SELECT team, status FROM active_roster")
             players = c.fetchall()
-            alpha_in = sum(1 for p in players if p[0] == 'ALPHA')
-            bravo_in = sum(1 for p in players if p[0] == 'BRAVO')
+            
+            # Conta chi è dentro e chi è fuori
+            players_out = sum(1 for p in players if p[1] != 'IN')
+            alpha_in = sum(1 for p in players if p[0] == 'ALPHA' and p[1] == 'IN')
+            bravo_in = sum(1 for p in players if p[0] == 'BRAVO' and p[1] == 'IN')
+            total_players = len(players)
+
+        # Determina lo stato per il Kiosk (Start Button)
+        all_players_in = (players_out == 0) and (total_players > 0)
+        game_ready_to_start = False # Logica per capire se un nodo ha impostato una partita. In futuro potresti collegarlo a registry.devices
         
+        # Determina se una partita è in corso (End Button)
+        game_is_running = tdm_state['active']
+        with registry.lock:
+            for dev_id, data in registry.devices.items():
+                if data.get("game_state") in ['ARMING...', 'ARMED', 'DEFUSING...', 'NEUTRAL', 'OWNED ALPHA', 'OWNED BRAVO', 'CAPTURING A...', 'CAPTURING B...', 'ACTIVE']:
+                    game_is_running = True
+                if data.get("game_state") == 'PREPARING':
+                     game_ready_to_start = True
+
+        # Invia l'aggiornamento al Kiosk ogni secondo
+        kiosk_state_payload = {
+            "cmd": "KIOSK_LED_SYNC",
+            "all_players_in": all_players_in,
+            "game_running": game_is_running,
+            "game_ready": game_ready_to_start
+        }
+        try:
+            mqtt_client.publish("zulu/cmd/NODE-KIOSK-1", json.dumps(kiosk_state_payload))
+        except Exception as e:
+            logger.error(f"[ERROR KIOSK SYNC] {e}")
+
         # --- ARBITRO TEAM DEATHMATCH ---
         if tdm_state['active']:
             if tdm_state['time_left'] > 0:
