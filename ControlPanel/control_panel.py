@@ -83,12 +83,7 @@ def broadcast_roster():
         rows = c.fetchall()
         roster = {}
         for r in rows:
-            roster[r['uid']] = {
-                'uid': r['uid'],
-                'name': r['name'],
-                'team': r['team'],
-                'status': r['status']
-            }
+            roster[r['uid']] = dict(r)
             
     socketio.emit('roster_update', roster)
 
@@ -221,8 +216,10 @@ class DeviceRegistry:
 registry = DeviceRegistry()
 background_thread_started = False
 
-# --- TRACKER TDM GLOBALE E STATO PARTITA ---
+# --- TRACKER TDM GLOBALE ---
 tdm_state = { "active": False, "time_left": 0, "duration": 0 }
+
+# --- TRACKER MISSIONE PRONTA ---
 mission_ready_flag = False
 
 # --- CLIENT MQTT SETUP ---
@@ -245,6 +242,7 @@ def on_mqtt_message(client, userdata, msg):
             logger.info(f"[MQTT RX] {device_id} -> TYPE: {msg_type} | PAYLOAD: {payload}")
         
         if device_id:
+            # --- GESTIONE KIOSK ---
             if msg_type == 'KIOSK_CMD':
                 cmd = payload.get('cmd')
                 if cmd:
@@ -283,6 +281,7 @@ def on_mqtt_message(client, userdata, msg):
                         conn.commit()
                     broadcast_roster()
             
+            # --- AGGIORNAMENTO REGISTRO NODI ---
             mode = payload.get('mode') or parsed.get('mode')
             version = payload.get('version') or parsed.get('version')
             
@@ -291,6 +290,7 @@ def on_mqtt_message(client, userdata, msg):
             if msg_type not in ['TAG_SCANNED', 'TAG_ASSIGN']:
                 socketio.emit('esp_event', {"parsed_data": parsed})
 
+            # --- GESTIONE TELEMETRIA & ARBITRO PER SINGOLO NODO ---
             if msg_type in ['SD_UPDATE', 'DOM_UPDATE']:
                 new_state = payload.get('state')
                 old_state = registry.devices[device_id].get("game_state", "STANDBY")
@@ -350,22 +350,27 @@ def background_cleanup():
             c.execute("SELECT team, status FROM active_roster")
             players = c.fetchall()
             
+            # Conta chi è dentro e chi è fuori
             players_out = sum(1 for p in players if p[1] != 'IN')
             alpha_in = sum(1 for p in players if p[0] == 'ALPHA' and p[1] == 'IN')
             bravo_in = sum(1 for p in players if p[0] == 'BRAVO' and p[1] == 'IN')
             total_players = len(players)
 
+        # Determina lo stato per il Kiosk (Start Button)
         all_players_in = (players_out == 0) and (total_players > 0)
         
+        # Determina se una partita è in corso (End Button)
         game_is_running = tdm_state['active']
         with registry.lock:
             for dev_id, data in registry.devices.items():
                 state = data.get("game_state")
                 if state in ['ARMING...', 'ARMED', 'DEFUSING...', 'NEUTRAL', 'OWNED ALPHA', 'OWNED BRAVO', 'CAPTURING A...', 'CAPTURING B...', 'ACTIVE']:
                     game_is_running = True
+                # Resetta il flag ready se il gioco è partito (countdown in corso o già attivo)
                 if state == 'PREPARING' or game_is_running:
                     mission_ready_flag = False
 
+        # Invia l'aggiornamento al Kiosk ogni secondo
         kiosk_state_payload = {
             "cmd": "KIOSK_LED_SYNC",
             "all_players_in": all_players_in,
@@ -408,8 +413,10 @@ def background_cleanup():
             doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": state_str, "game_time": tdm_state['time_left'] } }
             socketio.emit('esp_event', {"parsed_data": doc})
 
+        # --- ARBITRO TERMINALI HARDWARE MULTI-NODO ---
         active_hw_states = ['SAFE', 'ARMING...', 'ARMED', 'DEFUSING...', 'NEUTRAL', 'OWNED ALPHA', 'OWNED BRAVO', 'CAPTURING A...', 'CAPTURING B...']
         
+        # Scansiona direttamente il DeviceRegistry
         with registry.lock:
             for dev_id, data in registry.devices.items():
                 state = data.get("game_state")
@@ -430,6 +437,7 @@ def background_cleanup():
                         except Exception as e:
                             logger.error(f"[ERROR MQTT FORCE_WIN] {e}")
 
+        # Pulizia Nodi Disconnessi
         if tick_counter % 2 == 0:
             active_devs, removed_something = registry.get_active_devices()
             if removed_something:
@@ -575,6 +583,7 @@ def handle_save_notes(data):
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute("UPDATE players SET notes = ? WHERE uid = ?", (notes, uid))
 
+# --- VALIDAZIONE START MISSIONE ---
 @socketio.on('request_mission_start')
 def handle_request_mission_start(data):
     mode = data.get('mode')
@@ -664,14 +673,6 @@ def handle_socket_command(data):
             cmd_val = command_obj.get("cmd", "")
             if cmd_val == "SET_READY":
                 mission_ready_flag = True
-                return
-            elif cmd_val == "SET_TDM_SETTINGS":
-                dur = command_obj.get("duration", 15)
-                tdm_state["duration"] = dur * 60
-                tdm_state["time_left"] = dur * 60
-                mission_ready_flag = True
-                rules_doc = { "id": "SERVER-TDM", "type": "SETTINGS_UPDATE", "payload": {"mode": "TEAM_DEATHMATCH", "game_duration": dur} }
-                socketio.emit('esp_event', {"parsed_data": rules_doc})
                 return
             elif cmd_val in ["FORCE_END_GAME", "FORCE_WIN", "RESET", "START_SD_GAME", "START_DOM_GAME"]:
                 mission_ready_flag = False
