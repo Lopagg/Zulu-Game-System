@@ -200,11 +200,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('kiosk_hardware_cmd', (data) => {
         if (data.cmd === 'GAME_START') {
-            const btnStart = document.getElementById('btn-start-mission');
-            if (btnStart) {
-                logSystem("KIOSK: Rilevato pulsante hardware START.");
-                btnStart.click(); 
+            const mode = elSetupModeSelect.value;
+            let targetId = elSetupTargetSelect.value;
+            
+            if (mode !== 'tdm' && !targetId) { 
+                if (elSetupTargetSelect && elSetupTargetSelect.options.length > 1) {
+                    elSetupTargetSelect.selectedIndex = 1;
+                    targetId = elSetupTargetSelect.value;
+                } else {
+                    logSystem("ATTENZIONE: Comando START dal Kiosk fallito. Nessun terminale selezionato.");
+                    return; 
+                }
             }
+
+            const dur = parseInt(document.getElementById('tdm-game-dur').value) || 15;
+            
+            socket.emit('request_mission_start', {
+                mode: mode,
+                target_id: targetId,
+                duration: dur,
+                force: false
+            });
+            logSystem("KIOSK: Rilevato pulsante hardware START. Missione Inviata.");
         } else if (data.cmd === 'FORCE_END_GAME') {
             logSystem("KIOSK: Rilevato pulsante hardware END.");
             if (monitoredDeviceId) {
@@ -905,10 +922,16 @@ document.addEventListener('DOMContentLoaded', () => {
             
             socket.emit('send_command', { target_id: "broadcast", command: commandData });
             logSystem(`GLOBAL CONFIG TRANSMITTED.`);
+            
+            // Inviamo il comando SET_READY al server
+            socket.emit('send_command', { target_id: "broadcast", command: { cmd: "SET_READY" } });
+            
             alert("Configurazione Inviata. Verifica che tutti i giocatori siano in campo e la partita sia pronta prima di avviare dal Kiosk.");
         });
     }
 
+    // Il bottone INITIATE MISSION (se presente a schermo) è stato rimosso dalla view, 
+    // ma manteniamo l'event listener se serve per test/fallback
     if (btnStartMission) {
         btnStartMission.addEventListener('click', () => {
             const mode = elSetupModeSelect.value;

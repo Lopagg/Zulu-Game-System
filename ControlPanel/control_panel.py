@@ -671,8 +671,9 @@ def handle_socket_command(data):
         
         if isinstance(command_obj, dict):
             cmd_val = command_obj.get("cmd", "")
-            if cmd_val in ["SET_SD_SETTINGS", "SET_DOM_SETTINGS"]:
+            if cmd_val == "SET_READY":
                 mission_ready_flag = True
+                return
             elif cmd_val in ["FORCE_END_GAME", "FORCE_WIN", "RESET", "START_SD_GAME", "START_DOM_GAME"]:
                 mission_ready_flag = False
 
