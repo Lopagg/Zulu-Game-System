@@ -254,6 +254,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const listBravoIn = document.getElementById('track-bravo-in');
         const listBravoOut = document.getElementById('track-bravo-out');
         
+        const listMonitorAlpha = document.getElementById('monitor-roster-alpha');
+        const listMonitorBravo = document.getElementById('monitor-roster-bravo');
+        
         if(!listAlphaManage || !listAlphaIn) return;
         
         [listAlphaManage, listBravoManage, listAlphaIn, listAlphaOut, listBravoIn, listBravoOut].forEach(el => el.innerHTML = '');
@@ -857,6 +860,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const elSetupDomParams = document.getElementById('setup-dom-params');
     const elSetupTargetSelect = document.getElementById('setup-target-select');
     const btnTransmitSetup = document.getElementById('btn-transmit-setup');
+    const btnStartMission = document.getElementById('btn-start-mission');
 
     if (elSetupModeSelect) {
         elSetupModeSelect.addEventListener('change', (e) => {
@@ -891,18 +895,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnTransmitSetup) {
         btnTransmitSetup.addEventListener('click', () => {
             const mode = elSetupModeSelect.value;
-            let commandData = {};
-            let targetId = elSetupTargetSelect.value;
+            if (mode === 'tdm') return;
 
-            if (mode !== 'tdm' && !targetId) { 
-                if (elSetupTargetSelect && elSetupTargetSelect.options.length > 1) {
-                    elSetupTargetSelect.selectedIndex = 1;
-                    targetId = elSetupTargetSelect.value;
-                } else {
-                    alert("Nessun terminale di gioco connesso!");
-                    return; 
-                }
-            }
+            let commandData = {};
 
             if (mode === 'sd') {
                 commandData = {
@@ -916,31 +911,50 @@ document.addEventListener('DOMContentLoaded', () => {
                     arm_pin: document.getElementById('sd-arm-pin').value,
                     defuse_pin: document.getElementById('sd-defuse-pin').value
                 };
-                socket.emit('send_command', { target_id: targetId, command: commandData });
-                logSystem(`CONFIG TRANSMITTED TO ${targetId.slice(-4)}.`);
-            } else if (mode === 'dom') {
+            } else {
                 commandData = {
                     cmd: "SET_DOM_SETTINGS",
                     duration: parseInt(document.getElementById('dom-game-dur').value),
                     capture_time: parseInt(document.getElementById('dom-capture-time').value),
                     countdown: parseInt(document.getElementById('dom-countdown').value)
                 };
-                socket.emit('send_command', { target_id: targetId, command: commandData });
-                logSystem(`CONFIG TRANSMITTED TO ${targetId.slice(-4)}.`);
-            } else if (mode === 'tdm') {
-                const dur = parseInt(document.getElementById('tdm-game-dur').value) || 15;
-                // Imposta le impostazioni TDM
-                commandData = {
-                    cmd: "SET_TDM_SETTINGS",
-                    duration: dur
-                };
-                socket.emit('send_command', { target_id: "broadcast", command: commandData });
-                logSystem(`TDM CONFIG TRANSMITTED.`);
             }
             
+            socket.emit('send_command', { target_id: "broadcast", command: commandData });
+            logSystem(`GLOBAL CONFIG TRANSMITTED.`);
+            
+            // Inviamo il comando SET_READY al server
             socket.emit('send_command', { target_id: "broadcast", command: { cmd: "SET_READY" } });
             
             alert("Configurazione Inviata. Verifica che tutti i giocatori siano in campo e la partita sia pronta prima di avviare dal Kiosk.");
+        });
+    }
+
+    // Il bottone INITIATE MISSION (se presente a schermo) è stato rimosso dalla view, 
+    // ma manteniamo l'event listener se serve per test/fallback
+    if (btnStartMission) {
+        btnStartMission.addEventListener('click', () => {
+            const mode = elSetupModeSelect.value;
+            let targetId = elSetupTargetSelect.value;
+            
+            if (mode !== 'tdm' && !targetId) { 
+                if (elSetupTargetSelect && elSetupTargetSelect.options.length > 1) {
+                    elSetupTargetSelect.selectedIndex = 1;
+                    targetId = elSetupTargetSelect.value;
+                } else {
+                    alert("Nessun terminale di gioco connesso!");
+                    return; 
+                }
+            }
+
+            const dur = parseInt(document.getElementById('tdm-game-dur').value) || 15;
+            
+            socket.emit('request_mission_start', {
+                mode: mode,
+                target_id: targetId,
+                duration: dur,
+                force: false
+            });
         });
     }
 
