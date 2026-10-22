@@ -338,6 +338,7 @@ def trigger_siren(cmd_type="SIREN_LONG"):
         logger.error(f"[ERROR SIREN SERVER] {e}")
 
 def background_cleanup():
+    global mission_ready_flag
     logger.info("[SYSTEM] Task di Pulizia e Arbitro Globale AVVIATO.")
     tick_counter = 0
     while True:
@@ -668,12 +669,11 @@ def handle_socket_command(data):
         command_obj = data.get('command')
         cmd_str = json.dumps(command_obj) if isinstance(command_obj, dict) else command_obj
         
-        # Selettore per capire se stiamo configurando una partita
         if isinstance(command_obj, dict):
             cmd_val = command_obj.get("cmd", "")
             if cmd_val in ["SET_SD_SETTINGS", "SET_DOM_SETTINGS"]:
                 mission_ready_flag = True
-            elif cmd_val in ["FORCE_END_GAME", "FORCE_WIN", "RESET"]:
+            elif cmd_val in ["FORCE_END_GAME", "FORCE_WIN", "RESET", "START_SD_GAME", "START_DOM_GAME"]:
                 mission_ready_flag = False
 
         if target_id == "SERVER-TDM":

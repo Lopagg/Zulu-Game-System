@@ -74,7 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const elLblProg2 = document.getElementById('lbl-prog-2');
     
     let activeInspectorId = null;
-    let monitoredDeviceId = null; // Il nodo attualmente "a fuoco" sulla dashboard
+    let monitoredDeviceId = null; 
     let currentDevices = [];
     let lastConfiguredMode = null; 
     let arenaRoster = {}; 
@@ -82,7 +82,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentProfileUid = null;
     let globalPlayersDB = []; 
 
-    // Timer per le barre fluide originali
     let debounceTimer1 = null;
     let debounceTimer2 = null;
 
@@ -522,7 +521,6 @@ document.addEventListener('DOMContentLoaded', () => {
             li.className = `device-item ${cssClass}`;
             if (device.id === activeInspectorId) li.classList.add('active'); 
             
-            // Highlight se è il nodo attualmente sintonizzato
             if (device.id === monitoredDeviceId) {
                 li.style.borderLeft = "4px solid var(--sop-primary)";
             }
@@ -540,7 +538,6 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
             li.addEventListener('click', () => {
                 openInspector(device);
-                // Selezionando dalla lista, forziamo la sintonizzazione della UI su questo nodo
                 if (device.mode !== 'KIOSK' && device.mode !== 'MAIN MENU') {
                     monitoredDeviceId = device.id;
                     logSystem(`UI LOCKED ON NODE: ${device.id.slice(-4)}`);
@@ -659,7 +656,6 @@ document.addEventListener('DOMContentLoaded', () => {
             logSystem(`[${shortId}] ${type}`);
         }
 
-        // Se è un Tag Assist o Kiosk, elabora a prescindere dal focus
         if (type === 'TAG_ASSIGN') {
             socket.emit('register_operator', { uid: payload.uid, team: payload.team });
             return; 
@@ -673,20 +669,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (mode === 'SEARCH_DESTROY') mode = 'SEARCH_AND_DESTROY';
 
-        // TARGET LOCK LOGIC:
-        // Quando un nodo entra in partita o parte il countdown, agganciamo automaticamente la UI a quel nodo
         if (type === 'MODE_ENTER' || type === 'COUNTDOWN_UPDATE' || (type === 'TDM_UPDATE' && !monitoredDeviceId)) {
             monitoredDeviceId = senderId;
         }
 
-        // Se abbiamo un nodo agganciato, ignora i pacchetti UI degli altri nodi (per evitare sfarfallio e conflitti grafici)
         if (monitoredDeviceId && senderId !== monitoredDeviceId) {
             return; 
         }
 
         if (type === 'MODE_EXIT') {
             currentGameState = 'STANDBY';
-            monitoredDeviceId = null; // Rilascia il focus
+            monitoredDeviceId = null; 
             resetMonitorData();
             updateMonitorLayout(null);
             logSystem(`MODE EXIT DETECTED.`);
@@ -788,7 +781,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 else if (state.includes('CAPTURING B')) { width2 = prog; bar2Active = true; }
             }
 
-            // RIPRISTINO FLUIDITA' ORIGINALE BARRE
             const updateBar = (barElem, width, isActive, timerRefName) => {
                 if(!barElem) return;
                 if (isActive) {
@@ -913,7 +905,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             socket.emit('send_command', { target_id: "broadcast", command: commandData });
             logSystem(`GLOBAL CONFIG TRANSMITTED.`);
-            alert("Parametri inviati. Il Kiosk indicherà se la partita è pronta.");
+            alert("Configurazione Inviata. Verifica che tutti i giocatori siano in campo e la partita sia pronta prima di avviare dal Kiosk.");
         });
     }
 
