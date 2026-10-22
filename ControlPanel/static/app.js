@@ -199,9 +199,30 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('kiosk_hardware_cmd', (data) => {
-        // Tutta la logica di 'GAME_START' su MQTT dal Kiosk è stata passata
-        // ai normali messaggi MQTT sul topic del nodo, quindi questo fallback in JS non serve più
-        if (data.cmd === 'FORCE_END_GAME') {
+        if (data.cmd === 'GAME_START') {
+            const mode = elSetupModeSelect.value;
+            let targetId = elSetupTargetSelect.value;
+            
+            if (mode !== 'tdm' && !targetId) { 
+                if (elSetupTargetSelect && elSetupTargetSelect.options.length > 1) {
+                    elSetupTargetSelect.selectedIndex = 1;
+                    targetId = elSetupTargetSelect.value;
+                } else {
+                    logSystem("ATTENZIONE: Comando START dal Kiosk fallito. Nessun terminale selezionato.");
+                    return; 
+                }
+            }
+
+            const dur = parseInt(document.getElementById('tdm-game-dur').value) || 15;
+            
+            socket.emit('request_mission_start', {
+                mode: mode,
+                target_id: targetId,
+                duration: dur,
+                force: false
+            });
+            logSystem("KIOSK: Rilevato pulsante hardware START. Missione Inviata.");
+        } else if (data.cmd === 'FORCE_END_GAME') {
             logSystem("KIOSK: Rilevato pulsante hardware END.");
             if (monitoredDeviceId) {
                 socket.emit('send_command', { target_id: monitoredDeviceId, command: { cmd: "FORCE_END_GAME" } });
@@ -895,8 +916,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     arm_pin: document.getElementById('sd-arm-pin').value,
                     defuse_pin: document.getElementById('sd-defuse-pin').value
                 };
-                socket.emit('send_command', { target_id: "broadcast", command: commandData });
-                logSystem(`GLOBAL CONFIG TRANSMITTED.`);
+                socket.emit('send_command', { target_id: targetId, command: commandData });
+                logSystem(`CONFIG TRANSMITTED TO ${targetId.slice(-4)}.`);
             } else if (mode === 'dom') {
                 commandData = {
                     cmd: "SET_DOM_SETTINGS",
@@ -904,18 +925,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     capture_time: parseInt(document.getElementById('dom-capture-time').value),
                     countdown: parseInt(document.getElementById('dom-countdown').value)
                 };
-                socket.emit('send_command', { target_id: "broadcast", command: commandData });
-                logSystem(`GLOBAL CONFIG TRANSMITTED.`);
+                socket.emit('send_command', { target_id: targetId, command: commandData });
+                logSystem(`CONFIG TRANSMITTED TO ${targetId.slice(-4)}.`);
             } else if (mode === 'tdm') {
                 const dur = parseInt(document.getElementById('tdm-game-dur').value) || 15;
-                socket.emit('request_mission_start', {
-                    mode: mode,
-                    target_id: targetId,
-                    duration: dur,
-                    force: false
-                });
-                // TDM non richiede terminali fisici, quindi usciamo qui dopo averlo lanciato
-                return; 
+                // Imposta le impostazioni TDM
+                commandData = {
+                    cmd: "SET_TDM_SETTINGS",
+                    duration: dur
+                };
+                socket.emit('send_command', { target_id: "broadcast", command: commandData });
+                logSystem(`TDM CONFIG TRANSMITTED.`);
             }
             
             socket.emit('send_command', { target_id: "broadcast", command: { cmd: "SET_READY" } });
