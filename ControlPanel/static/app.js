@@ -199,30 +199,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('kiosk_hardware_cmd', (data) => {
-        if (data.cmd === 'GAME_START') {
-            const mode = elSetupModeSelect.value;
-            let targetId = elSetupTargetSelect.value;
-            
-            if (mode !== 'tdm' && !targetId) { 
-                if (elSetupTargetSelect && elSetupTargetSelect.options.length > 1) {
-                    elSetupTargetSelect.selectedIndex = 1;
-                    targetId = elSetupTargetSelect.value;
-                } else {
-                    logSystem("ATTENZIONE: Comando START dal Kiosk fallito. Nessun terminale selezionato.");
-                    return; 
-                }
-            }
-
-            const dur = parseInt(document.getElementById('tdm-game-dur').value) || 15;
-            
-            socket.emit('request_mission_start', {
-                mode: mode,
-                target_id: targetId,
-                duration: dur,
-                force: false
-            });
-            logSystem("KIOSK: Rilevato pulsante hardware START. Missione Inviata.");
-        } else if (data.cmd === 'FORCE_END_GAME') {
+        // Tutta la logica di 'GAME_START' su MQTT dal Kiosk è stata passata
+        // ai normali messaggi MQTT sul topic del nodo, quindi questo fallback in JS non serve più
+        if (data.cmd === 'FORCE_END_GAME') {
             logSystem("KIOSK: Rilevato pulsante hardware END.");
             if (monitoredDeviceId) {
                 socket.emit('send_command', { target_id: monitoredDeviceId, command: { cmd: "FORCE_END_GAME" } });
@@ -935,6 +914,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     duration: dur,
                     force: false
                 });
+                // TDM non richiede terminali fisici, quindi usciamo qui dopo averlo lanciato
                 return; 
             }
             
