@@ -200,8 +200,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('kiosk_hardware_cmd', (data) => {
         if (data.cmd === 'GAME_START') {
-            // Il Kiosk lancia il comando MQTT locale per GAME_START, 
-            // ma in fallback se riceviamo da SocketIO possiamo forzare l'avvio anche da web
             const btnStart = document.getElementById('btn-start-mission');
             if (btnStart && !btnStart.disabled) {
                 logSystem("KIOSK: Rilevato pulsante hardware START.");
@@ -877,7 +875,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnTransmitSetup) {
         btnTransmitSetup.addEventListener('click', () => {
             const mode = elSetupModeSelect.value;
-            let commandData = {};
             let targetId = elSetupTargetSelect.value;
 
             if (mode !== 'tdm' && !targetId) { 
@@ -891,7 +888,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (mode === 'sd') {
-                commandData = {
+                let commandData = {
                     cmd: "SET_SD_SETTINGS",
                     game_duration: parseInt(document.getElementById('sd-game-dur').value),
                     bomb_time: parseInt(document.getElementById('sd-bomb-time').value),
@@ -903,24 +900,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     defuse_pin: document.getElementById('sd-defuse-pin').value
                 };
                 socket.emit('send_command', { target_id: targetId, command: commandData });
-                logSystem(`CONFIG TRANSMITTED TO ${targetId.slice(-4)}.`);
             } else if (mode === 'dom') {
-                commandData = {
+                let commandData = {
                     cmd: "SET_DOM_SETTINGS",
                     duration: parseInt(document.getElementById('dom-game-dur').value),
                     capture_time: parseInt(document.getElementById('dom-capture-time').value),
                     countdown: parseInt(document.getElementById('dom-countdown').value)
                 };
                 socket.emit('send_command', { target_id: targetId, command: commandData });
-                logSystem(`CONFIG TRANSMITTED TO ${targetId.slice(-4)}.`);
             } else if (mode === 'tdm') {
                 const dur = parseInt(document.getElementById('tdm-game-dur').value) || 15;
-                commandData = {
+                let commandData = {
                     cmd: "SET_TDM_SETTINGS",
                     duration: dur
                 };
                 socket.emit('send_command', { target_id: "broadcast", command: commandData });
-                logSystem(`TDM CONFIG TRANSMITTED.`);
             }
             
             socket.emit('send_command', { target_id: "broadcast", command: { cmd: "SET_READY" } });
@@ -930,7 +924,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnStartMission.classList.remove('disabled');
             }
             
-            alert("Configurazione Inviata. Verifica che tutti i giocatori siano in campo e la partita sia pronta prima di avviare dal Kiosk o premendo Start Mission.");
+            alert("Configurazione Inviata. Verifica che tutti i giocatori siano in campo e la partita sia pronta prima di avviare dal Kiosk o dal bottone START MISSION.");
         });
     }
 
