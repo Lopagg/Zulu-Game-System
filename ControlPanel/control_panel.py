@@ -13,7 +13,6 @@ import os
 import datetime
 import urllib.request
 
-# --- CONFIGURAZIONE ---
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -46,7 +45,6 @@ class User(UserMixin):
 def load_user(user_id):
     return User.get(user_id)
 
-# --- DATABASE SETUP ---
 DB_PATH = 'philanthropy_arena.db'
 
 def get_current_time():
@@ -87,7 +85,6 @@ def broadcast_roster():
             
     socketio.emit('roster_update', roster)
 
-# --- METEO ---
 last_weather_update = 0
 cached_weather = "--°C // SCANNING..."
 
@@ -115,7 +112,6 @@ def fetch_weather():
             logger.error(f"[ERROR METEO] {e}")
     return cached_weather
 
-# --- STATISTICHE ---
 def update_match_stats(winner_state):
     winning_team = None
     if winner_state in ['ALPHA WINS', 'OWNED ALPHA', 'T WINS']:
@@ -137,7 +133,6 @@ def update_match_stats(winner_state):
     except Exception as e:
         logger.error(f"[ERROR STATS] {e}")
 
-# --- DEVICE REGISTRY (Multi-Node Architecture) ---
 class DeviceRegistry:
     def __init__(self):
         self.devices = {}
@@ -215,14 +210,9 @@ class DeviceRegistry:
 
 registry = DeviceRegistry()
 background_thread_started = False
-
-# --- TRACKER TDM GLOBALE ---
 tdm_state = { "active": False, "time_left": 0, "duration": 0 }
-
-# --- TRACKER MISSIONE PRONTA ---
 mission_ready_flag = False
 
-# --- CLIENT MQTT SETUP ---
 mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
 
 def on_mqtt_connect(client, userdata, flags, rc):
@@ -242,7 +232,6 @@ def on_mqtt_message(client, userdata, msg):
             logger.info(f"[MQTT RX] {device_id} -> TYPE: {msg_type} | PAYLOAD: {payload}")
         
         if device_id:
-            # --- GESTIONE KIOSK ---
             if msg_type == 'KIOSK_CMD':
                 cmd = payload.get('cmd')
                 if cmd:
@@ -281,7 +270,6 @@ def on_mqtt_message(client, userdata, msg):
                         conn.commit()
                     broadcast_roster()
             
-            # --- AGGIORNAMENTO REGISTRO NODI ---
             mode = payload.get('mode') or parsed.get('mode')
             version = payload.get('version') or parsed.get('version')
             
@@ -290,7 +278,6 @@ def on_mqtt_message(client, userdata, msg):
             if msg_type not in ['TAG_SCANNED', 'TAG_ASSIGN']:
                 socketio.emit('esp_event', {"parsed_data": parsed})
 
-            # --- GESTIONE TELEMETRIA & ARBITRO PER SINGOLO NODO ---
             if msg_type in ['SD_UPDATE', 'DOM_UPDATE']:
                 new_state = payload.get('state')
                 old_state = registry.devices[device_id].get("game_state", "STANDBY")
@@ -350,27 +337,22 @@ def background_cleanup():
             c.execute("SELECT team, status FROM active_roster")
             players = c.fetchall()
             
-            # Conta chi è dentro e chi è fuori
             players_out = sum(1 for p in players if p[1] != 'IN')
             alpha_in = sum(1 for p in players if p[0] == 'ALPHA' and p[1] == 'IN')
             bravo_in = sum(1 for p in players if p[0] == 'BRAVO' and p[1] == 'IN')
             total_players = len(players)
 
-        # Determina lo stato per il Kiosk (Start Button)
         all_players_in = (players_out == 0) and (total_players > 0)
         
-        # Determina se una partita è in corso (End Button)
         game_is_running = tdm_state['active']
         with registry.lock:
             for dev_id, data in registry.devices.items():
                 state = data.get("game_state")
                 if state in ['ARMING...', 'ARMED', 'DEFUSING...', 'NEUTRAL', 'OWNED ALPHA', 'OWNED BRAVO', 'CAPTURING A...', 'CAPTURING B...', 'ACTIVE']:
                     game_is_running = True
-                # Resetta il flag ready se il gioco è partito (countdown in corso o già attivo)
                 if state == 'PREPARING' or game_is_running:
                     mission_ready_flag = False
 
-        # Invia l'aggiornamento al Kiosk ogni secondo
         kiosk_state_payload = {
             "cmd": "KIOSK_LED_SYNC",
             "all_players_in": all_players_in,
@@ -382,7 +364,6 @@ def background_cleanup():
         except Exception as e:
             logger.error(f"[ERROR KIOSK SYNC] {e}")
 
-        # --- ARBITRO TEAM DEATHMATCH ---
         if tdm_state['active']:
             if tdm_state['time_left'] > 0:
                 tdm_state['time_left'] -= 1
@@ -413,10 +394,8 @@ def background_cleanup():
             doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": state_str, "game_time": tdm_state['time_left'] } }
             socketio.emit('esp_event', {"parsed_data": doc})
 
-        # --- ARBITRO TERMINALI HARDWARE MULTI-NODO ---
         active_hw_states = ['SAFE', 'ARMING...', 'ARMED', 'DEFUSING...', 'NEUTRAL', 'OWNED ALPHA', 'OWNED BRAVO', 'CAPTURING A...', 'CAPTURING B...']
         
-        # Scansiona direttamente il DeviceRegistry
         with registry.lock:
             for dev_id, data in registry.devices.items():
                 state = data.get("game_state")
@@ -437,7 +416,6 @@ def background_cleanup():
                         except Exception as e:
                             logger.error(f"[ERROR MQTT FORCE_WIN] {e}")
 
-        # Pulizia Nodi Disconnessi
         if tick_counter % 2 == 0:
             active_devs, removed_something = registry.get_active_devices()
             if removed_something:
@@ -447,7 +425,6 @@ def background_cleanup():
             weather_data = fetch_weather()
             socketio.emit('weather_update', {'weather': weather_data})
 
-# --- ROUTES & WEBSOCKETS ---
 @socketio.on('connect')
 def handle_connect():
     global background_thread_started
@@ -583,7 +560,6 @@ def handle_save_notes(data):
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute("UPDATE players SET notes = ? WHERE uid = ?", (notes, uid))
 
-# --- VALIDAZIONE START MISSIONE ---
 @socketio.on('request_mission_start')
 def handle_request_mission_start(data):
     mode = data.get('mode')
