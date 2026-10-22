@@ -83,7 +83,13 @@ def broadcast_roster():
         rows = c.fetchall()
         roster = {}
         for r in rows:
-            roster[r['uid']] = dict(r)
+            # Creazione esplicita del dizionario per compatibilità con il frontend
+            roster[r['uid']] = {
+                'uid': r['uid'],
+                'name': r['name'],
+                'team': r['team'],
+                'status': r['status']
+            }
             
     socketio.emit('roster_update', roster)
 
@@ -353,20 +359,17 @@ def background_cleanup():
             bravo_in = sum(1 for p in players if p[0] == 'BRAVO' and p[1] == 'IN')
             total_players = len(players)
 
-        # Determina lo stato per il Kiosk (Start Button)
+        # Determina lo stato per il Kiosk
         all_players_in = (players_out == 0) and (total_players > 0)
-        
-        # Determina se una partita è in corso (End Button)
         game_is_running = tdm_state['active']
+        
         with registry.lock:
             for dev_id, data in registry.devices.items():
                 state = data.get("game_state")
                 if state in ['ARMING...', 'ARMED', 'DEFUSING...', 'NEUTRAL', 'OWNED ALPHA', 'OWNED BRAVO', 'CAPTURING A...', 'CAPTURING B...', 'ACTIVE']:
                     game_is_running = True
-                
-        # Azzera il ready flag solo se il gioco è partito 
-        if game_is_running:
-            mission_ready_flag = False
+                if state == 'PREPARING' or game_is_running:
+                    mission_ready_flag = False
 
         # Invia l'aggiornamento al Kiosk ogni secondo
         kiosk_state_payload = {
@@ -434,7 +437,6 @@ def background_cleanup():
                         except Exception as e:
                             logger.error(f"[ERROR MQTT FORCE_WIN] {e}")
 
-        # Pulizia Nodi Disconnessi
         if tick_counter % 2 == 0:
             active_devs, removed_something = registry.get_active_devices()
             if removed_something:
@@ -582,8 +584,6 @@ def handle_save_notes(data):
 
 @socketio.on('request_mission_start')
 def handle_request_mission_start(data):
-    global mission_ready_flag
-    mission_ready_flag = False 
     mode = data.get('mode')
     target_id = data.get('target_id')
     dur = data.get('duration', 15)
@@ -667,10 +667,19 @@ def handle_socket_command(data):
         command_obj = data.get('command')
         cmd_str = json.dumps(command_obj) if isinstance(command_obj, dict) else command_obj
         
+        # Intercetta e gestisce esplicitamente i comandi SET_READY e SET_XXX_SETTINGS
         if isinstance(command_obj, dict):
             cmd_val = command_obj.get("cmd", "")
             if cmd_val == "SET_READY":
                 mission_ready_flag = True
+                return
+            elif cmd_val == "SET_TDM_SETTINGS":
+                dur = command_obj.get("duration", 15)
+                tdm_state["duration"] = dur * 60
+                tdm_state["time_left"] = dur * 60
+                mission_ready_flag = True
+                rules_doc = { "id": "SERVER-TDM", "type": "SETTINGS_UPDATE", "payload": {"mode": "TEAM_DEATHMATCH", "game_duration": dur} }
+                socketio.emit('esp_event', {"parsed_data": rules_doc})
                 return
             elif cmd_val in ["FORCE_END_GAME", "FORCE_WIN", "RESET", "START_SD_GAME", "START_DOM_GAME"]:
                 mission_ready_flag = False
