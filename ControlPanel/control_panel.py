@@ -219,6 +219,9 @@ background_thread_started = False
 # --- TRACKER TDM GLOBALE ---
 tdm_state = { "active": False, "time_left": 0, "duration": 0 }
 
+# --- TRACKER MISSIONE PRONTA ---
+mission_ready_flag = False
+
 # --- CLIENT MQTT SETUP ---
 mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
 
@@ -354,23 +357,24 @@ def background_cleanup():
 
         # Determina lo stato per il Kiosk (Start Button)
         all_players_in = (players_out == 0) and (total_players > 0)
-        game_ready_to_start = False # Logica per capire se un nodo ha impostato una partita. In futuro potresti collegarlo a registry.devices
         
         # Determina se una partita è in corso (End Button)
         game_is_running = tdm_state['active']
         with registry.lock:
             for dev_id, data in registry.devices.items():
-                if data.get("game_state") in ['ARMING...', 'ARMED', 'DEFUSING...', 'NEUTRAL', 'OWNED ALPHA', 'OWNED BRAVO', 'CAPTURING A...', 'CAPTURING B...', 'ACTIVE']:
+                state = data.get("game_state")
+                if state in ['ARMING...', 'ARMED', 'DEFUSING...', 'NEUTRAL', 'OWNED ALPHA', 'OWNED BRAVO', 'CAPTURING A...', 'CAPTURING B...', 'ACTIVE']:
                     game_is_running = True
-                if data.get("game_state") == 'PREPARING':
-                     game_ready_to_start = True
+                # Resetta il flag ready se il gioco è partito (countdown in corso o già attivo)
+                if state == 'PREPARING' or game_is_running:
+                    mission_ready_flag = False
 
         # Invia l'aggiornamento al Kiosk ogni secondo
         kiosk_state_payload = {
             "cmd": "KIOSK_LED_SYNC",
             "all_players_in": all_players_in,
             "game_running": game_is_running,
-            "game_ready": game_ready_to_start
+            "game_ready": mission_ready_flag
         }
         try:
             mqtt_client.publish("zulu/cmd/NODE-KIOSK-1", json.dumps(kiosk_state_payload))
@@ -658,11 +662,20 @@ def handle_manual_scan():
 
 @socketio.on('send_command')
 def handle_socket_command(data):
+    global mission_ready_flag
     try:
         target_id = data.get('target_id')
         command_obj = data.get('command')
         cmd_str = json.dumps(command_obj) if isinstance(command_obj, dict) else command_obj
         
+        # Selettore per capire se stiamo configurando una partita
+        if isinstance(command_obj, dict):
+            cmd_val = command_obj.get("cmd", "")
+            if cmd_val in ["SET_SD_SETTINGS", "SET_DOM_SETTINGS"]:
+                mission_ready_flag = True
+            elif cmd_val in ["FORCE_END_GAME", "FORCE_WIN", "RESET"]:
+                mission_ready_flag = False
+
         if target_id == "SERVER-TDM":
             if "FORCE_END_GAME" in cmd_str or "FORCE_WIN" in cmd_str:
                 tdm_state['active'] = False

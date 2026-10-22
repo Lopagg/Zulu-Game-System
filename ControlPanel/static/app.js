@@ -888,8 +888,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const mode = elSetupModeSelect.value;
             if (mode === 'tdm') return;
 
-            const targetId = elSetupTargetSelect.value;
-            if (!targetId) { alert("Seleziona un nodo di destinazione."); return; }
             let commandData = {};
 
             if (mode === 'sd') {
@@ -912,8 +910,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     countdown: parseInt(document.getElementById('dom-countdown').value)
                 };
             }
-            socket.emit('send_command', { target_id: targetId, command: commandData });
-            logSystem(`CONFIG TRANSMITTED TO ${targetId.slice(-4)}.`);
+            
+            socket.emit('send_command', { target_id: "broadcast", command: commandData });
+            logSystem(`GLOBAL CONFIG TRANSMITTED.`);
+            alert("Parametri inviati. Il Kiosk indicherà se la partita è pronta.");
         });
     }
 
