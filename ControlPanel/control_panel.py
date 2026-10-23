@@ -415,6 +415,7 @@ def background_cleanup():
             
             doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": state_str, "game_time": tdm_state['time_left'] } }
             socketio.emit('esp_event', {"parsed_data": doc})
+            mqtt_client.publish("zulu/telemetry/SERVER-TDM", json.dumps(doc))
 
         # --- ARBITRO TERMINALI HARDWARE MULTI-NODO ---
         active_hw_states = ['SAFE', 'ARMING...', 'ARMED', 'DEFUSING...', 'NEUTRAL', 'OWNED ALPHA', 'OWNED BRAVO', 'CAPTURING A...', 'CAPTURING B...']
