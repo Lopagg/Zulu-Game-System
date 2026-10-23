@@ -253,6 +253,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const listAlphaOut = document.getElementById('track-alpha-out');
         const listBravoIn = document.getElementById('track-bravo-in');
         const listBravoOut = document.getElementById('track-bravo-out');
+
+        const listMonitorAlpha = document.getElementById('monitor-roster-alpha');
+        const listMonitorBravo = document.getElementById('monitor-roster-bravo');
         
         if(!listAlphaManage || !listAlphaIn) return;
         
