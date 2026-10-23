@@ -368,8 +368,10 @@ def background_cleanup():
                 state = data.get("game_state")
                 if state in ['ARMING...', 'ARMED', 'DEFUSING...', 'NEUTRAL', 'OWNED ALPHA', 'OWNED BRAVO', 'CAPTURING A...', 'CAPTURING B...', 'ACTIVE']:
                     game_is_running = True
-                if state == 'PREPARING' or game_is_running:
-                    mission_ready_flag = False
+                
+        # Se il gioco e' in corso spegni il ready flag
+        if game_is_running:
+            mission_ready_flag = False
 
         # Invia l'aggiornamento al Kiosk ogni secondo
         kiosk_state_payload = {
@@ -381,7 +383,7 @@ def background_cleanup():
         try:
             mqtt_client.publish("zulu/cmd/NODE-KIOSK-1", json.dumps(kiosk_state_payload))
         except Exception as e:
-            logger.error(f"[ERROR KIOSK SYNC] {e}")
+            pass
 
         # --- ARBITRO TEAM DEATHMATCH ---
         if tdm_state['active']:
@@ -677,7 +679,6 @@ def handle_socket_command(data):
                 dur = command_obj.get("duration", 15)
                 tdm_state["duration"] = dur * 60
                 tdm_state["time_left"] = dur * 60
-                mission_ready_flag = True
                 rules_doc = { "id": "SERVER-TDM", "type": "SETTINGS_UPDATE", "payload": {"mode": "TEAM_DEATHMATCH", "game_duration": dur} }
                 socketio.emit('esp_event', {"parsed_data": rules_doc})
                 return

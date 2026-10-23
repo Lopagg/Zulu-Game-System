@@ -254,9 +254,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const listBravoIn = document.getElementById('track-bravo-in');
         const listBravoOut = document.getElementById('track-bravo-out');
         
-        const listMonitorAlpha = document.getElementById('monitor-roster-alpha');
-        const listMonitorBravo = document.getElementById('monitor-roster-bravo');
-        
         if(!listAlphaManage || !listAlphaIn) return;
         
         [listAlphaManage, listBravoManage, listAlphaIn, listAlphaOut, listBravoIn, listBravoOut].forEach(el => el.innerHTML = '');
@@ -895,9 +892,18 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnTransmitSetup) {
         btnTransmitSetup.addEventListener('click', () => {
             const mode = elSetupModeSelect.value;
-            if (mode === 'tdm') return;
-
             let commandData = {};
+            let targetId = elSetupTargetSelect.value;
+
+            if (mode !== 'tdm' && !targetId) { 
+                if (elSetupTargetSelect && elSetupTargetSelect.options.length > 1) {
+                    elSetupTargetSelect.selectedIndex = 1;
+                    targetId = elSetupTargetSelect.value;
+                } else {
+                    alert("Nessun terminale di gioco connesso!");
+                    return; 
+                }
+            }
 
             if (mode === 'sd') {
                 commandData = {
@@ -911,27 +917,39 @@ document.addEventListener('DOMContentLoaded', () => {
                     arm_pin: document.getElementById('sd-arm-pin').value,
                     defuse_pin: document.getElementById('sd-defuse-pin').value
                 };
-            } else {
+            } else if (mode === 'dom') {
                 commandData = {
                     cmd: "SET_DOM_SETTINGS",
                     duration: parseInt(document.getElementById('dom-game-dur').value),
                     capture_time: parseInt(document.getElementById('dom-capture-time').value),
                     countdown: parseInt(document.getElementById('dom-countdown').value)
                 };
+            } else if (mode === 'tdm') {
+                const dur = parseInt(document.getElementById('tdm-game-dur').value) || 15;
+                commandData = {
+                    cmd: "SET_TDM_SETTINGS",
+                    duration: dur
+                };
+                targetId = "broadcast";
             }
             
-            socket.emit('send_command', { target_id: "broadcast", command: commandData });
-            logSystem(`GLOBAL CONFIG TRANSMITTED.`);
+            // 1. Invia la configurazione al target (o in broadcast se tdm)
+            socket.emit('send_command', { target_id: targetId, command: commandData });
+            logSystem(`CONFIG TRANSMITTED.`);
             
-            // Inviamo il comando SET_READY al server
+            // 2. Alza il flag di Partita Pronta sul server inviando SET_READY in broadcast
             socket.emit('send_command', { target_id: "broadcast", command: { cmd: "SET_READY" } });
             
-            alert("Configurazione Inviata. Verifica che tutti i giocatori siano in campo e la partita sia pronta prima di avviare dal Kiosk.");
+            // 3. Abilita il pulsante di Start Mission sulla webapp
+            if (btnStartMission) {
+                btnStartMission.disabled = false;
+                btnStartMission.classList.remove('disabled');
+            }
+            
+            alert("Configurazione Inviata. La partita è pronta. Avvia dal Kiosk o dal pulsante START MISSION.");
         });
     }
 
-    // Il bottone INITIATE MISSION (se presente a schermo) è stato rimosso dalla view, 
-    // ma manteniamo l'event listener se serve per test/fallback
     if (btnStartMission) {
         btnStartMission.addEventListener('click', () => {
             const mode = elSetupModeSelect.value;
@@ -955,6 +973,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 duration: dur,
                 force: false
             });
+
+            // Disabilita di nuovo il pulsante start dopo l'avvio
+            btnStartMission.disabled = true;
+            btnStartMission.classList.add('disabled');
         });
     }
 
