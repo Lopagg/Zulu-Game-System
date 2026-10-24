@@ -152,7 +152,7 @@ body {
 
 /* --- MAIN STAGE & HUB CARDS --- */
 .main-stage { grid-area: main; position: relative; overflow: hidden; }
-.view-panel { width: 100%; height: 100%; display: none; overflow-y: auto; padding-bottom: 20px;}
+.view-panel { width: 100%; height: 100%; display: none; overflow-y: hidden; padding-bottom: 20px;}
 .view-panel.active { display: block; }
 
 .hub-grid { 
@@ -217,21 +217,24 @@ body {
 .setup-roster-alpha { color: var(--sop-alert); }
 .setup-roster-bravo { color: #55ff55; }
 
-/* --- MONITOR DASHBOARD (Proporzioni Corrette) --- */
+/* --- MONITOR DASHBOARD (Proporzioni Corrette, Allineamento, No-Scroll) --- */
 .monitor-controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding: 0 5px; }
 .monitor-label { float: right; font-size: 13px; letter-spacing: 1px; color: #888; margin-top: 5px; }
 
 .grid-dashboard {
     display: grid; 
-    /* Colonna sinistra occupa tutto lo spazio restante (1fr), colonna destra è fissa a 360px */
-    grid-template-columns: 1fr 450px; 
+    /* Perfetta suddivisione: sinistra enorme (2 parti), destra controllata (1 parte) per impedire schiacciamenti */
+    grid-template-columns: 2fr 1fr; 
     grid-template-rows: auto minmax(0, 1fr);
-    gap: 20px; height: calc(100% - 55px);
+    gap: 20px; 
+    /* Blocca la griglia dentro i margini dello schermo, disattivando lo scroll globale della pagina */
+    height: calc(100% - 95px); 
 }
 
-.widget { background: rgba(0, 0, 0, 0.3); border: 1px solid var(--sop-dim); display: flex; flex-direction: column; overflow: hidden; }
+/* Aggiunto min-height: 0 per impedire a CSS Grid di rompere i bordi in verticale */
+.widget { background: rgba(0, 0, 0, 0.3); border: 1px solid var(--sop-dim); display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
 .widget-header { background: var(--sop-dim); color: var(--sop-text); padding: 8px 12px; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; flex-shrink: 0; font-weight: bold; }
-.widget-body { flex: 1; display: flex; justify-content: center; align-items: center; position: relative; overflow: hidden; padding: 15px; }
+.widget-body { flex: 1; display: flex; justify-content: center; align-items: center; position: relative; overflow: hidden; padding: 15px; min-height: 0; }
 
 .widget-timer    { grid-column: 1 / 2; grid-row: 1 / 2; }
 .widget-factions { grid-column: 2 / 3; grid-row: 1 / 2; }
@@ -269,13 +272,19 @@ body {
 .d-val-green { color: var(--sop-success); text-shadow: 0 0 15px rgba(85, 255, 85, 0.5); }
 .d-vs { font-size: 30px; color: #555; font-weight: bold; font-style: italic; }
 
-.faction-container { flex-direction: column !important; align-items: stretch !important; justify-content: flex-start !important; padding: 20px !important; }
-.faction-grid { width: 100%; display: flex; justify-content: space-around; margin-bottom: 15px; }
-.faction-score { display: block; font-size: 55px; font-weight: bold; line-height: 1; margin-bottom: 5px; }
+.faction-container { flex-direction: column !important; align-items: stretch !important; justify-content: flex-start !important; padding: 20px !important; min-height: 0; }
+.faction-grid { width: 100%; display: flex; justify-content: space-around; margin-bottom: 15px; flex-shrink: 0; }
+
+/* Centra sia il numero (score) che il nome della fazione (name) */
+.faction { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.faction-score { display: block; font-size: 55px; font-weight: bold; line-height: 1; margin-bottom: 5px; text-align: center; }
+
 .faction-a .faction-score { color: var(--sop-alert); }
 .faction-b .faction-score { color: var(--sop-success); }
 .vs-divider { font-size: 28px; color: #555; align-self: center; font-weight: bold; }
-.faction-rosters { display: flex; justify-content: space-between; width: 100%; border-top: 1px solid var(--sop-dim); padding-top: 15px; margin-top: 5px; }
+
+/* Imposta lo scroll esclusivo SOLO sulla lista operatori */
+.faction-rosters { display: flex; justify-content: space-between; width: 100%; border-top: 1px solid var(--sop-dim); padding-top: 15px; margin-top: 5px; flex: 1; overflow-y: auto; min-height: 0; }
 .monitor-roster-list { list-style: none; padding: 0; margin: 0; width: 48%; }
 .monitor-roster-list li { font-size: 24px; font-weight: bold; padding: 10px 0; border-bottom: 1px dashed rgba(255,255,255,0.1); text-align: center; }
 .alpha-list li { color: var(--sop-alert); }

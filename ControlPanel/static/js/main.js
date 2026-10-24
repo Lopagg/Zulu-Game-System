@@ -2,7 +2,6 @@ import { showView, logSystem, updateDeviceList, updateClock, activeInspectorId }
 import { resetMonitorLayout, updateUniversalFeed, renderRules } from './game_monitor.js';
 import { renderArenaRoster, renderDatabase, populateProfileModal, getCurrentProfileUid } from './roster_manager.js';
 
-// --- INIZIALIZZAZIONE ---
 const socket = io();
 let currentDevices = [];
 let monitoredDeviceId = null; 
@@ -26,7 +25,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 });
 
-// --- CONNESSIONE E RETE ---
 socket.on('connect', () => {
     logSystem("LINK ESTABLISHED WITH SOP SERVER.");
     const elGlobalStatus = document.getElementById('global-status');
@@ -52,7 +50,6 @@ socket.on('weather_update', (data) => {
     if (data.weather) document.getElementById('weather-display').textContent = data.weather;
 });
 
-// --- GESTIONE DATI SOCKET GLOBALI ---
 socket.on('roster_update', (rosterData) => {
     arenaRoster = rosterData;
     renderArenaRoster(arenaRoster, socket);
@@ -72,7 +69,7 @@ socket.on('devices_update', (devices) => {
     updateSetupDropdown();
 });
 
-// --- EVENTI DI MISSIONE (Successo e Allarmi) ---
+// --- EVENTI DI MISSIONE (Avvia Navigazione Automatica) ---
 socket.on('mission_start_success', () => {
     resetMonitorLayout();
     window.showView('monitor');
@@ -93,7 +90,6 @@ socket.on('mission_start_warning', (data) => {
     }
 });
 
-// --- COMANDI HARDWARE DAL KIOSK ---
 socket.on('kiosk_hardware_cmd', (data) => {
     if (data.cmd === 'GAME_START') {
         const mode = document.getElementById('setup-mode-select').value;

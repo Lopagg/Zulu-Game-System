@@ -28,7 +28,7 @@ export function resetMonitorLayout() {
 }
 
 export function updateUniversalFeed(payload, mode, msgType) {
-    // Ignora la telemetria di stato di dispositivi non di gioco (es. Kiosk)
+    // IGNORA I PACCHETTI DEL KIOSK HARDWARE CHE CREANO SOVRAPPOSIZIONI
     if (['KIOSK', 'MAIN MENU', 'TERMINAL'].includes(mode)) return;
     
     // 1. Visibilità Pannelli
@@ -88,7 +88,6 @@ export function updateUniversalFeed(payload, mode, msgType) {
     const isTdm = (msgType === 'TDM_UPDATE' || mode === 'TEAM_DEATHMATCH');
     const isSd = (msgType === 'SD_UPDATE' || mode === 'SEARCH_AND_DESTROY');
 
-    // Mostra/Nascondi Contenitori Dinamici
     const bombContainer = document.querySelector('.bomb-timer-container');
     const domScores = document.getElementById('domination-scores');
     const progSection = document.querySelector('.progress-section');
