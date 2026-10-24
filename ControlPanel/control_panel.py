@@ -237,11 +237,10 @@ def handle_request_mission_start(data):
             emit('mission_start_warning', {'msg': f"ATTENZIONE: Una delle due squadre non ha operatori in campo (Alpha: {alpha_in} | Bravo: {bravo_in}).\nSicuro di voler avviare una partita sbilanciata?", 'original_request': data})
             return
             
+    # Il Server prende il controllo della Sessione
+    game_engine.mission_control.start_mission(mode, target_id, duration=dur)
+            
     if mode == 'tdm':
-        game_engine.tdm_state['active'] = True
-        game_engine.tdm_state['duration'] = dur * 60
-        game_engine.tdm_state['time_left'] = dur * 60
-        
         doc = { "id": "SERVER-TDM", "type": "MODE_ENTER", "payload": {"mode": "TEAM_DEATHMATCH"} }
         socketio.emit('esp_event', {"parsed_data": doc})
         
@@ -287,24 +286,25 @@ def handle_socket_command(data):
                 game_engine.mission_ready_flag = True
                 return
             elif cmd_val == "SET_TDM_SETTINGS":
-                dur = command_obj.get("duration", 15)
-                game_engine.tdm_state["duration"] = dur * 60
-                game_engine.tdm_state["time_left"] = dur * 60
-                rules_doc = { "id": "SERVER-TDM", "type": "SETTINGS_UPDATE", "payload": {"mode": "TEAM_DEATHMATCH", "game_duration": dur} }
-                socketio.emit('esp_event', {"parsed_data": rules_doc})
+                # La configurazione TDM ora la aggiorniamo prima di fare start, 
+                # ma se arriva qui per qualche motivo non rompiamo niente.
                 return
-            elif cmd_val in ["FORCE_END_GAME", "FORCE_WIN", "RESET", "START_SD_GAME", "START_DOM_GAME"]:
+            elif cmd_val in ["FORCE_END_GAME", "FORCE_WIN", "RESET"]:
                 game_engine.mission_ready_flag = False
+                # Chiudiamo forzatamente la missione globale
+                game_engine.mission_control.end_mission(final_state="STOPPED")
 
         if target_id == "SERVER-TDM":
             if "FORCE_END_GAME" in cmd_str or "FORCE_WIN" in cmd_str:
-                game_engine.tdm_state['active'] = False
                 state_str = "STOPPED"
                 if "FORCE_WIN" in cmd_str:
                     if "ALPHA" in cmd_str: state_str = "ALPHA WINS"
                     elif "BRAVO" in cmd_str: state_str = "BRAVO WINS"
                 
-                doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": state_str, "game_time": game_engine.tdm_state['time_left'] } }
+                # Chiudiamo la missione globale
+                game_engine.mission_control.end_mission(final_state=state_str)
+                
+                doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": state_str, "game_time": 0 } }
                 socketio.emit('esp_event', {"parsed_data": doc})
                 game_engine.trigger_siren("SIREN_LONG")
                 db_manager.process_match_stats(state_str) 
@@ -315,8 +315,13 @@ def handle_socket_command(data):
             return
 
         game_engine.mqtt_client.publish(f"zulu/cmd/{target_id}", cmd_str)
+        
+        # SE STIAMO KILANDO IL RAT, CHIUDIAMO ANCHE LA MISSIONE
+        if "FORCE_END_GAME" in cmd_str:
+             game_engine.mission_control.end_mission(final_state="STOPPED")
+             
     except Exception as e:
         logger.error(f"[ERROR SOCKET CMD] {e}")
-
+        
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000, debug=False, allow_unsafe_werkzeug=True)

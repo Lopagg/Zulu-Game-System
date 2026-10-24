@@ -7,6 +7,60 @@ import db_manager
 
 logger = logging.getLogger(__name__)
 
+# --- GESTORE DELLA SESSIONE GLOBALE (Il "Direttore d'Orchestra") ---
+class MissionController:
+    def __init__(self):
+        self.lock = Lock()
+        self.active_mission = False
+        self.mode = None
+        self.target_id = None
+        self.state = "STANDBY"
+        
+        # Variabili specifiche per TDM calcolate dal server
+        self.tdm_duration = 0
+        self.tdm_time_left = 0
+
+    def start_mission(self, mode, target_id, duration=15):
+        """Avvia una missione globale, eleggendo il server a Source of Truth."""
+        with self.lock:
+            self.active_mission = True
+            self.mode = mode
+            self.target_id = target_id
+            self.state = "ACTIVE" if mode == 'tdm' else "PREPARING"
+            
+            if mode == 'tdm':
+                self.tdm_duration = duration * 60
+                self.tdm_time_left = duration * 60
+            
+            logger.info(f"[MISSION CONTROL] Missione Globale Avviata: {mode.upper()} sul nodo {target_id}")
+
+    def end_mission(self, final_state="STOPPED", winner=None):
+        """Termina forzatamente la missione globale, disabilitando l'ascolto dei nodi."""
+        with self.lock:
+            if not self.active_mission:
+                return False # La missione era già finita
+                
+            self.active_mission = False
+            self.state = final_state
+            
+            logger.info(f"[MISSION CONTROL] Missione Globale Terminata: {final_state}")
+            return True
+
+    def is_authorized_node(self, device_id):
+        """Verifica se il nodo che sta parlando è quello autorizzato dalla sessione corrente."""
+        with self.lock:
+            # Se la missione globale è chiusa, nessuno è autorizzato
+            if not self.active_mission:
+                return False
+            # In TDM o se il nodo è il target specifico, è autorizzato
+            if self.mode == 'tdm' or device_id == self.target_id:
+                return True
+            return False
+
+# Istanzia il Direttore d'Orchestra
+mission_control = MissionController()
+
+
 # --- DEVICE REGISTRY ---
 class DeviceRegistry:
     def __init__(self):
@@ -86,9 +140,8 @@ class DeviceRegistry:
 # --- ISTANZE GLOBALI DEL MOTORE DI GIOCO ---
 registry = DeviceRegistry()
 mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
-socketio = None  # Verrà iniettato da control_panel.py
+socketio = None  
 
-tdm_state = { "active": False, "time_left": 0, "duration": 0 }
 mission_ready_flag = False
 background_thread_started = False
 
@@ -117,7 +170,7 @@ def on_mqtt_message(client, userdata, msg):
             logger.info(f"[MQTT RX] {device_id} -> TYPE: {msg_type} | PAYLOAD: {payload}")
         
         if device_id:
-            # --- GESTIONE KIOSK ---
+            # --- GESTIONE KIOSK (Lettura RFID) ---
             if msg_type == 'KIOSK_CMD':
                 cmd = payload.get('cmd')
                 if cmd:
@@ -152,28 +205,38 @@ def on_mqtt_message(client, userdata, msg):
             version = payload.get('version') or parsed.get('version')
             has_changed = registry.update_device(device_id, msg_type, mode, version)
             
+            # FILTRO CRITICO: La UI Web riceve aggiornamenti di gioco SOLO dal nodo autorizzato
             if msg_type not in ['TAG_SCANNED', 'TAG_ASSIGN']:
-                socketio.emit('esp_event', {"parsed_data": parsed})
+                if msg_type in ['SD_UPDATE', 'DOM_UPDATE', 'COUNTDOWN_UPDATE', 'TIME_UPDATE', 'MODE_ENTER']:
+                     if mission_control.is_authorized_node(device_id):
+                          socketio.emit('esp_event', {"parsed_data": parsed})
+                else:
+                     # Messaggi di sistema (es. HEARTBEAT) passano sempre
+                     socketio.emit('esp_event', {"parsed_data": parsed})
 
             # --- GESTIONE TELEMETRIA & ARBITRO PER SINGOLO NODO ---
             if msg_type in ['SD_UPDATE', 'DOM_UPDATE']:
-                new_state = payload.get('state')
-                old_state = registry.devices[device_id].get("game_state", "STANDBY")
-                
-                state_changed = registry.update_telemetry(device_id, payload, new_state)
-                
-                if state_changed:
-                    end_states = ['T WINS', 'CT WINS', 'ALPHA WINS', 'BRAVO WINS', 'DRAW', 'STOPPED']
-                    start_states = ['ACTIVE', 'SAFE', 'NEUTRAL']
+                # Arbitriamo SOLO se la missione è attiva e il nodo è autorizzato
+                if mission_control.is_authorized_node(device_id):
+                    new_state = payload.get('state')
+                    old_state = registry.devices[device_id].get("game_state", "STANDBY")
                     
-                    if new_state in end_states and old_state not in end_states:
-                        logger.info(f"[ARBITRO SERVER] Partita su nodo {device_id} terminata ({new_state}).")
-                        trigger_siren("SIREN_LONG")
-                        db_manager.process_match_stats(new_state) 
+                    state_changed = registry.update_telemetry(device_id, payload, new_state)
                     
-                    if old_state == 'PREPARING' and new_state in start_states:
-                        logger.info(f"[ARBITRO SERVER] Partita su nodo {device_id} iniziata ({new_state}).")
-                        trigger_siren("SIREN_LONG")
+                    if state_changed:
+                        end_states = ['T WINS', 'CT WINS', 'ALPHA WINS', 'BRAVO WINS', 'DRAW', 'STOPPED']
+                        start_states = ['ACTIVE', 'SAFE', 'NEUTRAL']
+                        
+                        if new_state in end_states and old_state not in end_states:
+                            logger.info(f"[ARBITRO SERVER] Partita su nodo {device_id} terminata ({new_state}).")
+                            trigger_siren("SIREN_LONG")
+                            db_manager.process_match_stats(new_state)
+                            # Chiudiamo la missione globale
+                            mission_control.end_mission(final_state=new_state)
+                        
+                        if old_state == 'PREPARING' and new_state in start_states:
+                            logger.info(f"[ARBITRO SERVER] Partita su nodo {device_id} iniziata ({new_state}).")
+                            trigger_siren("SIREN_LONG")
                             
             elif msg_type == 'MODE_ENTER':
                 registry.update_telemetry(device_id, {}, "PREPARING")
@@ -189,7 +252,6 @@ mqtt_client.on_connect = on_mqtt_connect
 mqtt_client.on_message = on_mqtt_message
 
 def start_mqtt(sio_instance):
-    """Inizializza MQTT e lega Socket.IO al motore di gioco."""
     global socketio
     socketio = sio_instance
     try:
@@ -204,6 +266,7 @@ def background_cleanup(fetch_weather_callback):
     global mission_ready_flag
     logger.info("[SYSTEM] Task di Pulizia e Arbitro Globale AVVIATO.")
     tick_counter = 0
+    
     while True:
         if socketio: socketio.sleep(1) 
         tick_counter += 1
@@ -215,16 +278,12 @@ def background_cleanup(fetch_weather_callback):
         total_players = len(players)
 
         all_players_in = (players_out == 0) and (total_players > 0)
-        game_is_running = tdm_state['active']
         
-        with registry.lock:
-            for dev_id, data in registry.devices.items():
-                state = data.get("game_state")
-                if state in ['ARMING...', 'ARMED', 'DEFUSING...', 'NEUTRAL', 'OWNED ALPHA', 'OWNED BRAVO', 'CAPTURING A...', 'CAPTURING B...', 'ACTIVE']:
-                    game_is_running = True
+        # Lo stato di gioco per il Kiosk ora dipende dalla Missione Globale
+        with mission_control.lock:
+            game_is_running = mission_control.active_mission
                 
         if game_is_running:
-            global mission_ready_flag
             mission_ready_flag = False
 
         kiosk_state_payload = {
@@ -238,45 +297,55 @@ def background_cleanup(fetch_weather_callback):
         except Exception:
             pass
 
-        # --- ARBITRO TEAM DEATHMATCH ---
-        if tdm_state['active']:
-            if tdm_state['time_left'] > 0:
-                tdm_state['time_left'] -= 1
-            
-            state_str = "ACTIVE"
-            tdm_ends = False
-            
-            if alpha_in == 0 and bravo_in > 0:
-                state_str = "BRAVO WINS"
-                tdm_ends = True
-            elif bravo_in == 0 and alpha_in > 0:
-                state_str = "ALPHA WINS"
-                tdm_ends = True
-            elif alpha_in == 0 and bravo_in == 0:
-                state_str = "DRAW"
-                tdm_ends = True
-            elif tdm_state['time_left'] <= 0:
-                if alpha_in > bravo_in: state_str = "ALPHA WINS"
-                elif bravo_in > alpha_in: state_str = "BRAVO WINS"
-                else: state_str = "DRAW"
-                tdm_ends = True
+        # --- ARBITRO TEAM DEATHMATCH (Guidato dal Server) ---
+        with mission_control.lock:
+            if mission_control.active_mission and mission_control.mode == 'tdm':
+                if mission_control.tdm_time_left > 0:
+                    mission_control.tdm_time_left -= 1
                 
-            if tdm_ends:
-                tdm_state['active'] = False
-                trigger_siren("SIREN_LONG") 
-                db_manager.process_match_stats(state_str)
-            
-            doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": state_str, "game_time": tdm_state['time_left'] } }
-            if socketio: socketio.emit('esp_event', {"parsed_data": doc})
-            mqtt_client.publish("zulu/telemetry/SERVER-TDM", json.dumps(doc))
+                state_str = "ACTIVE"
+                tdm_ends = False
+                
+                # Check eliminazione totale
+                if alpha_in == 0 and bravo_in > 0:
+                    state_str = "BRAVO WINS"
+                    tdm_ends = True
+                elif bravo_in == 0 and alpha_in > 0:
+                    state_str = "ALPHA WINS"
+                    tdm_ends = True
+                elif alpha_in == 0 and bravo_in == 0:
+                    state_str = "DRAW"
+                    tdm_ends = True
+                elif mission_control.tdm_time_left <= 0: # Check scadenza tempo
+                    if alpha_in > bravo_in: state_str = "ALPHA WINS"
+                    elif bravo_in > alpha_in: state_str = "BRAVO WINS"
+                    else: state_str = "DRAW"
+                    tdm_ends = True
+                    
+                if tdm_ends:
+                    # Non chiudiamo ancora la sessione in TDM, ci pensa la logica comune qui sotto
+                    trigger_siren("SIREN_LONG") 
+                    db_manager.process_match_stats(state_str)
+                    mission_control.active_mission = False # Chiusura silenziosa per il TDM
+                
+                doc = { 
+                    "id": "SERVER-TDM", 
+                    "type": "TDM_UPDATE", 
+                    "payload": { 
+                        "mode": "TEAM_DEATHMATCH", 
+                        "state": state_str, 
+                        "game_time": mission_control.tdm_time_left 
+                    } 
+                }
+                if socketio: socketio.emit('esp_event', {"parsed_data": doc})
+                mqtt_client.publish("zulu/telemetry/SERVER-TDM", json.dumps(doc))
 
-        # --- ARBITRO TERMINALI HARDWARE ---
-        active_hw_states = ['SAFE', 'ARMING...', 'ARMED', 'DEFUSING...', 'NEUTRAL', 'OWNED ALPHA', 'OWNED BRAVO', 'CAPTURING A...', 'CAPTURING B...']
-        
-        with registry.lock:
-            for dev_id, data in registry.devices.items():
-                state = data.get("game_state")
-                if state in active_hw_states:
+
+        # --- ARBITRO TERMINALI HARDWARE (Vittoria per Eliminazione) ---
+        # Se la missione è in corso su un nodo fisico, controlla che ci siano operatori vivi
+        with mission_control.lock:
+            if mission_control.active_mission and mission_control.target_id:
+                if alpha_in == 0 or bravo_in == 0:
                     cmd_to_send = None
                     if alpha_in == 0 and bravo_in > 0:
                         cmd_to_send = {"cmd": "FORCE_WIN", "winner": "BRAVO"}
@@ -286,13 +355,15 @@ def background_cleanup(fetch_weather_callback):
                         cmd_to_send = {"cmd": "FORCE_END_GAME"}
                     
                     if cmd_to_send:
-                        data["game_state"] = 'WAITING_END_ACK' 
-                        logger.info(f"[ARBITRO SERVER] Rilevata eliminazione team! Invio comando MQTT al nodo {dev_id}")
+                        # Mettiamo in "Pausa" la missione in attesa che il nodo confermi la fine
+                        logger.info(f"[ARBITRO SERVER] Eliminazione totale rilevata. Forzo la fine sul nodo {mission_control.target_id}")
                         try:
-                            mqtt_client.publish(f"zulu/cmd/{dev_id}", json.dumps(cmd_to_send))
+                            mqtt_client.publish(f"zulu/cmd/{mission_control.target_id}", json.dumps(cmd_to_send))
                         except Exception as e:
                             logger.error(f"[ERROR MQTT FORCE_WIN] {e}")
 
+
+        # --- AGGIORNAMENTI CICLICI ---
         if tick_counter % 2 == 0:
             active_devs, removed_something = registry.get_active_devices()
             if removed_something and socketio:
