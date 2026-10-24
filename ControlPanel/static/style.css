@@ -223,11 +223,10 @@ body {
 
 .grid-dashboard {
     display: grid; 
-    /* Perfetta suddivisione: sinistra enorme (2 parti), destra controllata (1 parte) per impedire schiacciamenti */
+    /* La colonna sinistra prende 2 quote (2/3), la destra prende 1 quota (1/3) */
     grid-template-columns: 2fr 1fr; 
     grid-template-rows: auto minmax(0, 1fr);
     gap: 20px; 
-    /* Blocca la griglia dentro i margini dello schermo, disattivando lo scroll globale della pagina */
     height: calc(100% - 95px); 
 }
 
@@ -276,7 +275,14 @@ body {
 .faction-grid { width: 100%; display: flex; justify-content: space-around; margin-bottom: 15px; flex-shrink: 0; }
 
 /* Centra sia il numero (score) che il nome della fazione (name) */
-.faction { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.faction { 
+    display: flex; 
+    flex-direction: column; 
+    align-items: center; 
+    justify-content: center; 
+    text-align: center; 
+    width: 45%; /* Forza i due team ad avere la stessa larghezza ai lati del VS */
+}
 .faction-score { display: block; font-size: 55px; font-weight: bold; line-height: 1; margin-bottom: 5px; text-align: center; }
 
 .faction-a .faction-score { color: var(--sop-alert); }
