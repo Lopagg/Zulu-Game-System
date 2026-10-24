@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for, f
 from flask_socketio import SocketIO, emit
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.utils import secure_filename
+from werkzeug.security import generate_password_hash, check_password_hash
 import paho.mqtt.client as mqtt 
 import logging
 import json
@@ -30,7 +31,19 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-USERS = { "admin": {"password": "admin", "name": "Operatore"} }
+# --- GESTIONE UTENTI CON HASH ---
+# Le password di base sono identiche all'ID utente (admin->admin, topgun->topgun).
+# Puoi cambiarle generando nuovi hash. Non sono più in chiaro.
+USERS = { 
+    "admin": {
+        "password_hash": generate_password_hash("admin"), 
+        "name": "Admin"
+    },
+    "topgun": {
+        "password_hash": generate_password_hash("topgun"), 
+        "name": "TopGun"
+    }
+}
 
 class User(UserMixin):
     def __init__(self, id):
@@ -83,7 +96,6 @@ def broadcast_roster():
         rows = c.fetchall()
         roster = {}
         for r in rows:
-            # Creazione esplicita del dizionario per compatibilità con il frontend
             roster[r['uid']] = {
                 'uid': r['uid'],
                 'name': r['name'],
@@ -472,7 +484,9 @@ def login():
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
-        if username in USERS and USERS[username]['password'] == password:
+        
+        # Convalida tramite hash crittografico
+        if username in USERS and check_password_hash(USERS[username]['password_hash'], password):
             user = User.get(username)
             login_user(user)
             return redirect(url_for('index'))
@@ -670,7 +684,6 @@ def handle_socket_command(data):
         command_obj = data.get('command')
         cmd_str = json.dumps(command_obj) if isinstance(command_obj, dict) else command_obj
         
-        # Intercetta e gestisce esplicitamente i comandi SET_READY e SET_XXX_SETTINGS
         if isinstance(command_obj, dict):
             cmd_val = command_obj.get("cmd", "")
             if cmd_val == "SET_READY":
