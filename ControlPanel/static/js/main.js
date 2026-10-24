@@ -2,6 +2,7 @@ import { showView, logSystem, updateDeviceList, updateClock, activeInspectorId }
 import { resetMonitorLayout, updateUniversalFeed, renderRules } from './game_monitor.js';
 import { renderArenaRoster, renderDatabase, populateProfileModal, getCurrentProfileUid } from './roster_manager.js';
 
+// --- INIZIALIZZAZIONE ---
 const socket = io();
 let currentDevices = [];
 let monitoredDeviceId = null; 
@@ -9,6 +10,7 @@ let arenaRoster = {};
 
 document.addEventListener('DOMContentLoaded', () => {
     updateClock();
+    resetMonitorLayout(); // Forza un reset pulito all'avvio
     
     window.showView = (view) => showView(view, socket);
     window.clearActiveRoster = () => {
@@ -24,6 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 });
 
+// --- CONNESSIONE E RETE ---
 socket.on('connect', () => {
     logSystem("LINK ESTABLISHED WITH SOP SERVER.");
     const elGlobalStatus = document.getElementById('global-status');
@@ -49,6 +52,7 @@ socket.on('weather_update', (data) => {
     if (data.weather) document.getElementById('weather-display').textContent = data.weather;
 });
 
+// --- GESTIONE DATI SOCKET GLOBALI ---
 socket.on('roster_update', (rosterData) => {
     arenaRoster = rosterData;
     renderArenaRoster(arenaRoster, socket);
@@ -68,13 +72,34 @@ socket.on('devices_update', (devices) => {
     updateSetupDropdown();
 });
 
+// --- EVENTI DI MISSIONE (Successo e Allarmi) ---
+socket.on('mission_start_success', () => {
+    resetMonitorLayout();
+    window.showView('monitor');
+});
+
+socket.on('mission_start_error', (data) => {
+    alert(data.msg);
+    document.getElementById('btn-start-mission').disabled = false;
+    document.getElementById('btn-start-mission').classList.remove('disabled');
+});
+
+socket.on('mission_start_warning', (data) => {
+    if(confirm(data.msg)) {
+        socket.emit('request_mission_start', { ...data.original_request, force: true });
+    } else {
+        document.getElementById('btn-start-mission').disabled = false;
+        document.getElementById('btn-start-mission').classList.remove('disabled');
+    }
+});
+
+// --- COMANDI HARDWARE DAL KIOSK ---
 socket.on('kiosk_hardware_cmd', (data) => {
     if (data.cmd === 'GAME_START') {
         const mode = document.getElementById('setup-mode-select').value;
         let targetId = document.getElementById('setup-target-select').value;
         
         if (mode === 'tdm') targetId = "SERVER-TDM";
-        
         const dur = parseInt(document.getElementById('tdm-game-dur').value) || 15;
         
         socket.emit('request_mission_start', { mode: mode, target_id: targetId, duration: dur, force: false });
@@ -194,14 +219,12 @@ document.getElementById('btn-start-mission').addEventListener('click', () => {
     if (mode === 'tdm') targetId = "SERVER-TDM";
     
     socket.emit('request_mission_start', { mode: mode, target_id: targetId, duration: dur, force: false });
+    
+    // Disabilita tasto in attesa del 'mission_start_success' dal server
     document.getElementById('btn-start-mission').disabled = true;
     document.getElementById('btn-start-mission').classList.add('disabled');
-    
-    // Passa in automatico alla schermata monitor
-    window.showView('monitor');
 });
 
-// Setup Menu Cambio Tab (SD, DOM, TDM)
 document.getElementById('setup-mode-select').addEventListener('change', (e) => {
     document.getElementById('setup-sd-params').classList.add('hidden');
     document.getElementById('setup-dom-params').classList.add('hidden');
@@ -216,12 +239,10 @@ document.getElementById('setup-mode-select').addEventListener('change', (e) => {
     }
     else if (e.target.value === 'tdm') {
         document.getElementById('setup-tdm-params').classList.remove('hidden');
-        // Nascondi la scelta del target fisico se è TDM (Il server gestisce tutto internamente)
         document.getElementById('target-selection-row').classList.add('hidden');
     }
 });
 
-// Export per terminare missione via UI
 window.uiForceEndMission = function() {
     const mode = document.getElementById('setup-mode-select').value;
     if(confirm("ATTENZIONE: Terminare forzatamente la partita selezionata?")) {
