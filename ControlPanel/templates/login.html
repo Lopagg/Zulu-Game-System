@@ -7,7 +7,6 @@
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
-    <!-- Icona sulla tab del browser -->
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
     
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
@@ -18,28 +17,36 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            margin-bottom: 20px;
+            margin-bottom: 55px; /* Aumentato lo spazio verticale sotto il logo */
             animation: logo-glow 3s ease-in-out infinite alternate;
         }
         
         .login-logo {
-            width: 140px;
+            width: 120%; /* Rende il logo più largo del box sottostante */
+            max-width: 520px;
             height: auto;
-            filter: drop-shadow(0 0 12px rgba(0, 255, 204, 0.5));
             transition: transform 0.3s ease;
         }
 
         .login-logo:hover {
-            transform: scale(1.03);
+            transform: scale(1.02);
         }
 
         @keyframes logo-glow {
             0% {
-                filter: drop-shadow(0 0 10px rgba(0, 255, 204, 0.4));
+                /* Effetto doppio: alone compatto e intenso + sfumatura leggera */
+                filter: drop-shadow(0 0 3px rgba(0, 255, 204, 1)) drop-shadow(0 0 15px rgba(0, 255, 204, 0.4));
             }
             100% {
-                filter: drop-shadow(0 0 22px rgba(0, 255, 204, 0.8));
+                /* Effetto doppio: alone più spesso + sfumatura molto ampia */
+                filter: drop-shadow(0 0 6px rgba(0, 255, 204, 1)) drop-shadow(0 0 35px rgba(0, 255, 204, 0.7));
             }
+        }
+
+        /* Override per abbassare la scritta nel footer del box login */
+        .login-footer {
+            margin-top: 60px; /* Spinge la scritta verso il fondo del rettangolo */
+            opacity: 0.8;
         }
     </style>
 </head>
