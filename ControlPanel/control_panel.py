@@ -36,11 +36,11 @@ login_manager.login_view = 'login'
 # Puoi cambiarle generando nuovi hash. Non sono più in chiaro.
 USERS = { 
     "admin": {
-        "password_hash": generate_password_hash("admin"), 
+        "password_hash": "scrypt:32768:8:1$UudpiqxEpDnMIMyI$d1c51523f034965a99cb569f943943399dc8722d382fec63de356a4f4b74fdebe269ff61c287b4784886553adb74086a2dac9cc570a13caa7434f3218dd2ca13", 
         "name": "Admin"
     },
     "topgun": {
-        "password_hash": generate_password_hash("topgun"), 
+        "password_hash": "scrypt:32768:8:1$7OpLxyv7XJkDXsrf$f1b769dd4f3496651e6c3a17cc56b4aa0469985e8a1ae0655eec9a93456e04cb501259345d00607e534a7822dbac4e4394a0b6f09315b5deeae29930b43eee67", 
         "name": "TopGun"
     }
 }
