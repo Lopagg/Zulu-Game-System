@@ -223,9 +223,10 @@ body {
 
 .grid-dashboard {
     display: grid; 
-    /* Diamo il giusto spazio al Tactical Feed mantenendo le proporzioni */
-    grid-template-columns: 1fr 380px; 
-    gap: 20px;
+    /* Colonna sinistra occupa tutto lo spazio restante (1fr), colonna destra è fissa a 360px */
+    grid-template-columns: 1fr 360px; 
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 20px; height: calc(100% - 55px);
 }
 
 .widget { background: rgba(0, 0, 0, 0.3); border: 1px solid var(--sop-dim); display: flex; flex-direction: column; overflow: hidden; }

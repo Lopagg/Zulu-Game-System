@@ -2,7 +2,6 @@ import { showView, logSystem, updateDeviceList, updateClock, activeInspectorId }
 import { resetMonitorLayout, updateUniversalFeed, renderRules } from './game_monitor.js';
 import { renderArenaRoster, renderDatabase, populateProfileModal, getCurrentProfileUid } from './roster_manager.js';
 
-// --- INIZIALIZZAZIONE ---
 const socket = io();
 let currentDevices = [];
 let monitoredDeviceId = null; 
@@ -25,7 +24,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 });
 
-// --- CONNESSIONE E RETE ---
 socket.on('connect', () => {
     logSystem("LINK ESTABLISHED WITH SOP SERVER.");
     const elGlobalStatus = document.getElementById('global-status');
@@ -51,13 +49,11 @@ socket.on('weather_update', (data) => {
     if (data.weather) document.getElementById('weather-display').textContent = data.weather;
 });
 
-// --- GESTIONE DATI SOCKET ---
 socket.on('roster_update', (rosterData) => {
     arenaRoster = rosterData;
     renderArenaRoster(arenaRoster, socket);
 });
 
-// --- LISTENER RIPRISTINATI PER DATABASE E PROFILI ---
 socket.on('database_update', (players) => {
     renderDatabase(players, socket, arenaRoster);
 });
@@ -76,12 +72,20 @@ socket.on('kiosk_hardware_cmd', (data) => {
     if (data.cmd === 'GAME_START') {
         const mode = document.getElementById('setup-mode-select').value;
         let targetId = document.getElementById('setup-target-select').value;
+        
+        if (mode === 'tdm') targetId = "SERVER-TDM";
+        
         const dur = parseInt(document.getElementById('tdm-game-dur').value) || 15;
         
         socket.emit('request_mission_start', { mode: mode, target_id: targetId, duration: dur, force: false });
         logSystem("KIOSK: Rilevato pulsante hardware START. Missione Inviata.");
     } else if (data.cmd === 'FORCE_END_GAME') {
-        if (monitoredDeviceId) socket.emit('send_command', { target_id: monitoredDeviceId, command: { cmd: "FORCE_END_GAME" } });
+        const mode = document.getElementById('setup-mode-select').value;
+        if (mode === 'tdm') {
+             socket.emit('send_command', { target_id: "SERVER-TDM", command: { cmd: "FORCE_END_GAME" } });
+        } else if (monitoredDeviceId) {
+             socket.emit('send_command', { target_id: monitoredDeviceId, command: { cmd: "FORCE_END_GAME" } });
+        }
     }
 });
 
@@ -171,7 +175,7 @@ document.getElementById('btn-transmit-setup').addEventListener('click', () => {
     } else if (mode === 'tdm') {
         const dur = parseInt(document.getElementById('tdm-game-dur').value) || 15;
         commandData = { cmd: "SET_TDM_SETTINGS", duration: dur };
-        targetId = "broadcast";
+        targetId = "SERVER-TDM";
     }
     
     socket.emit('send_command', { target_id: targetId, command: commandData });
@@ -187,22 +191,50 @@ document.getElementById('btn-start-mission').addEventListener('click', () => {
     let targetId = document.getElementById('setup-target-select').value;
     const dur = parseInt(document.getElementById('tdm-game-dur').value) || 15;
     
+    if (mode === 'tdm') targetId = "SERVER-TDM";
+    
     socket.emit('request_mission_start', { mode: mode, target_id: targetId, duration: dur, force: false });
     document.getElementById('btn-start-mission').disabled = true;
     document.getElementById('btn-start-mission').classList.add('disabled');
+    
+    // Passa in automatico alla schermata monitor
+    window.showView('monitor');
 });
 
+// Setup Menu Cambio Tab (SD, DOM, TDM)
 document.getElementById('setup-mode-select').addEventListener('change', (e) => {
     document.getElementById('setup-sd-params').classList.add('hidden');
     document.getElementById('setup-dom-params').classList.add('hidden');
     document.getElementById('setup-tdm-params').classList.add('hidden');
+    document.getElementById('target-selection-row').classList.remove('hidden');
 
-    if (e.target.value === 'sd') document.getElementById('setup-sd-params').classList.remove('hidden');
-    else if (e.target.value === 'dom') document.getElementById('setup-dom-params').classList.remove('hidden');
-    else if (e.target.value === 'tdm') document.getElementById('setup-tdm-params').classList.remove('hidden');
+    if (e.target.value === 'sd') {
+        document.getElementById('setup-sd-params').classList.remove('hidden');
+    }
+    else if (e.target.value === 'dom') {
+        document.getElementById('setup-dom-params').classList.remove('hidden');
+    }
+    else if (e.target.value === 'tdm') {
+        document.getElementById('setup-tdm-params').classList.remove('hidden');
+        // Nascondi la scelta del target fisico se è TDM (Il server gestisce tutto internamente)
+        document.getElementById('target-selection-row').classList.add('hidden');
+    }
 });
 
-// --- FUNZIONI GLOBALI RIPRISTINATE PER IL PROFILO OPERATORE ---
+// Export per terminare missione via UI
+window.uiForceEndMission = function() {
+    const mode = document.getElementById('setup-mode-select').value;
+    if(confirm("ATTENZIONE: Terminare forzatamente la partita selezionata?")) {
+        if (mode === 'tdm' || monitoredDeviceId === 'SERVER-TDM') {
+            socket.emit('send_command', { target_id: "SERVER-TDM", command: { cmd: "FORCE_END_GAME" } });
+        } else if (monitoredDeviceId) {
+            socket.emit('send_command', { target_id: monitoredDeviceId, command: { cmd: "FORCE_END_GAME" } });
+        } else {
+             alert("Nessuna partita attiva individuata in rete.");
+        }
+    }
+};
+
 window.saveOperatorNotes = () => {
     const uid = getCurrentProfileUid();
     const notesEl = document.getElementById('modal-op-notes');

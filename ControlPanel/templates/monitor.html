@@ -6,7 +6,7 @@
     
     <!-- Modalità Attiva (Mostrata Grande in Alto) -->
     <div style="text-align: center; margin-bottom: 15px;">
-        <h2 id="monitor-mode-title" style="color: var(--sop-text); letter-spacing: 4px; font-size: 24px; text-shadow: 0 0 10px rgba(255,255,255,0.2);">AWAITING MISSION DATA...</h2>
+        <h2 id="monitor-mode-title" style="color: var(--sop-text); letter-spacing: 4px; font-size: 28px; font-weight: bold; text-shadow: 0 0 15px rgba(0,255,204,0.4);">AWAITING MISSION DATA...</h2>
     </div>
 
     <div class="grid-dashboard">
@@ -78,7 +78,7 @@
                     <li>WAITING FOR TELEMETRY...</li>
                 </ul>
                 <div class="rules-footer">
-                    <button id="btn-force-end" class="deck-btn btn-danger full-width">
+                    <button id="btn-force-end" class="deck-btn btn-danger full-width" onclick="uiForceEndMission()">
                         [ TERMINATE MISSION ]
                     </button>
                 </div>
