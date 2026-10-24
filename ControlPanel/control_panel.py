@@ -9,10 +9,11 @@ import json
 import time
 import threading
 from threading import Lock
-import sqlite3
 import os
-import datetime
 import urllib.request
+
+# --- IMPORTA IL NUOVO GESTORE DATABASE ---
+import db_manager 
 
 # --- CONFIGURAZIONE ---
 logging.basicConfig(level=logging.INFO)
@@ -32,8 +33,6 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 
 # --- GESTIONE UTENTI CON HASH ---
-# Le password di base sono identiche all'ID utente (admin->admin, topgun->topgun).
-# Puoi cambiarle generando nuovi hash. Non sono più in chiaro.
 USERS = { 
     "admin": {
         "password_hash": "scrypt:32768:8:1$UudpiqxEpDnMIMyI$d1c51523f034965a99cb569f943943399dc8722d382fec63de356a4f4b74fdebe269ff61c287b4784886553adb74086a2dac9cc570a13caa7434f3218dd2ca13", 
@@ -59,51 +58,6 @@ class User(UserMixin):
 def load_user(user_id):
     return User.get(user_id)
 
-# --- DATABASE SETUP ---
-DB_PATH = 'philanthropy_arena.db'
-
-def get_current_time():
-    return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-def init_db():
-    with sqlite3.connect(DB_PATH) as conn:
-        c = conn.cursor()
-        c.execute('''CREATE TABLE IF NOT EXISTS players
-                     (uid TEXT PRIMARY KEY, alias TEXT, games_played INTEGER DEFAULT 0, wins INTEGER DEFAULT 0)''')
-        
-        try: c.execute("ALTER TABLE players ADD COLUMN registered_at TEXT")
-        except sqlite3.OperationalError: pass
-        try: c.execute("ALTER TABLE players ADD COLUMN notes TEXT")
-        except sqlite3.OperationalError: pass
-        try: c.execute("ALTER TABLE players ADD COLUMN photo TEXT")
-        except sqlite3.OperationalError: pass
-
-        c.execute('''CREATE TABLE IF NOT EXISTS active_roster
-                     (uid TEXT PRIMARY KEY, team TEXT, status TEXT)''')
-        conn.commit()
-
-init_db()
-
-def broadcast_roster():
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.row_factory = sqlite3.Row
-        c = conn.cursor()
-        c.execute('''
-            SELECT a.uid, p.alias as name, a.team, a.status 
-            FROM active_roster a 
-            JOIN players p ON a.uid = p.uid
-        ''')
-        rows = c.fetchall()
-        roster = {}
-        for r in rows:
-            roster[r['uid']] = {
-                'uid': r['uid'],
-                'name': r['name'],
-                'team': r['team'],
-                'status': r['status']
-            }
-            
-    socketio.emit('roster_update', roster)
 
 # --- METEO ---
 last_weather_update = 0
@@ -133,27 +87,6 @@ def fetch_weather():
             logger.error(f"[ERROR METEO] {e}")
     return cached_weather
 
-# --- STATISTICHE ---
-def update_match_stats(winner_state):
-    winning_team = None
-    if winner_state in ['ALPHA WINS', 'OWNED ALPHA', 'T WINS']:
-        winning_team = 'ALPHA'
-    elif winner_state in ['BRAVO WINS', 'OWNED BRAVO', 'CT WINS']:
-        winning_team = 'BRAVO'
-        
-    try:
-        with sqlite3.connect(DB_PATH) as conn:
-            c = conn.cursor()
-            c.execute("SELECT uid, team FROM active_roster WHERE status='IN'")
-            players = c.fetchall()
-            for uid, team in players:
-                c.execute("UPDATE players SET games_played = games_played + 1 WHERE uid = ?", (uid,))
-                if winning_team and team == winning_team:
-                    c.execute("UPDATE players SET wins = wins + 1 WHERE uid = ?", (uid,))
-            conn.commit()
-            logger.info(f"[STATS] Aggiornate statistiche per {len(players)} operatori. Team Vittorioso: {winning_team or 'NESSUNO'}")
-    except Exception as e:
-        logger.error(f"[ERROR STATS] {e}")
 
 # --- DEVICE REGISTRY (Multi-Node Architecture) ---
 class DeviceRegistry:
@@ -269,19 +202,15 @@ def on_mqtt_message(client, userdata, msg):
                 uid = payload.get('uid')
                 reply_action = "UNKNOWN"
                 if uid:
-                    with sqlite3.connect(DB_PATH) as conn:
-                        c = conn.cursor()
-                        c.execute("SELECT status, team FROM active_roster WHERE uid = ?", (uid,))
-                        row = c.fetchone()
-                        
-                        if row:
-                            new_status = 'FUORI' if row[0] == 'IN' else 'IN'
-                            c.execute("UPDATE active_roster SET status = ? WHERE uid = ?", (new_status, uid))
-                            conn.commit()
-                            reply_action = f"{new_status}_{row[1]}" 
-                            broadcast_roster()
-                        else:
-                            reply_action = "WAIT_ASSIGN"
+                    # Usa il DB Manager
+                    row = db_manager.get_player_status(uid)
+                    if row:
+                        current_status, team = row
+                        new_status = db_manager.toggle_player_status(uid, current_status)
+                        reply_action = f"{new_status}_{team}" 
+                        socketio.emit('roster_update', db_manager.get_full_roster())
+                    else:
+                        reply_action = "WAIT_ASSIGN"
                 
                 reply_payload = {"cmd": "KIOSK_REPLY", "action": reply_action}
                 mqtt_client.publish(f"zulu/cmd/{device_id}", json.dumps(reply_payload))
@@ -290,17 +219,12 @@ def on_mqtt_message(client, userdata, msg):
                 uid = payload.get('uid')
                 team = payload.get('team')
                 if uid and team:
-                    with sqlite3.connect(DB_PATH) as conn:
-                        c = conn.cursor()
-                        c.execute("INSERT OR IGNORE INTO players (uid, alias, registered_at) VALUES (?, ?, ?)", (uid, f"OP-{uid[:4]}", get_current_time()))
-                        c.execute("INSERT OR REPLACE INTO active_roster (uid, team, status) VALUES (?, ?, 'IN')", (uid, team))
-                        conn.commit()
-                    broadcast_roster()
+                    db_manager.register_player(uid, team)
+                    socketio.emit('roster_update', db_manager.get_full_roster())
             
             # --- AGGIORNAMENTO REGISTRO NODI ---
             mode = payload.get('mode') or parsed.get('mode')
             version = payload.get('version') or parsed.get('version')
-            
             has_changed = registry.update_device(device_id, msg_type, mode, version)
             
             if msg_type not in ['TAG_SCANNED', 'TAG_ASSIGN']:
@@ -320,7 +244,7 @@ def on_mqtt_message(client, userdata, msg):
                     if new_state in end_states and old_state not in end_states:
                         logger.info(f"[ARBITRO SERVER] Partita su nodo {device_id} terminata ({new_state}).")
                         trigger_siren("SIREN_LONG")
-                        update_match_stats(new_state) 
+                        db_manager.process_match_stats(new_state) 
                     
                     if old_state == 'PREPARING' and new_state in start_states:
                         logger.info(f"[ARBITRO SERVER] Partita su nodo {device_id} iniziata ({new_state}).")
@@ -361,15 +285,13 @@ def background_cleanup():
         socketio.sleep(1) 
         tick_counter += 1
         
-        with sqlite3.connect(DB_PATH) as conn:
-            c = conn.cursor()
-            c.execute("SELECT team, status FROM active_roster")
-            players = c.fetchall()
+        # Usa il DB manager per recuperare lo stato
+        players = db_manager.get_active_roster_status()
             
-            players_out = sum(1 for p in players if p[1] != 'IN')
-            alpha_in = sum(1 for p in players if p[0] == 'ALPHA' and p[1] == 'IN')
-            bravo_in = sum(1 for p in players if p[0] == 'BRAVO' and p[1] == 'IN')
-            total_players = len(players)
+        players_out = sum(1 for p in players if p[2] != 'IN')
+        alpha_in = sum(1 for p in players if p[1] == 'ALPHA' and p[2] == 'IN')
+        bravo_in = sum(1 for p in players if p[1] == 'BRAVO' and p[2] == 'IN')
+        total_players = len(players)
 
         # Determina lo stato per il Kiosk
         all_players_in = (players_out == 0) and (total_players > 0)
@@ -381,7 +303,6 @@ def background_cleanup():
                 if state in ['ARMING...', 'ARMED', 'DEFUSING...', 'NEUTRAL', 'OWNED ALPHA', 'OWNED BRAVO', 'CAPTURING A...', 'CAPTURING B...', 'ACTIVE']:
                     game_is_running = True
                 
-        # Se il gioco e' in corso spegni il ready flag
         if game_is_running:
             mission_ready_flag = False
 
@@ -423,7 +344,7 @@ def background_cleanup():
             if tdm_ends:
                 tdm_state['active'] = False
                 trigger_siren("SIREN_LONG") 
-                update_match_stats(state_str)
+                db_manager.process_match_stats(state_str)
             
             doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": state_str, "game_time": tdm_state['time_left'] } }
             socketio.emit('esp_event', {"parsed_data": doc})
@@ -462,6 +383,13 @@ def background_cleanup():
             socketio.emit('weather_update', {'weather': weather_data})
 
 # --- ROUTES & WEBSOCKETS ---
+@app.before_request
+def setup_database():
+    """Inizializza il DB al primo avvio se necessario"""
+    if not hasattr(app, 'db_initialized'):
+        db_manager.init_db()
+        app.db_initialized = True
+
 @socketio.on('connect')
 def handle_connect():
     global background_thread_started
@@ -472,7 +400,7 @@ def handle_connect():
     active_devs, _ = registry.get_active_devices()
     emit('devices_update', active_devs)
     emit('weather_update', {'weather': fetch_weather()})
-    broadcast_roster()
+    socketio.emit('roster_update', db_manager.get_full_roster())
 
 @app.route('/')
 @login_required
@@ -485,7 +413,6 @@ def login():
         username = request.form.get('username')
         password = request.form.get('password')
         
-        # Convalida tramite hash crittografico
         if username in USERS and check_password_hash(USERS[username]['password_hash'], password):
             user = User.get(username)
             login_user(user)
@@ -511,93 +438,77 @@ def upload_photo():
         filename = secure_filename(f"op_{uid}.jpg")
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
-        with sqlite3.connect(DB_PATH) as conn:
-            conn.execute("UPDATE players SET photo = ? WHERE uid = ?", (filename, uid))
+        db_manager.update_player_photo(uid, filename)
         return jsonify({"status": "ok", "filename": filename})
     return jsonify({"status": "error"}), 400
 
 @socketio.on('request_roster')
 def handle_request_roster():
-    broadcast_roster()
+    socketio.emit('roster_update', db_manager.get_full_roster())
 
 @socketio.on('register_operator')
 def handle_register_operator(data):
     uid = data.get('uid')
     team = data.get('team')
-    if not uid or not team: return
-    with sqlite3.connect(DB_PATH) as conn:
-        c = conn.cursor()
-        c.execute("INSERT OR IGNORE INTO players (uid, alias, registered_at) VALUES (?, ?, ?)", (uid, f"OP-{uid[:4]}", get_current_time()))
-        c.execute("INSERT OR REPLACE INTO active_roster (uid, team, status) VALUES (?, ?, 'FUORI')", (uid, team))
-        conn.commit()
-    broadcast_roster()
+    if uid and team:
+        db_manager.register_player(uid, team)
+        socketio.emit('roster_update', db_manager.get_full_roster())
 
 @socketio.on('update_operator')
 def handle_update_operator(data):
     uid = data.get('uid')
     action = data.get('action')
     value = data.get('value')
-    with sqlite3.connect(DB_PATH) as conn:
-        c = conn.cursor()
-        if action == 'rename':
-            c.execute("UPDATE players SET alias = ? WHERE uid = ?", (value, uid))
-        elif action == 'swap':
-            c.execute("UPDATE active_roster SET team = CASE WHEN team='ALPHA' THEN 'BRAVO' ELSE 'ALPHA' END WHERE uid = ?", (uid,))
-        elif action == 'status_toggle':
-            c.execute("UPDATE active_roster SET status = CASE WHEN status='IN' THEN 'FUORI' ELSE 'IN' END WHERE uid = ?", (uid,))
-        elif action == 'delete':
-            c.execute("DELETE FROM active_roster WHERE uid = ?", (uid,))
-        conn.commit()
-    broadcast_roster()
+    
+    if action == 'rename':
+        db_manager.rename_player(uid, value)
+    elif action == 'swap':
+        db_manager.swap_player_team(uid)
+    elif action == 'status_toggle':
+        # Ottiene lo stato corrente per fare il toggle
+        row = db_manager.get_player_status(uid)
+        if row:
+            db_manager.toggle_player_status(uid, row[0])
+    elif action == 'delete':
+        db_manager.remove_from_roster(uid)
+        
+    socketio.emit('roster_update', db_manager.get_full_roster())
 
 @socketio.on('clear_roster')
 def handle_clear_roster():
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.execute("DELETE FROM active_roster")
-        conn.commit()
-    broadcast_roster()
+    db_manager.clear_active_roster()
+    socketio.emit('roster_update', db_manager.get_full_roster())
 
 @socketio.on('request_database')
 def handle_request_database():
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.row_factory = sqlite3.Row
-        c = conn.cursor()
-        c.execute("SELECT * FROM players ORDER BY alias")
-        rows = [dict(r) for r in c.fetchall()]
-    socketio.emit('database_update', rows)
+    socketio.emit('database_update', db_manager.get_all_players())
 
 @socketio.on('update_db_player')
 def handle_update_db_player(data):
     uid = data.get('uid')
     action = data.get('action')
     value = data.get('value')
-    with sqlite3.connect(DB_PATH) as conn:
-        if action == 'rename':
-            conn.execute("UPDATE players SET alias = ? WHERE uid = ?", (value, uid))
-        elif action == 'delete':
-            conn.execute("DELETE FROM players WHERE uid = ?", (uid,))
-            conn.execute("DELETE FROM active_roster WHERE uid = ?", (uid,))
-        conn.commit()
-    broadcast_roster()
-    handle_request_database()
+    
+    if action == 'rename':
+        db_manager.rename_player(uid, value)
+    elif action == 'delete':
+        db_manager.delete_player_permanently(uid)
+        
+    socketio.emit('roster_update', db_manager.get_full_roster())
+    socketio.emit('database_update', db_manager.get_all_players())
 
 @socketio.on('request_profile')
 def handle_request_profile(data):
     uid = data.get('uid')
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.row_factory = sqlite3.Row
-        c = conn.cursor()
-        c.execute("SELECT * FROM players WHERE uid = ?", (uid,))
-        row = c.fetchone()
-        if row:
-            emit('profile_data', dict(row))
+    profile = db_manager.get_player_profile(uid)
+    if profile:
+        emit('profile_data', profile)
 
 @socketio.on('save_notes')
 def handle_save_notes(data):
     uid = data.get('uid')
     notes = data.get('notes')
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.execute("UPDATE players SET notes = ? WHERE uid = ?", (notes, uid))
+    db_manager.update_player_notes(uid, notes)
 
 @socketio.on('request_mission_start')
 def handle_request_mission_start(data):
@@ -606,15 +517,11 @@ def handle_request_mission_start(data):
     dur = data.get('duration', 15)
     force = data.get('force', False)
     
-    with sqlite3.connect(DB_PATH) as conn:
-        c = conn.cursor()
-        c.execute("SELECT team, status FROM active_roster")
-        players = c.fetchall()
-        
+    players = db_manager.get_active_roster_status()
     total_players = len(players)
-    players_out = sum(1 for p in players if p[1] != 'IN')
-    alpha_in = sum(1 for p in players if p[0] == 'ALPHA' and p[1] == 'IN')
-    bravo_in = sum(1 for p in players if p[0] == 'BRAVO' and p[1] == 'IN')
+    players_out = sum(1 for p in players if p[2] != 'IN')
+    alpha_in = sum(1 for p in players if p[1] == 'ALPHA' and p[2] == 'IN')
+    bravo_in = sum(1 for p in players if p[1] == 'BRAVO' and p[2] == 'IN')
     
     if not force:
         if total_players == 0:
@@ -710,7 +617,7 @@ def handle_socket_command(data):
                 doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": state_str, "game_time": tdm_state['time_left'] } }
                 socketio.emit('esp_event', {"parsed_data": doc})
                 trigger_siren("SIREN_LONG")
-                update_match_stats(state_str) 
+                db_manager.process_match_stats(state_str) 
             return
         
         if target_id == "BROADCAST_ENV":
