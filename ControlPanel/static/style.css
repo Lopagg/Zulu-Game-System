@@ -247,9 +247,21 @@ body {
 .bomb-status-box { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--sop-dim); padding-bottom: 15px; width: 100%; font-size: 45px; font-weight: bold; letter-spacing: 4px; color: var(--sop-text); }
 .detonation-title { font-size: 28px !important; color: #aaa; letter-spacing: 5px; margin: 20px 0 15px 0; text-align: center; width: 100%; display: block; }
 .digital-clock { 
-    font-size: 110px; color: var(--sop-alert); text-align: center; letter-spacing: 8px; 
-    text-shadow: 0 0 25px rgba(255, 51, 51, 0.7); background: rgba(0, 0, 0, 0.7); 
-    border: 3px solid var(--sop-alert); border-radius: 8px; margin: 0 auto; padding: 10px 20px; width: 90%; 
+    font-size: 110px; 
+    color: var(--sop-alert); 
+    text-align: center; 
+    letter-spacing: 8px; 
+    text-shadow: 0 0 25px rgba(255, 51, 51, 0.7); 
+    background: rgba(0, 0, 0, 0.7); 
+    border: 3px solid var(--sop-alert); 
+    border-radius: 8px; 
+    margin: 0 auto; 
+    padding: 10px 0 10px 8px; /* 8px a sinistra bilanciano il letter-spacing a destra */
+    width: fit-content;       /* Il box si adatta esattamente alla larghezza del testo */
+    min-width: 400px;         /* Impedisce al box di rimpicciolirsi troppo */
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
 /* Barre Progresso */
