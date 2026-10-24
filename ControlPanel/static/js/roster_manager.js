@@ -1,9 +1,13 @@
 // roster_manager.js
 
 let currentProfileUid = null;
+export let globalPlayersDB = [];
+
+export function getCurrentProfileUid() {
+    return currentProfileUid;
+}
 
 export function renderArenaRoster(arenaRoster, socket) {
-    // 1. Cattura Elementi DOM
     const listAlphaManage = document.getElementById('roster-alpha-manage');
     const listBravoManage = document.getElementById('roster-bravo-manage');
     const listAlphaIn = document.getElementById('track-alpha-in');
@@ -22,7 +26,6 @@ export function renderArenaRoster(arenaRoster, socket) {
     let alphaCount = 0, bravoCount = 0, inFieldCount = 0;
     let alphaInCount = 0, bravoInCount = 0;
     
-    // 2. Loop Assegnazioni
     Object.values(arenaRoster).forEach(player => {
         const isAlpha = player.team === 'ALPHA';
         const isInField = player.status === 'IN';
@@ -40,12 +43,10 @@ export function renderArenaRoster(arenaRoster, socket) {
             }
         }
 
-        // Voci Management
         const liManage = createManageItem(player, socket);
         if(isAlpha) listAlphaManage.appendChild(liManage);
         else listBravoManage.appendChild(liManage);
 
-        // Voci Tracking
         const liTrack = createTrackItem(player, socket, isInField);
         if(isAlpha && isInField) listAlphaIn.appendChild(liTrack);
         if(isAlpha && !isInField) listAlphaOut.appendChild(liTrack);
@@ -53,7 +54,6 @@ export function renderArenaRoster(arenaRoster, socket) {
         if(!isAlpha && !isInField) listBravoOut.appendChild(liTrack);
     });
     
-    // 3. Testi e Header
     if(alphaCount === 0) listAlphaManage.innerHTML = '<li class="placeholder-text" style="color:var(--sop-dim); text-align:center; margin-top:20px;">NESSUN OPERATORE</li>';
     if(bravoCount === 0) listBravoManage.innerHTML = '<li class="placeholder-text" style="color:var(--sop-dim); text-align:center; margin-top:20px;">NESSUN OPERATORE</li>';
     
@@ -69,7 +69,138 @@ export function renderArenaRoster(arenaRoster, socket) {
     document.getElementById('setup-bravo-count').textContent = `${bravoInCount}/${bravoCount}`;
 }
 
-// Funzioni Helper per generare HTML
+export function renderDatabase(players, socket, arenaRoster) {
+    globalPlayersDB = players;
+
+    const modal = document.getElementById('add-player-modal');
+    if (modal && !modal.classList.contains('hidden')) {
+        renderAddPlayerList(socket, arenaRoster);
+    }
+
+    const dbList = document.getElementById('db-list');
+    const dbCount = document.getElementById('db-total-count');
+    if(!dbList) return;
+
+    dbList.innerHTML = '';
+    if(dbCount) dbCount.textContent = players.length;
+
+    if(players.length === 0) {
+        dbList.innerHTML = '<li class="placeholder-text" style="color:var(--sop-dim); text-align:center; margin-top:20px;">NESSUN OPERATORE IN ARCHIVIO</li>';
+        return;
+    }
+
+    players.forEach(player => {
+        const li = document.createElement('li');
+        li.className = 'roster-item';
+
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = `${player.alias} (UID: ${player.uid})`;
+        nameSpan.style.fontWeight = 'bold';
+        nameSpan.style.fontSize = '20px';
+        nameSpan.className = 'clickable-name';
+        nameSpan.onclick = () => openOperatorProfile(player.uid, socket);
+
+        const controlsDiv = document.createElement('div');
+        controlsDiv.style.fontSize = '18px';
+        controlsDiv.style.fontFamily = 'monospace';
+
+        const btnRename = document.createElement('span');
+        btnRename.textContent = '[REN]';
+        btnRename.className = 'action-btn';
+        btnRename.style.color = 'var(--sop-primary)';
+        btnRename.onclick = () => {
+            const newName = prompt("Inserisci nuovo nome operatore:", player.alias);
+            if (newName && newName.trim() !== '') {
+                socket.emit('update_db_player', { uid: player.uid, action: 'rename', value: newName.trim().toUpperCase() });
+            }
+        };
+
+        const btnDel = document.createElement('span');
+        btnDel.textContent = '[DEL]';
+        btnDel.className = 'action-btn';
+        btnDel.style.color = 'var(--sop-alert)';
+        btnDel.onclick = () => {
+            if(confirm(`ELIMINARE PERMANENTEMENTE ${player.alias} DAL DATABASE? L'azione è irreversibile.`)) {
+                socket.emit('update_db_player', { uid: player.uid, action: 'delete' });
+            }
+        };
+
+        controlsDiv.appendChild(btnRename);
+        controlsDiv.appendChild(btnDel);
+        li.appendChild(nameSpan);
+        li.appendChild(controlsDiv);
+        dbList.appendChild(li);
+    });
+}
+
+export function renderAddPlayerList(socket, arenaRoster) {
+    const list = document.getElementById('add-player-list');
+    if (!list) return;
+    list.innerHTML = '';
+
+    const availablePlayers = globalPlayersDB.filter(p => !arenaRoster[p.uid]);
+
+    if (availablePlayers.length === 0) {
+        list.innerHTML = '<li class="placeholder-text" style="color:var(--sop-dim); text-align:center; margin-top:20px;">TUTTI I GIOCATORI SONO GIA\' IN CAMPO OPPURE DB VUOTO</li>';
+        return;
+    }
+
+    availablePlayers.forEach(player => {
+        const li = document.createElement('li');
+        li.className = 'roster-item';
+        li.style.justifyContent = 'space-between';
+
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = `${player.alias}`;
+        nameSpan.style.fontWeight = 'bold';
+        nameSpan.style.fontSize = '18px';
+
+        const controlsDiv = document.createElement('div');
+
+        const btnAlpha = document.createElement('button');
+        btnAlpha.textContent = '[ + ALPHA ]';
+        btnAlpha.className = 'deck-btn';
+        btnAlpha.style.color = 'var(--sop-alert)';
+        btnAlpha.style.borderColor = 'var(--sop-alert)';
+        btnAlpha.style.marginRight = '10px';
+        btnAlpha.onclick = () => { socket.emit('register_operator', { uid: player.uid, team: 'ALPHA' }); };
+
+        const btnBravo = document.createElement('button');
+        btnBravo.textContent = '[ + BRAVO ]';
+        btnBravo.className = 'deck-btn';
+        btnBravo.style.color = '#55ff55';
+        btnBravo.style.borderColor = '#55ff55';
+        btnBravo.onclick = () => { socket.emit('register_operator', { uid: player.uid, team: 'BRAVO' }); };
+
+        controlsDiv.appendChild(btnAlpha);
+        controlsDiv.appendChild(btnBravo);
+        li.appendChild(nameSpan);
+        li.appendChild(controlsDiv);
+        list.appendChild(li);
+    });
+}
+
+export function populateProfileModal(data) {
+    const nameEl = document.getElementById('modal-op-name');
+    if(nameEl) nameEl.textContent = `PROFILE // ${data.alias}`;
+    const uidEl = document.getElementById('modal-op-uid');
+    if(uidEl) uidEl.textContent = data.uid;
+    const dateEl = document.getElementById('modal-op-date');
+    if(dateEl) dateEl.textContent = data.registered_at || 'Sconosciuta';
+    const gamesEl = document.getElementById('modal-op-games');
+    if(gamesEl) gamesEl.textContent = data.games_played || 0;
+    const notesEl = document.getElementById('modal-op-notes');
+    if(notesEl) notesEl.value = data.notes || '';
+    
+    const photoEl = document.getElementById('modal-op-photo');
+    if(photoEl) {
+        if(data.photo) photoEl.src = `/static/uploads/${data.photo}?t=${new Date().getTime()}`;
+        else photoEl.src = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIiBmaWxsPSIjMzMzIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjM1IiByPSIyMCIvPjxwYXRoIGQ9Ik0yMCA5MCBRMjAgNjAgNTAgNjAgUTgwIDYwIDgwIDkwIFoiLz48L3N2Zz4=";
+    }
+    
+    document.getElementById('operator-modal').classList.remove('hidden');
+}
+
 function addToList(list, player, socket) {
     if(!list) return;
     const li = document.createElement('li');
@@ -119,7 +250,6 @@ export function openOperatorProfile(uid, socket) {
     socket.emit('request_profile', {uid: uid});
 }
 
-// Global Exports
 window.openAddPlayerModal = function() {
     document.getElementById('add-player-modal').classList.remove('hidden');
 };

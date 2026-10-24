@@ -1,19 +1,16 @@
-// main.js
 import { showView, logSystem, updateDeviceList, updateClock, activeInspectorId } from './ui_core.js';
 import { resetMonitorLayout, updateUniversalFeed, renderRules } from './game_monitor.js';
-import { renderArenaRoster } from './roster_manager.js';
+import { renderArenaRoster, renderDatabase, populateProfileModal, getCurrentProfileUid } from './roster_manager.js';
 
 // --- INIZIALIZZAZIONE ---
 const socket = io();
 let currentDevices = [];
 let monitoredDeviceId = null; 
 let arenaRoster = {}; 
-let globalPlayersDB = []; 
 
 document.addEventListener('DOMContentLoaded', () => {
     updateClock();
     
-    // Collega funzioni globali al window object (per HTML inline come onclick="showView('x')")
     window.showView = (view) => showView(view, socket);
     window.clearActiveRoster = () => {
         if(confirm('ATTENZIONE: Rimuovere tutti gli operatori dal roster di oggi?')) {
@@ -60,6 +57,15 @@ socket.on('roster_update', (rosterData) => {
     renderArenaRoster(arenaRoster, socket);
 });
 
+// --- LISTENER RIPRISTINATI PER DATABASE E PROFILI ---
+socket.on('database_update', (players) => {
+    renderDatabase(players, socket, arenaRoster);
+});
+
+socket.on('profile_data', (data) => {
+    populateProfileModal(data);
+});
+
 socket.on('devices_update', (devices) => {
     currentDevices = devices;
     updateDeviceList(devices, socket, (id) => monitoredDeviceId = id);
@@ -102,7 +108,6 @@ socket.on('esp_event', (msg) => {
         monitoredDeviceId = senderId;
     }
 
-    // Ignora telemetria di dispositivi non in focus
     if (monitoredDeviceId && senderId !== monitoredDeviceId) return;
 
     if (type === 'MODE_EXIT') {
@@ -120,7 +125,6 @@ socket.on('esp_event', (msg) => {
         renderRules(payload);
     }
     
-    // Richiama il modulo di monitoraggio universale
     updateUniversalFeed(payload, mode, type);
 });
 
@@ -188,7 +192,6 @@ document.getElementById('btn-start-mission').addEventListener('click', () => {
     document.getElementById('btn-start-mission').classList.add('disabled');
 });
 
-// Setup Menu Cambio Tab (SD, DOM, TDM)
 document.getElementById('setup-mode-select').addEventListener('change', (e) => {
     document.getElementById('setup-sd-params').classList.add('hidden');
     document.getElementById('setup-dom-params').classList.add('hidden');
@@ -198,3 +201,33 @@ document.getElementById('setup-mode-select').addEventListener('change', (e) => {
     else if (e.target.value === 'dom') document.getElementById('setup-dom-params').classList.remove('hidden');
     else if (e.target.value === 'tdm') document.getElementById('setup-tdm-params').classList.remove('hidden');
 });
+
+// --- FUNZIONI GLOBALI RIPRISTINATE PER IL PROFILO OPERATORE ---
+window.saveOperatorNotes = () => {
+    const uid = getCurrentProfileUid();
+    const notesEl = document.getElementById('modal-op-notes');
+    if(uid && notesEl) {
+        socket.emit('save_notes', {uid: uid, notes: notesEl.value});
+        logSystem(`NOTE SALVATE PER [${uid}]`);
+        window.closeModal();
+    }
+};
+
+window.handlePhotoUpload = (input) => {
+    const uid = getCurrentProfileUid();
+    if(!input.files || !input.files[0] || !uid) return;
+    const file = input.files[0];
+    const formData = new FormData();
+    formData.append('photo', file);
+    formData.append('uid', uid);
+    
+    fetch('/upload_photo', { method: 'POST', body: formData })
+    .then(res => res.json())
+    .then(data => {
+        if(data.status === 'ok') {
+            const photoEl = document.getElementById('modal-op-photo');
+            if(photoEl) photoEl.src = `/static/uploads/${data.filename}?t=${new Date().getTime()}`;
+        } else alert('Errore caricamento foto.');
+    })
+    .catch(err => { console.error(err); });
+};
