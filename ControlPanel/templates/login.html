@@ -7,8 +7,41 @@
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Icona sulla tab del browser -->
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
     
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <style>
+        /* Stili specifici per il logo della pagina di login */
+        .login-logo-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 20px;
+            animation: logo-glow 3s ease-in-out infinite alternate;
+        }
+        
+        .login-logo {
+            width: 140px;
+            height: auto;
+            filter: drop-shadow(0 0 12px rgba(0, 255, 204, 0.5));
+            transition: transform 0.3s ease;
+        }
+
+        .login-logo:hover {
+            transform: scale(1.03);
+        }
+
+        @keyframes logo-glow {
+            0% {
+                filter: drop-shadow(0 0 10px rgba(0, 255, 204, 0.4));
+            }
+            100% {
+                filter: drop-shadow(0 0 22px rgba(0, 255, 204, 0.8));
+            }
+        }
+    </style>
 </head>
 <body class="sop-theme login-body">
 
@@ -18,6 +51,12 @@
     </div>
 
     <div class="login-wrapper">
+        
+        <!-- === LOGO VETTORIALE (SOPRA IL LOGIN BOX) === -->
+        <div class="login-logo-container">
+            <img src="{{ url_for('static', filename='Philanthropy.svg') }}" class="login-logo" alt="Philanthropy Logo">
+        </div>
+
         <div class="sop-panel login-box">
             <div class="login-header">
                 <h1>PHILANTHROPY SYSTEM</h1>
