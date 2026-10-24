@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PHILANTHROPY // SOP NODE</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=13">
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="{{ url_for('static', filename='app.js') }}?v=17" defer></script>
+</head>
+<body class="sop-theme">
+
+    <!-- SFONDO GLOBALE -->
+    <div class="tactical-background">
+        <div class="grid-overlay"></div>
+        <div class="scan-line"></div>
+    </div>
+
+    <div class="app-container">
+
+        <!-- HEADER COMUNE -->
+        <header class="system-header sop-panel">
+            <div class="header-left">
+                <div class="logo-box">
+                    <span class="logo-text">PHILANTHROPY</span>
+                    <span class="logo-sub">SYSTEM // SOP</span>
+                </div>
+                <div class="system-status">
+                    <span class="status-label">SYS_STATUS:</span>
+                    <span id="global-status" class="status-value status-normal">NORMAL</span>
+                </div>
+            </div>
+            
+            <div class="header-center">
+                <div class="hud-center-group">
+                    <div id="mission-clock" class="hud-text">00:00:00</div>
+                    <div id="weather-display" class="hud-weather">--°C // SCANNING METEO...</div>
+                </div>
+            </div>
+
+            <div class="header-right">
+                <div class="net-stats">
+                    <span class="stat-item">NET_LOAD: <span id="net-load">12ms</span></span>
+                    <span class="stat-item">ASSETS: <span id="asset-count">0</span></span>
+                </div>
+                <div class="operator-box">
+                    <span class="operator-name">{{ username }}</span>
+                    <a href="{{ url_for('logout') }}" class="logout-btn">[LOGOUT]</a>
+                </div>
+            </div>
+        </header>
+
+        <!-- SIDEBAR HARDWARE -->
+        <aside class="asset-sidebar sop-panel">
+            <div class="sidebar-header">
+                <h3>ASSET LIST</h3> 
+                <div class="sidebar-tools">
+                    <button id="scan-btn" class="icon-btn" title="Scansione Rete">[SCAN]</button>
+                </div>
+            </div>
+            <ul id="device-list" class="device-list">
+                <li class="placeholder-msg">SCANNING NETWORK...</li>
+            </ul>
+            <div class="sidebar-footer">
+                <div class="console-log" id="mini-log">
+                    <span>> SYSTEM READY...</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- AREA PRINCIPALE (Dove vengono iniettate le altre viste) -->
+        <main class="main-stage">
+            {% block content %}{% endblock %}
+        </main>
+
+        <!-- FOOTER COMMAND DECK -->
+        <footer class="command-deck sop-panel">
+            <div class="deck-label">GLOBAL OVERRIDE</div>
+            <div class="deck-controls">
+                <button id="global-start-btn" class="deck-btn">[BROADCAST START]</button>
+                <button id="global-pause-btn" class="deck-btn btn-warning">[SYSTEM PAUSE]</button>
+                <button id="global-reset-btn" class="deck-btn btn-danger">[SYSTEM RESET]</button>
+            </div>
+        </footer>
+
+    </div>
+
+    <!-- MODALS GLOBALI (Operatore e Add Player) -->
+    <div id="operator-modal" class="modal-overlay hidden">
+        <div class="sop-card profile-modal">
+            <div class="panel-header" style="justify-content: space-between; border-bottom: 2px solid var(--sop-primary);">
+                <h2 id="modal-op-name" style="margin: 0; padding: 10px; color: var(--sop-primary); letter-spacing: 2px;">OPERATOR PROFILE</h2>
+                <button class="close-modal-btn" onclick="closeModal()">[X]</button>
+            </div>
+            <div class="panel-body profile-grid">
+                <div class="profile-photo-col">
+                    <div class="photo-frame">
+                        <img id="modal-op-photo" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIiBmaWxsPSIjMzMzIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjM1IiByPSIyMCIvPjxwYXRoIGQ9Ik0yMCA5MCBRMjAgNjAgNTAgNjAgUTgwIDYwIDgwIDkwIFoiLz48L3N2Zz4=" alt="Foto Operatore" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIiBmaWxsPSIjMzMzIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjM1IiByPSIyMCIvPjxwYXRoIGQ9Ik0yMCA5MCBRMjAgNjAgNTAgNjAgUTgwIDYwIDgwIDkwIFoiLz48L3N2Zz4='">
+                    </div>
+                    <input type="file" id="photo-upload-input" accept="image/*" class="hidden" onchange="handlePhotoUpload(this)">
+                    <button class="deck-btn full-width" onclick="document.getElementById('photo-upload-input').click()">[ CARICA FOTO ]</button>
+                </div>
+                <div class="profile-info-col">
+                    <div class="data-row"><span class="label">UID TESSERA:</span> <span id="modal-op-uid" class="value" style="font-family: monospace;">--</span></div>
+                    <div class="data-row"><span class="label">REGISTRATO IL:</span> <span id="modal-op-date" class="value">--</span></div>
+                    <div class="data-row"><span class="label">PARTITE GIOCATE:</span> <span id="modal-op-games" class="value" style="color:var(--sop-primary); font-weight:bold;">0</span></div>
+                    
+                    <label class="setup-label" style="margin-top: 15px;">ANNOTAZIONI / STATO MEDICO</label>
+                    <textarea id="modal-op-notes" class="setup-input tactical-textarea" rows="4" placeholder="Nessuna nota presente..."></textarea>
+                    
+                    <button class="deck-btn" style="border-color: var(--sop-primary); color: var(--sop-primary); float: right; margin-top: 10px;" onclick="saveOperatorNotes()">[ SALVA NOTE ]</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="add-player-modal" class="modal-overlay hidden">
+        <div class="sop-card profile-modal" style="width: 500px;">
+            <div class="panel-header" style="justify-content: space-between; border-bottom: 2px solid var(--sop-primary);">
+                <h2 style="margin: 0; padding: 10px; color: var(--sop-primary); letter-spacing: 2px;">ADD FROM DATABASE</h2>
+                <button class="close-modal-btn" onclick="closeAddPlayerModal()">[X]</button>
+            </div>
+            <div class="panel-body" style="padding: 20px;">
+                <ul id="add-player-list" class="roster-list" style="max-height: 400px; overflow-y: auto; padding: 0;">
+                </ul>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>
