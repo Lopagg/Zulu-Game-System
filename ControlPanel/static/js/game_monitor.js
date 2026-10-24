@@ -13,6 +13,7 @@ export function resetMonitorLayout() {
     document.getElementById('sd-arm-bar').style.width = "0%";
     document.getElementById('sd-defuse-bar').style.width = "0%";
     document.getElementById('sd-rules-list').innerHTML = '<li>WAITING FOR TELEMETRY...</li>';
+    document.getElementById('monitor-mode-title').textContent = "AWAITING MISSION DATA...";
 }
 
 // Analizza i pacchetti MQTT e popola l'HUD Standardizzato
@@ -28,6 +29,10 @@ export function updateUniversalFeed(payload, mode, msgType) {
         feed.classList.remove('hidden');
         rules.classList.remove('hidden');
         map.classList.add('hidden');
+        
+        // Imposta il titolo grande della modalità
+        const modeTitle = mode.replace(/_/g, ' ').toUpperCase();
+        document.getElementById('monitor-mode-title').textContent = `OPERATION: ${modeTitle}`;
     }
 
     // 2. Aggiornamento Testo Stato Globale

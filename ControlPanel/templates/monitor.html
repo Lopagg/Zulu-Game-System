@@ -3,7 +3,14 @@
         <button class="back-btn deck-btn" onclick="showView('hub')" style="margin-bottom: 10px;">[ < RETURN TO HUB ]</button>
         <span class="monitor-label">STATUS: <span style="color:var(--sop-primary)">GLOBAL TELEMETRY</span></span>
     </div>
+    
+    <!-- Modalità Attiva (Mostrata Grande in Alto) -->
+    <div style="text-align: center; margin-bottom: 15px;">
+        <h2 id="monitor-mode-title" style="color: var(--sop-text); letter-spacing: 4px; font-size: 24px; text-shadow: 0 0 10px rgba(255,255,255,0.2);">AWAITING MISSION DATA...</h2>
+    </div>
+
     <div class="grid-dashboard">
+        <!-- RIGA 1: Timer e Operatori -->
         <div class="widget sop-card widget-timer">
             <div class="widget-header">MATCH TIMER</div>
             <div class="widget-body">
@@ -32,6 +39,7 @@
             </div>
         </div>
         
+        <!-- RIGA 2: Tactical Feed Centrale -->
         <div id="widget-sd-tactical" class="widget sop-card widget-tactical hidden">
             <div id="tactical-panel-title" class="widget-header">TACTICAL FEED</div>
             <div class="widget-body tactical-body">
@@ -62,6 +70,7 @@
             </div>
         </div>
         
+        <!-- RIGA 2 (Lato Destro): Regole e Mission Intel -->
         <div id="widget-sd-rules" class="widget sop-card widget-rules hidden">
             <div class="widget-header">MISSION INTEL // RULES</div>
             <div class="widget-body rules-body">

@@ -201,16 +201,31 @@ body {
 .setup-input:focus, .tactical-select:focus { border-color: var(--sop-primary); box-shadow: 0 0 10px rgba(0, 255, 204, 0.2); background: rgba(0, 255, 204, 0.05); color: var(--sop-primary); }
 .tactical-select option { background-color: var(--sop-bg); color: var(--sop-text); padding: 10px; }
 
-/* --- MONITOR DASHBOARD (Ribilanciata) --- */
+.setup-params-group { background: rgba(0, 255, 204, 0.02); border: 1px solid var(--sop-dim); border-left: 3px solid var(--sop-primary); padding: 25px; margin-bottom: 20px; }
+.setup-params-group h3 { font-size: 20px; letter-spacing: 2px; text-shadow: 0 0 5px rgba(0, 255, 204, 0.3); }
+.row-inputs { display: flex; gap: 20px; }
+
+/* --- SETUP ROSTER SUMMARY --- */
+.setup-roster-summary {
+    display: flex; justify-content: space-around; align-items: center;
+    background: rgba(0, 0, 0, 0.4); border: 1px solid var(--sop-dim);
+    padding: 15px; margin-bottom: 25px; border-radius: 4px;
+}
+.setup-roster-team { text-align: center; width: 45%; }
+.setup-roster-label { font-size: 14px; color: #888; letter-spacing: 2px; font-weight: bold; }
+.setup-roster-count { font-size: 36px; font-weight: bold; margin-top: 5px; font-family: 'Share Tech Mono', monospace; text-shadow: 0 0 10px currentColor; }
+.setup-roster-alpha { color: var(--sop-alert); }
+.setup-roster-bravo { color: #55ff55; }
+
+/* --- MONITOR DASHBOARD (Proporzioni Corrette) --- */
 .monitor-controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding: 0 5px; }
 .monitor-label { float: right; font-size: 13px; letter-spacing: 1px; color: #888; margin-top: 5px; }
 
 .grid-dashboard {
     display: grid; 
-    /* Diamo più spazio orizzontale al feed tattico centrale */
+    /* Diamo il giusto spazio al Tactical Feed mantenendo le proporzioni */
     grid-template-columns: 1fr 380px; 
-    grid-template-rows: auto minmax(0, 1fr);
-    gap: 20px; height: calc(100% - 55px);
+    gap: 20px;
 }
 
 .widget { background: rgba(0, 0, 0, 0.3); border: 1px solid var(--sop-dim); display: flex; flex-direction: column; overflow: hidden; }
@@ -222,9 +237,9 @@ body {
 .widget-tactical, .widget-map { grid-column: 1 / 2; grid-row: 2 / 3; }
 .widget-rules    { grid-column: 2 / 3; grid-row: 2 / 3; }
 
-#global-timer-display { font-size: 6.5rem; color: var(--sop-primary); text-shadow: 0 0 15px rgba(0, 255, 255, 0.4); line-height: 1; }
+#global-timer-display { font-size: 6.5rem; color: var(--sop-primary); text-shadow: 0 0 15px rgba(0, 255, 255, 0.4); line-height: 1; margin: 15px 0;}
 
-/* TACTICAL FEED (Più leggibile per S&D) */
+/* TACTICAL FEED */
 .tactical-body { flex-direction: column; justify-content: space-evenly; width: 100%; height: 100%; }
 .bomb-status-box { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--sop-dim); padding-bottom: 15px; width: 100%; font-size: 45px; font-weight: bold; letter-spacing: 4px; color: var(--sop-text); }
 .detonation-title { font-size: 28px !important; color: #aaa; letter-spacing: 5px; margin: 20px 0 15px 0; text-align: center; width: 100%; display: block; }
@@ -234,7 +249,7 @@ body {
     border: 3px solid var(--sop-alert); border-radius: 8px; margin: 0 auto; padding: 10px 20px; width: 90%; 
 }
 
-/* Barre Progresso (Risolto il problema dello schiacciamento) */
+/* Barre Progresso */
 .progress-section { margin-top: 30px; width: 100%; padding: 0 20px; }
 .prog-group { margin-bottom: 25px; }
 .prog-label { font-size: 20px; color: #aaa; display: block; width: 100%; text-align: left; margin-bottom: 10px; letter-spacing: 3px; font-weight: bold; }
