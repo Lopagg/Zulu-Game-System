@@ -1,6 +1,6 @@
 import { showView, logSystem, updateDeviceList, updateClock, activeInspectorId } from './ui_core.js';
 import { resetMonitorLayout, updateUniversalFeed, renderRules } from './game_monitor.js';
-import { renderArenaRoster, renderDatabase, populateProfileModal, getCurrentProfileUid } from './roster_manager.js';
+import { renderArenaRoster, renderDatabase, populateProfileModal, getCurrentProfileUid, globalPlayersDB } from './roster_manager.js';
 
 const socket = io();
 let currentDevices = [];
@@ -126,7 +126,7 @@ socket.on('factions_update', (factions) => {
     logSystem(`FAZIONI SETTATE: ${factions.ALPHA} / ${factions.BRAVO}`);
     
     renderArenaRoster(arenaRoster, socket);
-    if (globalPlayersDB && globalPlayersDB.length > 0) {
+    if (typeof globalPlayersDB !== 'undefined' && globalPlayersDB.length > 0) {
         renderDatabase(globalPlayersDB, socket, arenaRoster);
     }
     
