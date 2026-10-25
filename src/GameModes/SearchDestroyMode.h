@@ -145,6 +145,9 @@ private:
     void triggerDefuse();
 
     unsigned long _lastTelemetryTime;
+
+    String _pendingServerEvent;         // L'evento da martellare in QoS
+    unsigned long _lastServerRetryTime; // Timer del retry
     
 };
 

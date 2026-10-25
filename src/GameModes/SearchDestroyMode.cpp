@@ -32,7 +32,9 @@ SearchDestroyMode::SearchDestroyMode(HardwareManager* hardware, NetworkManager* 
       _bombIsActive(false),
       _isServerAuthoritative(false),
       _lastTelemetryTime(0),
-      _endGameStatus("") {
+      _endGameStatus(""),
+      _pendingServerEvent(""),
+      _lastServerRetryTime(0) {
 }
 
 /**
@@ -308,8 +310,17 @@ void SearchDestroyMode::handleBooleanEditInput(char key, bool btn1, bool btn2) {
  */
 void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_was_pressed, bool btn2_is_pressed, bool btn2_was_pressed) {
     
-    // Lo stato di attesa server ignora l'input finché non arriva FORCE_WIN
-    if (_currentState == ModeState::IN_GAME_WAITING_SERVER) return;
+    // --- QoS APPLICATIVO: Retry Loop per eventi critici ---
+    if (_currentState == ModeState::IN_GAME_WAITING_SERVER) {
+        if (millis() - _lastServerRetryTime > 2000) {
+            _lastServerRetryTime = millis();
+            JsonDocument doc;
+            doc["event"] = _pendingServerEvent;
+            _network->sendEvent("MATCH_EVENT", doc);
+            Serial.println("--- RETRY: Re-invio MATCH_EVENT al server ---");
+        }
+        return; // Finché aspetta, ignora tutti gli altri input
+    }
 
     // GESTIONE TIMER GLOBALE PARTITA ---
     if (_gameIsActive && !_isServerAuthoritative) {
@@ -395,10 +406,11 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
                     _hardware->setStripColor(255, 0, 0); _hardware->playTone(400, 100);
                 }
                 
-                // ORA delega al server la decisione finale
-                JsonDocument doc;
-                doc["event"] = "BOMB_EXPLODED";
-                _network->sendEvent("MATCH_EVENT", doc);
+                // --- PREPARA IL QoS APPLICATIVO ---
+                _pendingServerEvent = "BOMB_EXPLODED";
+                _lastServerRetryTime = 0; // Forza l'invio immediato al prossimo loop
+                _currentState = ModeState::IN_GAME_WAITING_SERVER;
+                // ----------------------------------
                 
                 _hardware->printLcd(0, 2, "Attesa Arbitro...");
                 _hardware->playToneAsync(150, 3000); // Il fischio di sottofondo continua mentre aspettiamo
@@ -674,10 +686,11 @@ void SearchDestroyMode::triggerDefuse() {
         _hardware->playTone(1800, 80); 
         _hardware->playTone(2200, 200);
         
-        // ORA delega al server la decisione finale
-        JsonDocument doc;
-        doc["event"] = "BOMB_DEFUSED";
-        _network->sendEvent("MATCH_EVENT", doc);
+        // --- PREPARA IL QoS APPLICATIVO ---
+        _pendingServerEvent = "BOMB_DEFUSED";
+        _lastServerRetryTime = 0; // Forza l'invio immediato
+        _currentState = ModeState::IN_GAME_WAITING_SERVER;
+        // ----------------------------------
         
         _hardware->printLcd(0, 2, "Attesa Arbitro... ");
         _currentState = ModeState::IN_GAME_WAITING_SERVER;

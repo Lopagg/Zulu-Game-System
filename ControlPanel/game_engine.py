@@ -129,7 +129,7 @@ def on_mqtt_connect(client, userdata, flags, rc):
     client.subscribe("zulu/telemetry/#")
 
 def on_mqtt_message(client, userdata, msg):
-    global mission_ready_flag # <-- AGGIUNTO per permettere l'avvio dal Kiosk
+    global mission_ready_flag 
     if not socketio: return
     try:
         payload_str = msg.payload.decode('utf-8')
@@ -150,8 +150,6 @@ def on_mqtt_message(client, userdata, msg):
                     if cmd_str == "GAME_START":
                         with mission_control.lock:
                             if mission_ready_flag and not mission_control.active_mission:
-                                # Il Kiosk non sa i parametri esatti, ma il server li ha memorizzati.
-                                # Recuperiamo l'ultimo target_id e la durata impostata dall'admin
                                 target = mission_control.target_id
                                 mode = mission_control.mode
                                 dur = int(mission_control.global_duration / 60) if mission_control.global_duration > 0 else 15
@@ -161,16 +159,15 @@ def on_mqtt_message(client, userdata, msg):
                                     mission_control.active_mission = True
                                     mission_control.state = "ACTIVE" if mode == 'tdm' else "PREPARING"
                                     
-                                    # Invio dei comandi fisici di START all'hardware e al web
                                     if mode == 'tdm':
                                         doc = { "id": "SERVER-TDM", "type": "MODE_ENTER", "payload": {"mode": "TEAM_DEATHMATCH"} }
                                         socketio.emit('esp_event', {"parsed_data": doc})
                                         trigger_siren("SIREN_LONG")
                                     else:
                                         cmd_start = "START_SD_GAME" if mode == 'sd' else "START_DOM_GAME"
-                                        mqtt_client.publish(f"zulu/cmd/{target}", json.dumps({"cmd": cmd_start}))
+                                        mqtt_client.publish(f"zulu/cmd/{target}", json.dumps({"cmd": cmd_start}), qos=1)
                                         
-                                    socketio.emit('mission_start_success') # Sblocca anche l'interfaccia web
+                                    socketio.emit('mission_start_success') 
                     
                     # 2. Se il Kiosk preme STOP
                     elif cmd_str == "FORCE_END_GAME":
@@ -185,10 +182,8 @@ def on_mqtt_message(client, userdata, msg):
                                     socketio.emit('esp_event', {"parsed_data": doc})
                                     trigger_siren("SIREN_LONG")
                                 else:
-                                    # Se è un nodo hardware, inoltriamo il FORCE_END_GAME nativo
-                                    mqtt_client.publish(f"zulu/cmd/{mission_control.target_id}", json.dumps({"cmd": "FORCE_END_GAME"}))
+                                    mqtt_client.publish(f"zulu/cmd/{mission_control.target_id}", json.dumps({"cmd": "FORCE_END_GAME"}), qos=1)
 
-                    # Mantieni la vecchia logica per il web monitor
                     socketio.emit('kiosk_hardware_cmd', {'cmd': cmd_str})
                 return
             # ----------------------------------------------------
@@ -204,7 +199,7 @@ def on_mqtt_message(client, userdata, msg):
                         socketio.emit('roster_update', db_manager.get_full_roster())
                     else:
                         reply_action = "WAIT_ASSIGN"
-                mqtt_client.publish(f"zulu/cmd/{device_id}", json.dumps({"cmd": "KIOSK_REPLY", "action": reply_action}))
+                mqtt_client.publish(f"zulu/cmd/{device_id}", json.dumps({"cmd": "KIOSK_REPLY", "action": reply_action}), qos=1)
 
             elif msg_type == 'TAG_ASSIGN':
                 if payload.get('uid') and payload.get('team'):
@@ -220,8 +215,6 @@ def on_mqtt_message(client, userdata, msg):
                 if mission_control.active_mission and device_id == mission_control.target_id:
                     logger.info(f"[DISASTER RECOVERY] Il nodo {device_id} è nel Main Menu. Forzo il ripristino...")
                     
-                    # Se la missione era in pausa per offline, la rimettiamo in stato PREPARING 
-                    # in attesa che il RAT risponda con MODE_ENTER
                     if mission_control.state == "PAUSED_OFFLINE":
                         mission_control.state = "PREPARING"
                     
@@ -237,7 +230,8 @@ def on_mqtt_message(client, userdata, msg):
                         "global_time_left": mission_control.global_time_left
                     }
                     try:
-                        mqtt_client.publish(f"zulu/cmd/{device_id}", json.dumps(resume_payload))
+                        mqtt_client.publish(f"zulu/cmd/{device_id}", json.dumps(resume_payload), qos=1)
+                        logger.info(f"[DISASTER RECOVERY] Inviato RESUME_MISSION a {device_id}")
                     except Exception as e:
                         logger.error(f"[DISASTER RECOVERY ERROR] {e}")
             
@@ -260,14 +254,12 @@ def on_mqtt_message(client, userdata, msg):
                     cmd_to_send = None
                     
                     if event_name == 'BOMB_EXPLODED':
-                        # Se la bomba esplode, vince la fazione Attaccante
                         cmd_to_send = {"cmd": "FORCE_WIN", "winner": mission_control.sd_attacker_team, "reason": "BOMBA ESPLOSA!"}
                     elif event_name == 'BOMB_DEFUSED':
-                        # Se la bomba viene disinnescata, vince la fazione Difensore
                         cmd_to_send = {"cmd": "FORCE_WIN", "winner": mission_control.sd_defender_team, "reason": "BOMBA DISINNESCATA!"}
                     
                     if cmd_to_send:
-                        try: mqtt_client.publish(f"zulu/cmd/{mission_control.target_id}", json.dumps(cmd_to_send))
+                        try: mqtt_client.publish(f"zulu/cmd/{mission_control.target_id}", json.dumps(cmd_to_send), qos=1)
                         except Exception as e: logger.error(f"[MQTT ERROR] Impossibile inviare verdetto: {e}")
 
             # AGGIORNA LA WEB UI
@@ -277,8 +269,6 @@ def on_mqtt_message(client, userdata, msg):
                           if msg_type == 'SD_UPDATE' and mission_control.state not in ['T WINS', 'CT WINS', 'ALPHA WINS', 'BRAVO WINS', 'DRAW', 'STOPPED']:
                               parsed['payload']['game_time'] = mission_control.global_time_left
                               
-                              # UI MAPPING: Il Web Monitor si aspetta 'T WINS' o 'CT WINS', 
-                              # quindi traduciamo temporaneamente ALPHA/BRAVO WINS prima di inviare al socket
                               if parsed['payload']['state'] == f"{mission_control.sd_attacker_team} WINS":
                                   parsed['payload']['state'] = 'T WINS'
                               elif parsed['payload']['state'] == f"{mission_control.sd_defender_team} WINS":
@@ -292,7 +282,6 @@ def on_mqtt_message(client, userdata, msg):
                     new_state = payload.get('state')
                     old_state = registry.devices[device_id].get("game_state", "STANDBY")
                     
-                    # Normalizzazione S&D per le statistiche: Il RAT manda 'T WINS', lo convertiamo nella fazione reale
                     if mission_control.mode == 'sd':
                         if new_state == 'T WINS': new_state = f"{mission_control.sd_attacker_team} WINS"
                         elif new_state == 'CT WINS': new_state = f"{mission_control.sd_defender_team} WINS"
@@ -350,7 +339,7 @@ def background_cleanup(fetch_weather_callback):
                 "all_players_in": (players_out == 0) and (len(players) > 0), 
                 "game_running": game_is_running, 
                 "game_ready": mission_ready_flag,
-                "mission_state": mission_control.state  # <-- NUOVO: Passiamo lo stato ufficiale!
+                "mission_state": mission_control.state  
             }))
         except: pass
 
@@ -366,7 +355,6 @@ def background_cleanup(fetch_weather_callback):
                     match_ends = False
                     end_state_str = "ACTIVE"
                     
-                    # 1. Regola: Tempo Scaduto
                     if mission_control.global_time_left <= 0:
                         match_ends = True
                         if mission_control.mode == 'tdm':
@@ -374,10 +362,8 @@ def background_cleanup(fetch_weather_callback):
                             elif bravo_in > alpha_in: end_state_str = "BRAVO WINS"
                             else: end_state_str = "DRAW"
                         elif mission_control.mode == 'sd':
-                            # Se il tempo scade in S&D, vince il Difensore
                             end_state_str = f"{mission_control.sd_defender_team} WINS"
                             
-                    # 2. Regola: Eliminazione totale squadra
                     if alpha_in == 0 and bravo_in > 0:
                         match_ends = True
                         end_state_str = "BRAVO WINS"
@@ -401,7 +387,6 @@ def background_cleanup(fetch_weather_callback):
                         elif mission_control.mode == 'sd':
                             cmd_to_send = None
                             
-                            # Logica Asimmetrica S&D: Confrontiamo il vincitore con l'attaccante designato
                             if end_state_str == f"{mission_control.sd_attacker_team} WINS":
                                 cmd_to_send = {"cmd": "FORCE_WIN", "winner": mission_control.sd_attacker_team, "reason": "SQUADRA ELIMINATA!"}
                             elif end_state_str == f"{mission_control.sd_defender_team} WINS":
@@ -411,7 +396,7 @@ def background_cleanup(fetch_weather_callback):
                                 cmd_to_send = {"cmd": "FORCE_END_GAME"}
                             
                             if cmd_to_send:
-                                try: mqtt_client.publish(f"zulu/cmd/{mission_control.target_id}", json.dumps(cmd_to_send))
+                                try: mqtt_client.publish(f"zulu/cmd/{mission_control.target_id}", json.dumps(cmd_to_send), qos=1)
                                 except: pass
                                 
                 elif mission_control.mode == 'tdm' and mission_control.state != "STANDBY":

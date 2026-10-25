@@ -253,7 +253,7 @@ def handle_request_mission_start(data):
         cmd_str = "START_SD_GAME" if mode == 'sd' else "START_DOM_GAME"
         cmd_payload = {"cmd": cmd_str}
         try:
-            game_engine.mqtt_client.publish(f"zulu/cmd/{target_id}", json.dumps(cmd_payload))
+            game_engine.mqtt_client.publish(f"zulu/cmd/{target_id}", json.dumps(cmd_payload), qos=1)
             logger.info(f"[MQTT TX] Comando Start Mission inviato a {target_id} -> {cmd_payload}")
         except Exception as e:
             logger.error(f"[ERROR MQTT START] {e}")
@@ -324,15 +324,15 @@ def handle_socket_command(data):
             else:
                 if "CLOSE_MISSION" in cmd_str:
                     game_engine.mission_control.end_mission()
-                    game_engine.mqtt_client.publish(f"zulu/cmd/{real_target}", json.dumps({"cmd": "RETURN_TO_MENU"}))
+                    game_engine.mqtt_client.publish(f"zulu/cmd/{real_target}", json.dumps({"cmd": "RETURN_TO_MENU"}), qos=1)
                     socketio.emit('esp_event', {"parsed_data": {"id": real_target, "type": "MODE_EXIT"}})
                 else:
                     # Invia comandi normali (FORCE_END_GAME) al RAT
-                    game_engine.mqtt_client.publish(f"zulu/cmd/{real_target}", cmd_str)
+                    game_engine.mqtt_client.publish(f"zulu/cmd/{real_target}", cmd_str, qos=1)
             return
 
         # COMANDI DIRETTI (es. Setup e Parametri iniziali inviati dalla UI)
-        game_engine.mqtt_client.publish(f"zulu/cmd/{target_id}", cmd_str)
+        game_engine.mqtt_client.publish(f"zulu/cmd/{target_id}", cmd_str, qos=1)
              
     except Exception as e:
         logger.error(f"[ERROR SOCKET CMD] {e}")
