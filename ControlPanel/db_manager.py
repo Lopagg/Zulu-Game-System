@@ -25,7 +25,26 @@ def init_db():
 
         c.execute('''CREATE TABLE IF NOT EXISTS active_roster
                      (uid TEXT PRIMARY KEY, team TEXT, status TEXT)''')
+                     
+        # --- NUOVO: Tabella per la persistenza degli Alias dei Dispositivi ---
+        c.execute('''CREATE TABLE IF NOT EXISTS device_aliases
+                     (device_id TEXT PRIMARY KEY, alias TEXT)''')
+                     
         conn.commit()
+
+# --- NUOVE FUNZIONI PER ALIAS DISPOSITIVI ---
+def get_device_alias(device_id):
+    with sqlite3.connect(DB_PATH) as conn:
+        c = conn.cursor()
+        c.execute("SELECT alias FROM device_aliases WHERE device_id = ?", (device_id,))
+        row = c.fetchone()
+        return row[0] if row else None
+
+def set_device_alias(device_id, alias):
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("INSERT OR REPLACE INTO device_aliases (device_id, alias) VALUES (?, ?)", (device_id, alias))
+        conn.commit()
+# --------------------------------------------
 
 def get_full_roster():
     """Restituisce il dizionario del roster attivo combinato con i nomi dei giocatori."""

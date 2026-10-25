@@ -15,10 +15,10 @@ class BaseGameMode:
         self.mc = mission_ctrl
 
     def tick(self, alpha_in, bravo_in):
-        pass # Sovrascritto dalle classi figlie
+        pass 
 
     def handle_event(self, device_id, payload):
-        pass # Sovrascritto dalle classi figlie
+        pass 
 
 
 class TDMEngine(BaseGameMode):
@@ -129,7 +129,7 @@ class MissionController:
         self.sd_defender_team = "BRAVO"
         self.sd_settings = {}
         
-        self.active_engine = None # Riferimento al motore di gioco attualmente attivo
+        self.active_engine = None 
 
     def start_mission(self, mode, target_id, duration=15):
         with self.lock:
@@ -140,7 +140,6 @@ class MissionController:
             self.global_duration = duration * 60
             self.global_time_left = duration * 60
             
-            # Assegnazione del Motore di Gioco Modulare
             if mode == 'sd':
                 self.sd_attacker_team = self.sd_settings.get('attacker', "ALPHA")
                 self.sd_defender_team = "BRAVO" if self.sd_attacker_team == "ALPHA" else "ALPHA"
@@ -148,7 +147,7 @@ class MissionController:
             elif mode == 'tdm':
                 self.active_engine = TDMEngine(self)
             else:
-                self.active_engine = BaseGameMode(self) # Fallback generico
+                self.active_engine = BaseGameMode(self) 
                 
             logger.info(f"[MISSION CONTROL] Missione Globale Avviata: {mode.upper()} su {target_id}")
 
@@ -183,9 +182,13 @@ class DeviceRegistry:
         now = time.time()
         changed = False
         with self.lock:
+            # --- MODIFICA: Legge l'alias dal DB al primo inserimento in RAM ---
             if device_id not in self.devices:
-                self.devices[device_id] = { "id": device_id, "name": device_id, "type": "NODE", "mode": "BOOTING...", "version": "Unknown", "ip": "MQTT", "game_state": "STANDBY", "telemetry": {} }
+                saved_alias = db_manager.get_device_alias(device_id)
+                display_name = saved_alias if saved_alias else device_id
+                self.devices[device_id] = { "id": device_id, "name": display_name, "type": "NODE", "mode": "BOOTING...", "version": "Unknown", "ip": "MQTT", "game_state": "STANDBY", "telemetry": {} }
                 changed = True 
+            
             self.devices[device_id]["last_seen"] = now
             self.devices[device_id]["status"] = "ONLINE"
             if version and self.devices[device_id].get("version") != version:
@@ -215,6 +218,8 @@ class DeviceRegistry:
         with self.lock:
             if device_id in self.devices:
                 self.devices[device_id]["name"] = new_name
+                # --- MODIFICA: Salva l'alias nel DB in modo permanente ---
+                db_manager.set_device_alias(device_id, new_name)
                 return True
         return False
 
