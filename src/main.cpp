@@ -38,6 +38,12 @@ MusicRoomMode* musicRoomMode = nullptr;
 // Variabile globale per il nuovo Terminal Mode (Thin Client)
 TerminalMode* terminalMode = nullptr;
 
+// --- VARIABILI GLOBALI FAZIONI ---
+String team1_name = "ALPHA";
+String team2_name = "BRAVO";
+uint8_t team1_color[3] = {255, 0, 0}; // Default Red
+uint8_t team2_color[3] = {0, 255, 0}; // Default Green
+
 void displayMainMenu();
 void handleNetworkCommands();
 
@@ -500,6 +506,17 @@ void handleNetworkCommands() {
         domSettings->saveParameters();
         if (currentAppState == APP_STATE_DOMINATION_MODE && domMode) domMode->sendSettingsStatus();
         Serial.println("Impostazioni Dominio aggiornate da remoto.");
+    }
+    // --- 3. RICEZIONE IMPOSTAZIONI FAZIONI (NOMI E COLORI) ---
+    else if (cmdStr == "SET_FACTIONS") {
+        Serial.println("Ricevuta nuova configurazione Fazioni!");
+        if (doc["t1"].is<const char*>()) team1_name = doc["t1"].as<String>();
+        if (doc["t2"].is<const char*>()) team2_name = doc["t2"].as<String>();
+
+        JsonArray t1_c = doc["t1_c"];
+        JsonArray t2_c = doc["t2_c"];
+        if (t1_c.size() == 3) { team1_color[0] = t1_c[0]; team1_color[1] = t1_c[1]; team1_color[2] = t1_c[2]; }
+        if (t2_c.size() == 3) { team2_color[0] = t2_c[0]; team2_color[1] = t2_c[1]; team2_color[2] = t2_c[2]; }
     }
     else if (cmdStr == "START_SD_GAME") {
         Serial.println("Avvio partita C&D da remoto (V1)");
