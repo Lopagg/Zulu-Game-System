@@ -30,18 +30,6 @@ class MissionController:
             
             logger.info(f"[MISSION CONTROL] Missione Globale Avviata dal Server: {mode.upper()} su {target_id}")
 
-    def adopt_mission(self, mode, target_id):
-        """Se una partita viene avviata localmente sul RAT e il server è libero, la adotta."""
-        with self.lock:
-            if not self.active_mission:
-                self.active_mission = True
-                self.mode = mode
-                self.target_id = target_id
-                self.state = "ACTIVE"
-                logger.info(f"[MISSION CONTROL] Missione Locale Auto-Adottata: {mode.upper()} su {target_id}")
-                return True
-            return False
-
     def end_mission(self, final_state="STOPPED"):
         with self.lock:
             if not self.active_mission: return False
@@ -170,17 +158,12 @@ def on_mqtt_message(client, userdata, msg):
             version = payload.get('version') or parsed.get('version')
             has_changed = registry.update_device(device_id, msg_type, mode, version)
             
-            # 1. AUTO-ADOZIONE: Se un RAT entra in modalità o avvia un countdown e noi siamo fermi, agganciamolo!
-            if msg_type in ['MODE_ENTER', 'COUNTDOWN_UPDATE', 'SD_UPDATE', 'DOM_UPDATE']:
-                if mode and not mission_control.active_mission:
-                    mission_control.adopt_mission(mode, device_id)
-            
-            # 2. RILASCIO MISSIONE: Se il RAT esce esplicitamente al menu, scolleghiamo il server
+            # 1. RILASCIO MISSIONE: Se il RAT esce esplicitamente al menu, scolleghiamo il server
             if msg_type == 'MODE_EXIT':
                 if mission_control.is_authorized_node(device_id):
                     mission_control.end_mission()
 
-            # 3. INVIO DATI ALLA UI (Solo per la missione attualmente adottata/avviata)
+            # 2. INVIO DATI ALLA UI (Solo se la missione è stata autorizzata/avviata dal server)
             if msg_type not in ['TAG_SCANNED', 'TAG_ASSIGN']:
                 if msg_type in ['SD_UPDATE', 'DOM_UPDATE', 'COUNTDOWN_UPDATE', 'TIME_UPDATE', 'MODE_ENTER', 'MODE_EXIT', 'SETTINGS_UPDATE']:
                      if mission_control.is_authorized_node(device_id):

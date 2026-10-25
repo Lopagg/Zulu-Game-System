@@ -407,6 +407,19 @@ void handleNetworkCommands() {
         if (currentAppState == APP_STATE_SEARCH_DESTROY_MODE && sdMode) sdMode->forceWin(winner);
         else if (currentAppState == APP_STATE_DOMINATION_MODE && domMode) domMode->forceWin(winner);
     } 
+    // --- NUOVO COMANDO: Ritorno forzato al menu principale ---
+    else if (cmdStr == "RETURN_TO_MENU") {
+        Serial.println("Comando remoto ricevuto: Ritorno forzato al menu principale.");
+        if (currentAppState == APP_STATE_SEARCH_DESTROY_MODE && sdMode) {
+            sdMode->exit();
+        } else if (currentAppState == APP_STATE_DOMINATION_MODE && domMode) {
+            domMode->exit();
+        }
+        // Forza lo stato globale dell'applicazione al menu principale
+        currentAppState = APP_STATE_MAIN_MENU;
+        displayMainMenu();
+    }
+    // ---------------------------------------------------------
     else if (cmdStr == "GET_STATUS") {
         if (currentAppState == APP_STATE_SEARCH_DESTROY_MODE && sdMode) {
             sdMode->sendSettingsStatus();

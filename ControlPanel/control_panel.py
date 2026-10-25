@@ -312,12 +312,14 @@ def handle_socket_command(data):
         # 1. Invia il comando originale (es. FORCE_END_GAME)
         game_engine.mqtt_client.publish(f"zulu/cmd/{target_id}", cmd_str)
         
-        # 2. Se è uno stop forzato, chiudiamo tutto istantaneamente
+        # 2. Se stiamo inviando uno stop, il server chiude la sessione internamente
         if "FORCE_END_GAME" in cmd_str:
              game_engine.mission_control.end_mission()
-             # Costringe il RAT a uscire e ricaricarsi (se supportato dal firmware)
-             game_engine.mqtt_client.publish(f"zulu/cmd/{target_id}", json.dumps({"cmd": "RESET"}))
-             # Finta un MODE_EXIT per pulire istantaneamente la pagina web
+             
+             # Il server dice attivamente al RAT di chiudere la schermata e tornare al menu
+             game_engine.mqtt_client.publish(f"zulu/cmd/{target_id}", json.dumps({"cmd": "RETURN_TO_MENU"}))
+             
+             # Finta un MODE_EXIT locale per pulire istantaneamente la pagina web
              socketio.emit('esp_event', {"parsed_data": {"id": target_id, "type": "MODE_EXIT"}})
              
     except Exception as e:
