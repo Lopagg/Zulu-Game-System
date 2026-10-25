@@ -4,7 +4,6 @@ import json
 import time
 from threading import Lock
 import db_manager
-from sd_master import SearchDestroyMaster # <-- IMPORT DEL NUOVO MOTORE
 
 logger = logging.getLogger(__name__)
 
@@ -16,11 +15,10 @@ class MissionController:
         self.target_id = None
         self.state = "STANDBY"
         
-        self.tdm_duration = 0
-        self.tdm_time_left = 0
-        
-        self.sd_settings = {}       # Memorizza i parametri S&D dal Web
-        self.logic_handler = None   # Ospiterà il motore della partita attiva
+        # Variabili di timer globale, valide ora sia per TDM che per S&D (e in futuro per DOM)
+        self.global_duration = 0
+        self.global_time_left = 0
+        self.sd_settings = {}
 
     def start_mission(self, mode, target_id, duration=15):
         with self.lock:
@@ -29,12 +27,9 @@ class MissionController:
             self.target_id = target_id
             self.state = "ACTIVE" if mode == 'tdm' else "PREPARING"
             
-            if mode == 'tdm':
-                self.tdm_duration = duration * 60
-                self.tdm_time_left = duration * 60
-            elif mode == 'sd':
-                # Il Server prende il controllo esclusivo del Cerca e Distruggi
-                self.logic_handler = SearchDestroyMaster(mqtt_client, target_id, self.sd_settings)
+            # Imposta il timer globale di partita
+            self.global_duration = duration * 60
+            self.global_time_left = duration * 60
                 
             logger.info(f"[MISSION CONTROL] Missione Globale Avviata: {mode.upper()} su {target_id}")
 
@@ -43,7 +38,6 @@ class MissionController:
             if not self.active_mission: return False
             self.active_mission = False
             self.state = "STANDBY"
-            self.logic_handler = None # Libera la memoria
             logger.info(f"[MISSION CONTROL] Missione Chiusa Definitivamente.")
             return True
 
@@ -167,22 +161,23 @@ def on_mqtt_message(client, userdata, msg):
             version = payload.get('version') or parsed.get('version')
             has_changed = registry.update_device(device_id, msg_type, mode, version)
             
+            # Rilascio sessione al MODE_EXIT
             if msg_type == 'MODE_EXIT':
                 if mission_control.is_authorized_node(device_id):
                     mission_control.end_mission()
 
-            # DEVIA GLI INPUT FISICI AL MOTORE PYTHON (Se V2)
-            if msg_type == 'TERMINAL_INPUT':
-                if mission_control.is_authorized_node(device_id) and mission_control.logic_handler:
-                     mission_control.logic_handler.handle_input(payload)
-
-            # AGGIORNA LA WEB UI
+            # AGGIORNA LA WEB UI (Filtro Server-Authoritative)
             if msg_type not in ['TAG_SCANNED', 'TAG_ASSIGN', 'TERMINAL_INPUT']:
                 if msg_type in ['SD_UPDATE', 'DOM_UPDATE', 'COUNTDOWN_UPDATE', 'TIME_UPDATE', 'MODE_ENTER', 'MODE_EXIT', 'SETTINGS_UPDATE', 'TDM_UPDATE']:
                      if mission_control.is_authorized_node(device_id):
+                          # Se è un SD_UPDATE e la partita è attiva, sovrascriviamo il tempo 
+                          # globale col calcolo puro del server per evitare discrepanze.
+                          if msg_type == 'SD_UPDATE' and mission_control.state not in ['T WINS', 'CT WINS', 'DRAW', 'STOPPED']:
+                              parsed['payload']['game_time'] = mission_control.global_time_left
+                              
                           socketio.emit('esp_event', {"parsed_data": parsed})
 
-            # --- ARBITRO LOCALE (Per Nodi V1 non Thin Client) ---
+            # --- ARBITRO DEL GAME OVER ---
             if msg_type in ['SD_UPDATE', 'DOM_UPDATE']:
                 if mission_control.is_authorized_node(device_id):
                     new_state = payload.get('state')
@@ -191,7 +186,10 @@ def on_mqtt_message(client, userdata, msg):
                         if new_state in ['T WINS', 'CT WINS', 'ALPHA WINS', 'BRAVO WINS', 'DRAW', 'STOPPED'] and old_state not in ['T WINS', 'CT WINS', 'ALPHA WINS', 'BRAVO WINS', 'DRAW', 'STOPPED']:
                             trigger_siren("SIREN_LONG")
                             db_manager.process_match_stats(new_state)
+                            mission_control.state = new_state # Passiamo in stato di review
                         if old_state == 'PREPARING' and new_state in ['ACTIVE', 'SAFE', 'NEUTRAL']:
+                            # La partita S&D è ufficialmente entrata nella fase attiva, passiamo a ACTIVE per avviare il timer
+                            mission_control.state = "ACTIVE"
                             trigger_siren("SIREN_LONG")
                             
             elif msg_type == 'MODE_ENTER':
@@ -239,45 +237,68 @@ def background_cleanup(fetch_weather_callback):
         with mission_control.lock:
             if mission_control.active_mission:
                 
-                # ESECUZIONE DEL MOTORE S&D
-                if mission_control.logic_handler:
-                    mission_control.logic_handler.tick()
-
-                # ESECUZIONE DEL MOTORE TDM
-                if mission_control.mode == 'tdm':
-                    if mission_control.state == "ACTIVE":
-                        if mission_control.tdm_time_left > 0: mission_control.tdm_time_left -= 1
+                # --- ARBITRO DEL TEMPO GLOBALE (Vale sia per TDM che per S&D) ---
+                if mission_control.state == "ACTIVE":
+                    if mission_control.global_time_left > 0:
+                        mission_control.global_time_left -= 1
+                    
+                    match_ends = False
+                    end_state_str = "ACTIVE"
+                    
+                    # 1. Regola: Tempo Scaduto
+                    if mission_control.global_time_left <= 0:
+                        match_ends = True
+                        if mission_control.mode == 'tdm':
+                            if alpha_in > bravo_in: end_state_str = "ALPHA WINS"
+                            elif bravo_in > alpha_in: end_state_str = "BRAVO WINS"
+                            else: end_state_str = "DRAW"
+                        elif mission_control.mode == 'sd':
+                            end_state_str = "CT WINS" # I CT vincono per scadenza tempo
+                            
+                    # 2. Regola: Eliminazione totale squadra
+                    if alpha_in == 0 and bravo_in > 0:
+                        match_ends = True
+                        end_state_str = "BRAVO WINS"
+                    elif bravo_in == 0 and alpha_in > 0:
+                        match_ends = True
+                        end_state_str = "ALPHA WINS"
+                    elif alpha_in == 0 and bravo_in == 0:
+                        match_ends = True
+                        end_state_str = "DRAW" if mission_control.mode == 'tdm' else "STOPPED"
+                    
+                    if match_ends:
+                        mission_control.state = end_state_str
                         
-                        state_str = "ACTIVE"
-                        tdm_ends = False
-                        if alpha_in == 0 and bravo_in > 0: state_str = "BRAVO WINS"; tdm_ends = True
-                        elif bravo_in == 0 and alpha_in > 0: state_str = "ALPHA WINS"; tdm_ends = True
-                        elif alpha_in == 0 and bravo_in == 0: state_str = "DRAW"; tdm_ends = True
-                        elif mission_control.tdm_time_left <= 0:
-                            if alpha_in > bravo_in: state_str = "ALPHA WINS"
-                            elif bravo_in > alpha_in: state_str = "BRAVO WINS"
-                            else: state_str = "DRAW"
-                            tdm_ends = True
-                        
-                        if tdm_ends:
+                        if mission_control.mode == 'tdm':
                             trigger_siren("SIREN_LONG") 
-                            db_manager.process_match_stats(state_str)
-                            mission_control.state = state_str 
-                        
-                        doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": mission_control.state, "game_time": mission_control.tdm_time_left } }
-                        if socketio: socketio.emit('esp_event', {"parsed_data": doc})
-                        mqtt_client.publish("zulu/telemetry/SERVER-TDM", json.dumps(doc))
-
-        with mission_control.lock:
-            if mission_control.active_mission and mission_control.target_id:
-                if alpha_in == 0 or bravo_in == 0:
-                    cmd_to_send = None
-                    if alpha_in == 0 and bravo_in > 0: cmd_to_send = {"cmd": "FORCE_WIN", "winner": "BRAVO"}
-                    elif bravo_in == 0 and alpha_in > 0: cmd_to_send = {"cmd": "FORCE_WIN", "winner": "ALPHA"}
-                    elif alpha_in == 0 and bravo_in == 0: cmd_to_send = {"cmd": "FORCE_END_GAME"}
-                    if cmd_to_send:
-                        try: mqtt_client.publish(f"zulu/cmd/{mission_control.target_id}", json.dumps(cmd_to_send))
-                        except: pass
+                            db_manager.process_match_stats(end_state_str)
+                            doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": end_state_str, "game_time": mission_control.global_time_left } }
+                            if socketio: socketio.emit('esp_event', {"parsed_data": doc})
+                            mqtt_client.publish("zulu/telemetry/SERVER-TDM", json.dumps(doc))
+                        elif mission_control.mode == 'sd':
+                            # Se scade il tempo del S&D, il server costringe la valigetta a chiudere il round
+                            # La valigetta mostrerà l'animazione corretta e poi trasmetterà a sua volta la conferma 
+                            # (che farà triggerare le sirene e processare le statistiche nel blocco 'SD_UPDATE' sopra).
+                            cmd_to_send = None
+                            if "BRAVO WINS" in end_state_str:
+                                cmd_to_send = {"cmd": "FORCE_WIN", "winner": "BRAVO"}
+                            elif "ALPHA WINS" in end_state_str:
+                                cmd_to_send = {"cmd": "FORCE_WIN", "winner": "ALPHA"}
+                            elif "CT WINS" in end_state_str:
+                                # Qui forziamo la vittoria CT passando BRAVO (che è hardcoded come CT nella V1)
+                                cmd_to_send = {"cmd": "FORCE_WIN", "winner": "BRAVO"}
+                            else:
+                                cmd_to_send = {"cmd": "FORCE_END_GAME"}
+                            
+                            if cmd_to_send:
+                                try: mqtt_client.publish(f"zulu/cmd/{mission_control.target_id}", json.dumps(cmd_to_send))
+                                except: pass
+                                
+                # Continua a inviare TDM update finché siamo nello stato "review" a fine round (per tenere l'UI informata)
+                elif mission_control.mode == 'tdm' and mission_control.state != "STANDBY":
+                     doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": mission_control.state, "game_time": 0 } }
+                     if socketio: socketio.emit('esp_event', {"parsed_data": doc})
+                     mqtt_client.publish("zulu/telemetry/SERVER-TDM", json.dumps(doc))
 
         if tick_counter % 2 == 0:
             active_devs, rem = registry.get_active_devices()
