@@ -98,6 +98,10 @@ def setup_database():
 def index():
     return render_template('index.html', username=current_user.name)
 
+@app.route('/tv')
+def tv_dashboard():
+    return render_template('tv.html')
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':

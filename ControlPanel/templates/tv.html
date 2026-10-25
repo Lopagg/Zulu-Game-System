@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ARENA TV // PHILANTHROPY</title>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --panel-bg: rgba(20, 25, 35, 0.85);
+            --primary: #00ffcc;
+            --alert: #ff3333;
+            --text: #e0e0e0;
+        }
+        body {
+            margin: 0; padding: 20px;
+            background-color: var(--bg-color); color: var(--text);
+            font-family: 'Share Tech Mono', monospace;
+            overflow-x: hidden;
+        }
+        .tv-header {
+            display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 2px solid var(--primary); padding-bottom: 10px; margin-bottom: 20px;
+        }
+        .tv-title { font-size: 2rem; color: var(--primary); letter-spacing: 3px; margin: 0; text-shadow: 0 0 10px var(--primary); }
+        .tv-status { font-size: 1.5rem; }
+        
+        /* SISTEMA DI GRIGLIA CUSTOMIZZABILE */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 20px;
+            align-items: start;
+        }
+        .widget {
+            background: var(--panel-bg);
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        .widget-header {
+            font-size: 1.2rem; color: #888; border-bottom: 1px solid #333;
+            padding-bottom: 10px; margin-bottom: 15px; letter-spacing: 1px;
+        }
+        
+        /* EDIT MODE STYLES */
+        body.edit-mode .widget { border: 2px dashed var(--primary); }
+        .edit-controls {
+            display: none; position: absolute; top: -15px; right: 10px;
+            background: #000; padding: 5px; border: 1px solid var(--primary); border-radius: 5px; z-index: 10;
+        }
+        body.edit-mode .edit-controls { display: flex; gap: 5px; }
+        .edit-btn { background: #333; color: white; border: none; cursor: pointer; padding: 5px 10px; font-family: monospace; }
+        .edit-btn:hover { background: var(--primary); color: #000; }
+        
+        /* TOOLBAR NASCOSTA */
+        #hidden-widgets-bar { display: none; margin-bottom: 20px; padding: 10px; background: #222; border: 1px solid #555; }
+        body.edit-mode #hidden-widgets-bar { display: block; }
+
+        /* WIDGET SPECIFICI */
+        .huge-text { font-size: 6rem; text-align: center; margin: 0; color: var(--primary); }
+        .faction-box { display: flex; justify-content: space-between; font-size: 2rem; margin: 15px 0; }
+        .score { font-weight: bold; font-size: 3rem; }
+        .score.alpha { color: var(--alert); }
+        .score.bravo { color: #55ff55; }
+        
+        ul.rule-list { list-style: none; padding: 0; font-size: 1.5rem; line-height: 2; }
+        ul.rule-list span.val { color: var(--primary); float: right; font-weight: bold; }
+        
+        .progress-track { background: #222; height: 30px; width: 100%; border-radius: 15px; overflow: hidden; margin-top: 10px; }
+        .progress-fill { height: 100%; width: 0%; transition: width 0.3s linear; }
+        .fill-red { background: var(--alert); box-shadow: 0 0 10px var(--alert); }
+        .fill-green { background: #55ff55; box-shadow: 0 0 10px #55ff55; }
+
+        .config-toggle { position: fixed; bottom: 20px; right: 20px; opacity: 0.1; cursor: pointer; font-size: 2rem; transition: opacity 0.3s; }
+        .config-toggle:hover { opacity: 1; }
+    </style>
+</head>
+<body>
+
+    <div class="tv-header">
+        <h1 class="tv-title">ARENA LIVE STATUS</h1>
+        <div class="tv-status" id="main-status">AWAITING MISSION...</div>
+    </div>
+
+    <div id="hidden-widgets-bar">
+        <strong>Pannelli Nascosti:</strong> <span id="hidden-list">Nessuno</span>
+    </div>
+
+    <div class="dashboard-grid" id="tv-grid">
+        
+        <!-- WIDGET: TIMER GLOBALE -->
+        <div class="widget" id="w-timer" data-default-span="12" data-default-order="1">
+            <div class="edit-controls">
+                <button class="edit-btn" onclick="modWidget('w-timer', 'shrink')">-</button>
+                <button class="edit-btn" onclick="modWidget('w-timer', 'grow')">+</button>
+                <button class="edit-btn" onclick="modWidget('w-timer', 'hide')">NASCONDI</button>
+                <button class="edit-btn" onclick="modWidget('w-timer', 'up')">SU</button>
+                <button class="edit-btn" onclick="modWidget('w-timer', 'down')">GIU</button>
+            </div>
+            <div class="widget-header">GLOBAL MATCH TIMER</div>
+            <p class="huge-text" id="tv-timer">--:--</p>
+        </div>
+
+        <!-- WIDGET: OPERATORI / FAZIONI -->
+        <div class="widget" id="w-factions" data-default-span="6" data-default-order="2">
+            <div class="edit-controls">
+                <button class="edit-btn" onclick="modWidget('w-factions', 'shrink')">-</button>
+                <button class="edit-btn" onclick="modWidget('w-factions', 'grow')">+</button>
+                <button class="edit-btn" onclick="modWidget('w-factions', 'hide')">NASCONDI</button>
+                <button class="edit-btn" onclick="modWidget('w-factions', 'up')">SU</button>
+                <button class="edit-btn" onclick="modWidget('w-factions', 'down')">GIU</button>
+            </div>
+            <div class="widget-header">ACTIVE OPERATORS</div>
+            <div class="faction-box"><span>TEAM ALPHA</span><span class="score alpha" id="tv-op-alpha">0</span></div>
+            <div class="faction-box"><span>TEAM BRAVO</span><span class="score bravo" id="tv-op-bravo">0</span></div>
+        </div>
+
+        <!-- WIDGET: FEED TATTICO -->
+        <div class="widget" id="w-tactical" data-default-span="6" data-default-order="3">
+            <div class="edit-controls">
+                <button class="edit-btn" onclick="modWidget('w-tactical', 'shrink')">-</button>
+                <button class="edit-btn" onclick="modWidget('w-tactical', 'grow')">+</button>
+                <button class="edit-btn" onclick="modWidget('w-tactical', 'hide')">NASCONDI</button>
+                <button class="edit-btn" onclick="modWidget('w-tactical', 'up')">SU</button>
+                <button class="edit-btn" onclick="modWidget('w-tactical', 'down')">GIU</button>
+            </div>
+            <div class="widget-header">TACTICAL EVENTS</div>
+            <p style="font-size: 1.5rem; text-align:center;">STATUS: <span id="tv-tac-status" style="font-weight:bold; color:var(--primary);">SAFE</span></p>
+            <p style="font-size: 2rem; text-align:center; color: var(--alert); display: none;" id="tv-bomb-timer-box">BOMB: <span id="tv-bomb-timer">00:00</span></p>
+            
+            <div id="tv-progress-container" style="display: none;">
+                <div style="margin-top:20px;">
+                    <span>ALPHA ACTION</span>
+                    <div class="progress-track"><div class="progress-fill fill-red" id="tv-prog-1"></div></div>
+                </div>
+                <div style="margin-top:20px;">
+                    <span>BRAVO ACTION</span>
+                    <div class="progress-track"><div class="progress-fill fill-green" id="tv-prog-2"></div></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- WIDGET: REGOLE -->
+        <div class="widget" id="w-rules" data-default-span="12" data-default-order="4">
+            <div class="edit-controls">
+                <button class="edit-btn" onclick="modWidget('w-rules', 'shrink')">-</button>
+                <button class="edit-btn" onclick="modWidget('w-rules', 'grow')">+</button>
+                <button class="edit-btn" onclick="modWidget('w-rules', 'hide')">NASCONDI</button>
+                <button class="edit-btn" onclick="modWidget('w-rules', 'up')">SU</button>
+                <button class="edit-btn" onclick="modWidget('w-rules', 'down')">GIU</button>
+            </div>
+            <div class="widget-header">MISSION RULES</div>
+            <ul class="rule-list" id="tv-rules-list">
+                <li>IN ATTESA DI DATI...</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Tasto Nascosto per configurare il Layout -->
+    <div class="config-toggle" onclick="document.body.classList.toggle('edit-mode')">⚙️</div>
+
+    <script>
+        // === GESTIONE LAYOUT CUSTOM (Salvataggio su TV) ===
+        const widgets = ['w-timer', 'w-factions', 'w-tactical', 'w-rules'];
+        
+        function loadLayout() {
+            widgets.forEach(id => {
+                const el = document.getElementById(id);
+                const saved = JSON.parse(localStorage.getItem('tv_layout_' + id));
+                if (saved) {
+                    el.style.gridColumn = `span ${saved.span}`;
+                    el.style.order = saved.order;
+                    el.style.display = saved.hidden ? 'none' : 'block';
+                } else {
+                    el.style.gridColumn = `span ${el.dataset.defaultSpan}`;
+                    el.style.order = el.dataset.defaultOrder;
+                }
+            });
+            updateHiddenList();
+        }
+
+        window.modWidget = function(id, action) {
+            const el = document.getElementById(id);
+            let span = parseInt(el.style.gridColumn.replace('span ', '')) || parseInt(el.dataset.defaultSpan);
+            let order = parseInt(el.style.order) || parseInt(el.dataset.defaultOrder);
+            let hidden = el.style.display === 'none';
+
+            if (action === 'grow' && span < 12) span += 2;
+            if (action === 'shrink' && span > 2) span -= 2;
+            if (action === 'up') order -= 1;
+            if (action === 'down') order += 1;
+            if (action === 'hide') hidden = true;
+            if (action === 'show') hidden = false;
+
+            el.style.gridColumn = `span ${span}`;
+            el.style.order = order;
+            el.style.display = hidden ? 'none' : 'block';
+
+            localStorage.setItem('tv_layout_' + id, JSON.stringify({ span, order, hidden }));
+            updateHiddenList();
+        };
+
+        function updateHiddenList() {
+            const bar = document.getElementById('hidden-list');
+            bar.innerHTML = '';
+            let hiddenAny = false;
+            widgets.forEach(id => {
+                if (document.getElementById(id).style.display === 'none') {
+                    hiddenAny = true;
+                    bar.innerHTML += `<button class="edit-btn" onclick="modWidget('${id}', 'show')">Mostra ${id}</button> `;
+                }
+            });
+            if (!hiddenAny) bar.innerHTML = 'Nessuno';
+        }
+
+        loadLayout(); // Applica il layout salvato all'avvio
+
+        // === LOGICA SOCKET (Solo Lettura) ===
+        const socket = io();
+        
+        socket.on('connect', () => document.getElementById('main-status').style.color = 'var(--primary)');
+        socket.on('disconnect', () => {
+            document.getElementById('main-status').textContent = 'CONNECTION LOST';
+            document.getElementById('main-status').style.color = 'var(--alert)';
+        });
+
+        socket.on('roster_update', (roster) => {
+            let a = 0, b = 0;
+            Object.values(roster).forEach(op => {
+                if (op.status === 'IN') {
+                    if (op.team === 'ALPHA') a++;
+                    if (op.team === 'BRAVO') b++;
+                }
+            });
+            document.getElementById('tv-op-alpha').textContent = a;
+            document.getElementById('tv-op-bravo').textContent = b;
+        });
+
+        const formatTime = (seconds) => {
+            if(seconds === undefined) return "--:--";
+            const m = Math.floor(seconds / 60);
+            const s = seconds % 60;
+            return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        };
+
+        socket.on('esp_event', (msg) => {
+            const raw = msg.parsed_data || {};
+            const type = raw.type || 'UNKNOWN';
+            const payload = raw.payload || {};
+            
+            if (type === 'MODE_EXIT') {
+                document.getElementById('main-status').textContent = "STANDBY";
+                document.getElementById('tv-timer').textContent = "--:--";
+                return;
+            }
+
+            if (payload.mode) document.getElementById('main-status').textContent = payload.mode.replace('_', ' ').toUpperCase();
+            if (payload.game_time !== undefined) document.getElementById('tv-timer').textContent = formatTime(payload.game_time);
+
+            if (payload.state) {
+                const s = payload.state;
+                const statusEl = document.getElementById('tv-tac-status');
+                statusEl.textContent = s;
+                if (s.includes('DEFUS') || s.includes('WINS')) statusEl.style.color = '#55ff55';
+                else if (s.includes('ARM') || s.includes('EXPLOD')) statusEl.style.color = 'var(--alert)';
+                else statusEl.style.color = 'var(--primary)';
+            }
+
+            if (type === 'SD_UPDATE' || payload.mode === 'SEARCH_AND_DESTROY') {
+                document.getElementById('tv-progress-container').style.display = 'block';
+                document.getElementById('tv-bomb-timer-box').style.display = (payload.bomb_time !== undefined && payload.bomb_time > 0) ? 'block' : 'none';
+                if (payload.bomb_time !== undefined) document.getElementById('tv-bomb-timer').textContent = formatTime(payload.bomb_time);
+                
+                if (payload.arm_prog !== undefined) document.getElementById('tv-prog-1').style.width = payload.arm_prog + '%';
+                if (payload.def_prog !== undefined) document.getElementById('tv-prog-2').style.width = payload.def_prog + '%';
+            } else {
+                document.getElementById('tv-progress-container').style.display = 'none';
+                document.getElementById('tv-bomb-timer-box').style.display = 'none';
+            }
+
+            if (type === 'SETTINGS_UPDATE' || (type === 'MODE_ENTER' && payload.bomb_time)) {
+                const list = document.getElementById('tv-rules-list');
+                list.innerHTML = '';
+                const keysMap = { 'bomb_time': 'TIMER BOMBA (Min)', 'game_duration': 'DURATA (Min)', 'use_arm_pin': 'PIN ATTACCANTI', 'use_defuse_pin': 'PIN DIFENSORI' };
+                for (const [key, val] of Object.entries(payload)) {
+                    if (keysMap[key]) {
+                        let v = val; if(v===true) v="SI"; if(v===false) v="NO";
+                        list.innerHTML += `<li>${keysMap[key]} <span class="val">${v}</span></li>`;
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>
