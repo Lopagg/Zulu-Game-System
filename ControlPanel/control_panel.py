@@ -286,12 +286,9 @@ def handle_socket_command(data):
                 game_engine.mission_ready_flag = True
                 return
             elif cmd_val == "SET_TDM_SETTINGS":
-                # La configurazione TDM ora la aggiorniamo prima di fare start, 
-                # ma se arriva qui per qualche motivo non rompiamo niente.
                 return
             elif cmd_val in ["FORCE_END_GAME", "FORCE_WIN", "RESET"]:
                 game_engine.mission_ready_flag = False
-                # Chiudiamo forzatamente la missione globale
                 game_engine.mission_control.end_mission(final_state="STOPPED")
 
         if target_id == "SERVER-TDM":
@@ -301,9 +298,7 @@ def handle_socket_command(data):
                     if "ALPHA" in cmd_str: state_str = "ALPHA WINS"
                     elif "BRAVO" in cmd_str: state_str = "BRAVO WINS"
                 
-                # Chiudiamo la missione globale
                 game_engine.mission_control.end_mission(final_state=state_str)
-                
                 doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": state_str, "game_time": 0 } }
                 socketio.emit('esp_event', {"parsed_data": doc})
                 game_engine.trigger_siren("SIREN_LONG")
@@ -314,14 +309,19 @@ def handle_socket_command(data):
             game_engine.mqtt_client.publish("zulu/cmd/broadcast", cmd_str)
             return
 
+        # 1. Invia il comando originale (es. FORCE_END_GAME)
         game_engine.mqtt_client.publish(f"zulu/cmd/{target_id}", cmd_str)
         
-        # SE STIAMO KILANDO IL RAT, CHIUDIAMO ANCHE LA MISSIONE
+        # 2. Se è uno stop forzato, chiudiamo tutto istantaneamente
         if "FORCE_END_GAME" in cmd_str:
-             game_engine.mission_control.end_mission(final_state="STOPPED")
+             game_engine.mission_control.end_mission()
+             # Costringe il RAT a uscire e ricaricarsi (se supportato dal firmware)
+             game_engine.mqtt_client.publish(f"zulu/cmd/{target_id}", json.dumps({"cmd": "RESET"}))
+             # Finta un MODE_EXIT per pulire istantaneamente la pagina web
+             socketio.emit('esp_event', {"parsed_data": {"id": target_id, "type": "MODE_EXIT"}})
              
     except Exception as e:
         logger.error(f"[ERROR SOCKET CMD] {e}")
-        
+
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000, debug=False, allow_unsafe_werkzeug=True)
