@@ -57,7 +57,7 @@ void SearchDestroyMode::enter() {
     _isServerAuthoritative = false;
     _endGameStatus = ""; // Reset vincitore
     displaySubMenu();
-    _hardware->setStripColor(255, 100, 0); // Ripristinato colore menu di base
+    _hardware->setStripColor(255, 100, 0);
     
     // --- MODIFICA QUI ---
     // Inviamo solo il cambio di modalità. 
@@ -87,6 +87,7 @@ void SearchDestroyMode::enterInGame() {
     _gameIsActive = true;
     _bombIsActive = false;
     _isServerAuthoritative = true;
+    _endGameStatus = ""; // <-- Aggiunto reset status per le partite in sequenza
     
     // Opzionale: notifica avvio gioco immediato
     // _network->sendEvent("GAME_START");
@@ -245,7 +246,7 @@ void SearchDestroyMode::handleEditInput(char key, bool btn1, bool btn2) {
     if (btn1) {
         _hardware->playTone(300, 70); _currentState = ModeState::MENU_SETTINGS;
         displaySettingsMenu();
-        _hardware->setStripColor(255, 100, 0); // Ripristinato colore menu di base
+        _hardware->setStripColor(255, 100, 0); 
         return;
     }
     bool displayNeedsUpdate = false;
@@ -336,18 +337,17 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
         long remainingMatchSeconds = totalMatchSeconds - matchElapsed.totalseconds();
 
         if (remainingMatchSeconds <= 0 && _currentState != ModeState::IN_GAME_ENDED && _currentState != ModeState::IN_GAME_DEFUSED) {
-            _endGameStatus = team2_name + " WINS"; // Dinamico
+            _endGameStatus = "CT WINS"; 
             _currentState = ModeState::IN_GAME_ENDED;
             _gameIsActive = false;
             
             _hardware->noTone();
             _hardware->clearLcd();
             _hardware->printLcd(1, 1, "TEMPO SCADUTO!");
-            _hardware->printLcd(0, 2, "Vince " + team2_name + "!"); // Dinamico
+            _hardware->printLcd(0, 2, "Vince " + team2_name + "!"); // Colore Dinamico del nome (CT)
             _hardware->playToneAsync(1000, 1000);
             
-            // Applica il colore del team vincente (CT)
-            _hardware->setStripColor(team2_color[0], team2_color[1], team2_color[2]);
+            _hardware->setStripColor(team2_color[0], team2_color[1], team2_color[2]); // Colore Dinamico CT
             
             sendTelemetry();
             return;
@@ -430,18 +430,18 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
             } else {
 
                 // LOGICA OFFLINE (Vince Subito T)
-                _endGameStatus = team1_name + " WINS"; // Dinamico
+                _endGameStatus = "T WINS"; 
                 _currentState = ModeState::IN_GAME_ENDED;
                 
                 JsonDocument doc;
-                doc["winner"] = "TERRORISTS"; // Può rimanere TERRORISTS per il backend
+                doc["winner"] = "TERRORISTS";
                 doc["reason"] = "TIME_EXPIRED";
                 _network->sendEvent("GAME_END", doc);
 
                 _hardware->noTone();
                 _hardware->clearLcd();
                 _hardware->printLcd(3, 1, "BOMBA ESPLOSA!");
-                _hardware->printLcd(0, 2, "Vince: " + team1_name); // Dinamico
+                _hardware->printLcd(0, 2, "Vince " + team1_name + "!"); // Colore Dinamico del nome (T)
                 _hardware->printOled1("ESCI", 2, 35, 25);
                 _hardware->printOled2("ESCI", 2, 35, 25);
 
@@ -452,9 +452,7 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
                     _hardware->setStripColor(255, 0, 0); _hardware->playTone(400, 100);
                 }
                 
-                // Applica il colore del team vincente
-                _hardware->setStripColor(team1_color[0], team1_color[1], team1_color[2]);
-                
+                _hardware->setStripColor(team1_color[0], team1_color[1], team1_color[2]); // Colore Dinamico T
                 _hardware->playToneAsync(150, 3000);
             }
             sendTelemetry();
@@ -671,7 +669,7 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
             _hardware->printOled1("ESCI", 2, 35, 25);
             _hardware->printOled2("ESCI", 2, 35, 25);
             
-            // Il pulse di vittoria era verde hardcoded, ora facciamo pulsare il colore del team
+            // Effetto vincita con colore CT dinamico
             _hardware->updateBreathingEffect(team2_color[0], team2_color[1], team2_color[2]);
             
             if (btn1_was_pressed || btn2_was_pressed || key != NO_KEY) {
@@ -718,18 +716,17 @@ void SearchDestroyMode::triggerDefuse() {
         doc["reason"] = "BOMB_DEFUSED";
         _network->sendEvent("GAME_END", doc);
 
-        _endGameStatus = team2_name + " WINS"; // Dinamico
+        _endGameStatus = "CT WINS"; 
         _currentState = ModeState::IN_GAME_DEFUSED; 
         
         _hardware->clearLcd(); 
         _hardware->printLcd(1, 1, "BOMBA DISINNESCATA");
-        _hardware->printLcd(0, 2, "Vince: " + team2_name); // Dinamico
+        _hardware->printLcd(0, 2, "Vince " + team2_name + "!"); // Colore Dinamico del nome (CT)
         _hardware->playTone(1500, 80); 
         _hardware->playTone(1800, 80); 
         _hardware->playTone(2200, 100);
         
-        // Applica colore del team vincente
-        _hardware->setStripColor(team2_color[0], team2_color[1], team2_color[2]);
+        _hardware->setStripColor(team2_color[0], team2_color[1], team2_color[2]); // Colore Dinamico CT
     }
     sendTelemetry();
 }
@@ -742,13 +739,9 @@ void SearchDestroyMode::forceWin(String winnerTeam, String reason) {
     }
 
     // La valigetta si adatta al verdetto, indipendentemente dal nome della fazione.
-    // L'unica cosa che le interessa è "È esplosa o è stata disinnescata?"
     bool isAttackerWin = (reason == "BOMBA ESPLOSA!" || (winnerTeam != "" && reason == "SQUADRA ELIMINATA!" && _bombIsActive));
     
-    // Per semplificare: se non è una vittoria esplosiva, è una vittoria del difensore.
-    if (reason == "BOMBA ESPLOSA!" || reason == "SQUADRA ELIMINATA!" && winnerTeam.indexOf("ALPHA") != -1 && reason != "BOMBA DISINNESCATA!") {
-         // Nel dubbio, Alpha è Attaccante locale per questioni di compatibilità offline.
-         // Se il server manda "BOMBA ESPLOSA!", sappiamo che vince l'attaccante.
+    if (reason == "BOMBA ESPLOSA!" || (reason == "SQUADRA ELIMINATA!" && winnerTeam.indexOf("ALPHA") != -1) && reason != "BOMBA DISINNESCATA!") {
          _endGameStatus = "T WINS"; 
          _currentState = ModeState::IN_GAME_ENDED; 
     } else {
@@ -767,24 +760,20 @@ void SearchDestroyMode::forceWin(String winnerTeam, String reason) {
         _hardware->printLcd(1, 1, "SQUADRA ELIMINATA!"); 
     }
     
-    // Mostriamo il nome EFFETTIVO della squadra vincitrice
-    String displayWinner = "Vince: " + winnerTeam;
+    // Identifica e stampa il NOME VERO della squadra vincente
+    String displayWinner = "Vince: " + (winnerTeam.indexOf("ALPHA") != -1 ? team1_name : team2_name);
     _hardware->printLcd(0, 2, displayWinner);
     
     if (_currentState == ModeState::IN_GAME_ENDED) {
-        // Grafica Attaccante
         if (reason != "BOMBA ESPLOSA!") { 
             _hardware->playToneAsync(150, 3000);
-            _hardware->setStripColor(team1_color[0], team1_color[1], team1_color[2]); // Colore Dinamico Team 1
-        } else {
-            _hardware->setStripColor(team1_color[0], team1_color[1], team1_color[2]); // Colore Dinamico Team 1
         }
+        _hardware->setStripColor(team1_color[0], team1_color[1], team1_color[2]); // Colore Dinamico T
     } else {
-        // Grafica Difensore 
         if (reason != "BOMBA DISINNESCATA!") {
             _hardware->playToneAsync(1500, 80); 
         }
-        _hardware->setStripColor(team2_color[0], team2_color[1], team2_color[2]); // Colore Dinamico Team 2
+        _hardware->setStripColor(team2_color[0], team2_color[1], team2_color[2]); // Colore Dinamico CT
     }
 
     sendTelemetry();
@@ -987,7 +976,7 @@ void SearchDestroyMode::forceEndGame() {
 
     _hardware->clearLcd();
     _hardware->printLcd(1, 1, "PARTITA TERMINATA"); 
-    _hardware->printLcd(0, 2, "Vince la squadra CT!");
+    _hardware->printLcd(0, 2, "Vince " + team2_name + "!");
     
     _hardware->playToneAsync(1500, 80); 
 

@@ -128,7 +128,6 @@ class MissionController:
         self.sd_attacker_team = "ALPHA"
         self.sd_defender_team = "BRAVO"
         self.sd_settings = {}
-        
         self.active_engine = None 
 
     def start_mission(self, mode, target_id, duration=15):
@@ -150,6 +149,21 @@ class MissionController:
                 self.active_engine = BaseGameMode(self) 
                 
             logger.info(f"[MISSION CONTROL] Missione Globale Avviata: {mode.upper()} su {target_id}")
+
+        # --- MODIFICA CRITICA: Invia sempre le fazioni aggiornate all'inizio della partita ---
+        if target_id and target_id != "SERVER-TDM":
+            config = db_manager.get_factions_config()
+            def hex_to_rgb(hex_code):
+                hex_code = hex_code.lstrip('#')
+                return tuple(int(hex_code[i:i+2], 16) for i in (0, 2, 4))
+            
+            payload = {
+                "cmd": "SET_FACTIONS",
+                "t1": config['ALPHA']['name'], "t1_c": hex_to_rgb(config['ALPHA']['color']),
+                "t2": config['BRAVO']['name'], "t2_c": hex_to_rgb(config['BRAVO']['color'])
+            }
+            try: mqtt_client.publish(f"zulu/cmd/{target_id}", json.dumps(payload))
+            except: pass
 
     def end_mission(self):
         with self.lock:
@@ -182,7 +196,6 @@ class DeviceRegistry:
         now = time.time()
         changed = False
         with self.lock:
-            # --- MODIFICA: Legge l'alias dal DB al primo inserimento in RAM ---
             if device_id not in self.devices:
                 saved_alias = db_manager.get_device_alias(device_id)
                 display_name = saved_alias if saved_alias else device_id
@@ -218,7 +231,6 @@ class DeviceRegistry:
         with self.lock:
             if device_id in self.devices:
                 self.devices[device_id]["name"] = new_name
-                # --- MODIFICA: Salva l'alias nel DB in modo permanente ---
                 db_manager.set_device_alias(device_id, new_name)
                 return True
         return False
@@ -270,26 +282,26 @@ def on_mqtt_message(client, userdata, msg):
                 cmd_str = payload.get('cmd')
                 if cmd_str: 
                     if cmd_str == "GAME_START":
-                        with mission_control.lock:
-                            if mission_ready_flag and not mission_control.active_mission:
-                                target = mission_control.target_id
-                                mode = mission_control.mode
-                                dur = int(mission_control.global_duration / 60) if mission_control.global_duration > 0 else 15
+                        # --- MODIFICA CRITICA: Usa la funzione start_mission per avviare i motori correttamente! ---
+                        if mission_ready_flag and not mission_control.active_mission:
+                            target = mission_control.target_id
+                            mode = mission_control.mode
+                            dur = int(mission_control.global_duration / 60) if mission_control.global_duration > 0 else 15
+                            
+                            if target and mode:
+                                logger.info(f"[KIOSK OVERRIDE] Avvio Hardware Missione: {mode} su {target}")
                                 
-                                if target and mode:
-                                    logger.info(f"[KIOSK OVERRIDE] Avvio Hardware Missione: {mode} su {target}")
-                                    mission_control.active_mission = True
-                                    mission_control.state = "ACTIVE" if mode == 'tdm' else "PREPARING"
+                                mission_control.start_mission(mode, target, duration=dur)
+                                
+                                if mode == 'tdm':
+                                    doc = { "id": "SERVER-TDM", "type": "MODE_ENTER", "payload": {"mode": "TEAM_DEATHMATCH"} }
+                                    socketio.emit('esp_event', {"parsed_data": doc})
+                                    trigger_siren("SIREN_LONG")
+                                else:
+                                    cmd_start = "START_SD_GAME" if mode == 'sd' else "START_DOM_GAME"
+                                    mqtt_client.publish(f"zulu/cmd/{target}", json.dumps({"cmd": cmd_start}))
                                     
-                                    if mode == 'tdm':
-                                        doc = { "id": "SERVER-TDM", "type": "MODE_ENTER", "payload": {"mode": "TEAM_DEATHMATCH"} }
-                                        socketio.emit('esp_event', {"parsed_data": doc})
-                                        trigger_siren("SIREN_LONG")
-                                    else:
-                                        cmd_start = "START_SD_GAME" if mode == 'sd' else "START_DOM_GAME"
-                                        mqtt_client.publish(f"zulu/cmd/{target}", json.dumps({"cmd": cmd_start}), qos=1)
-                                        
-                                    socketio.emit('mission_start_success') 
+                                socketio.emit('mission_start_success') 
                     
                     elif cmd_str == "FORCE_END_GAME":
                         with mission_control.lock:
