@@ -164,6 +164,7 @@ document.getElementById('btn-transmit-setup').addEventListener('click', () => {
     if (mode === 'sd') {
         commandData = {
             cmd: "SET_SD_SETTINGS",
+            attacker: document.getElementById('sd-attacker-team').value,
             game_duration: parseInt(document.getElementById('sd-game-dur').value),
             bomb_time: parseInt(document.getElementById('sd-bomb-time').value),
             arm_time: parseInt(document.getElementById('sd-arm-time').value),

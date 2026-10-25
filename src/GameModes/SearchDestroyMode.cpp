@@ -382,27 +382,30 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
             _gameIsActive = false; 
 
             if (_isServerAuthoritative) {
-                // COMUNICAZIONE DELEGATA AL SERVER
-                JsonDocument doc;
-                doc["event"] = "BOMB_EXPLODED";
-                _network->sendEvent("MATCH_EVENT", doc);
-                
                 _hardware->noTone();
                 _hardware->clearLcd();
                 _hardware->printLcd(3, 1, "BOMBA ESPLOSA!");
-                _hardware->printLcd(0, 2, "Attesa Arbitro...");
+                _hardware->printLcd(0, 2, "Invio dati...");
                 
-                // Effetto base
+                // FEEDBACK IMMEDIATO LOCALE: Simula lo scoppio visivo prima di contattare il server
                 for(int i=0; i<3; i++) {
                     _hardware->setBrightness(255);
                     _hardware->setStripColor(255, 255, 255); _hardware->playTone(2000, 50);
                     _hardware->setStripColor(255, 100, 0); _hardware->playTone(1000, 80);
                     _hardware->setStripColor(255, 0, 0); _hardware->playTone(400, 100);
                 }
-                _hardware->playToneAsync(150, 3000);
+                
+                // ORA delega al server la decisione finale
+                JsonDocument doc;
+                doc["event"] = "BOMB_EXPLODED";
+                _network->sendEvent("MATCH_EVENT", doc);
+                
+                _hardware->printLcd(0, 2, "Attesa Arbitro...");
+                _hardware->playToneAsync(150, 3000); // Il fischio di sottofondo continua mentre aspettiamo
                 
                 _currentState = ModeState::IN_GAME_WAITING_SERVER;
             } else {
+
                 // LOGICA OFFLINE (Vince Subito T)
                 _endGameStatus = "T WINS";
                 _currentState = ModeState::IN_GAME_ENDED;
@@ -662,15 +665,21 @@ void SearchDestroyMode::triggerDefuse() {
     _gameIsActive = false; 
 
     if (_isServerAuthoritative) {
+        _hardware->clearLcd();
+        _hardware->printLcd(1, 1, "BOMBA DISINNESCATA");
+        _hardware->printLcd(0, 2, "Invio dati...");
+        
+        // FEEDBACK IMMEDIATO LOCALE: Suona la vittoria prima di chiamare il server
+        _hardware->playTone(1500, 80); 
+        _hardware->playTone(1800, 80); 
+        _hardware->playTone(2200, 200);
+        
+        // ORA delega al server la decisione finale
         JsonDocument doc;
         doc["event"] = "BOMB_DEFUSED";
         _network->sendEvent("MATCH_EVENT", doc);
         
-        _hardware->clearLcd();
-        _hardware->printLcd(1, 1, "BOMBA DISINNESCATA");
-        _hardware->printLcd(0, 2, "Attesa Arbitro...");
-        _hardware->playToneAsync(1500, 80);
-        
+        _hardware->printLcd(0, 2, "Attesa Arbitro... ");
         _currentState = ModeState::IN_GAME_WAITING_SERVER;
     } else {
         JsonDocument doc;
@@ -698,44 +707,47 @@ void SearchDestroyMode::forceWin(String winnerTeam, String reason) {
         return;
     }
 
-    JsonDocument doc;
-    if (winnerTeam == "ALPHA") {
-        doc["winner"] = "TERRORISTS";
-        _endGameStatus = "T WINS"; 
-        _currentState = ModeState::IN_GAME_ENDED; 
-    } else {
-        doc["winner"] = "COUNTER_TERRORISTS";
-        _endGameStatus = "CT WINS"; 
-        _currentState = ModeState::IN_GAME_DEFUSED; 
-    }
+    // La valigetta si adatta al verdetto, indipendentemente dal nome della fazione.
+    // L'unica cosa che le interessa è "È esplosa o è stata disinnescata?"
+    bool isAttackerWin = (reason == "BOMBA ESPLOSA!" || (winnerTeam != "" && reason == "SQUADRA ELIMINATA!" && _bombIsActive));
     
-    doc["reason"] = "TEAM_ELIMINATED";
-    _network->sendEvent("GAME_END", doc);
+    // Per semplificare: se non è una vittoria esplosiva, è una vittoria del difensore.
+    if (reason == "BOMBA ESPLOSA!" || reason == "SQUADRA ELIMINATA!" && winnerTeam.indexOf("ALPHA") != -1 && reason != "BOMBA DISINNESCATA!") {
+         // Nel dubbio, Alpha è Attaccante locale per questioni di compatibilità offline.
+         // Se il server manda "BOMBA ESPLOSA!", sappiamo che vince l'attaccante.
+         _endGameStatus = "T WINS"; 
+         _currentState = ModeState::IN_GAME_ENDED; 
+    } else {
+         _endGameStatus = "CT WINS"; 
+         _currentState = ModeState::IN_GAME_DEFUSED; 
+    }
     
     _gameIsActive = false; 
     _bombIsActive = false; 
     _hardware->noTone();
-
     _hardware->clearLcd();
     
-    // Stampa la ragione fornita dal Server (es. "BOMBA ESPLOSA!", "TEMPO SCADUTO!")
     if (reason.length() > 0) {
         _hardware->printLcd(0, 1, reason);
     } else {
         _hardware->printLcd(1, 1, "SQUADRA ELIMINATA!"); 
     }
     
-    if (winnerTeam == "ALPHA") {
-        _hardware->printLcd(0, 2, "Vince la squadra T!");
+    // Mostriamo il nome EFFETTIVO della squadra vincitrice
+    String displayWinner = "Vince: " + winnerTeam;
+    _hardware->printLcd(0, 2, displayWinner);
+    
+    if (_currentState == ModeState::IN_GAME_ENDED) {
+        // Grafica Attaccante (Rosso / Esplosione)
         if (reason != "BOMBA ESPLOSA!") { 
-            // Se non è già esplosa, simula lo scoppio visivo
             _hardware->playToneAsync(150, 3000);
             _hardware->setStripColor(255, 0, 0);
         }
     } else {
-        _hardware->printLcd(0, 2, "Vince la squadra CT!");
+        // Grafica Difensore (Verde / Disinnesco)
         if (reason != "BOMBA DISINNESCATA!") {
             _hardware->playToneAsync(1500, 80); 
+            _hardware->setStripColor(0, 255, 0); // Verde solido
         }
     }
 

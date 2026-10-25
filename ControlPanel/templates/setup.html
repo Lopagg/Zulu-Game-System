@@ -48,6 +48,15 @@
 
             <div id="setup-sd-params" class="setup-params-group">
                 <h3 style="color: var(--sop-primary); margin-bottom: 20px;">S&D PARAMETERS</h3>
+                <div class="row-inputs" style="margin-bottom: 20px;">
+                    <div style="flex:1;">
+                        <label class="setup-label" style="color: var(--sop-alert);">ATTACKING TEAM (PLANTS BOMB)</label>
+                        <select id="sd-attacker-team" class="tactical-select">
+                            <option value="ALPHA">TEAM ALPHA</option>
+                            <option value="BRAVO">TEAM BRAVO</option>
+                        </select>
+                    </div>
+                </div>
                 <div class="row-inputs" style="margin-bottom: 15px;">
                     <div style="flex:1;"><label class="setup-label">GAME DURATION (MIN)</label><input type="number" id="sd-game-dur" class="setup-input" value="20" min="1"></div>
                     <div style="flex:1;"><label class="setup-label">BOMB TIMER (MIN)</label><input type="number" id="sd-bomb-time" class="setup-input" value="10" min="1"></div>

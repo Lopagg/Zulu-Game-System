@@ -16,6 +16,11 @@ class MissionController:
         self.state = "STANDBY"
         self.global_duration = 0
         self.global_time_left = 0
+        
+        # Variabili di fazione per il Cerca e Distruggi
+        self.sd_attacker_team = "ALPHA"  # Fazione che pianta la bomba
+        self.sd_defender_team = "BRAVO"  # Fazione che disinnesca
+        
         self.sd_settings = {}
 
     def start_mission(self, mode, target_id, duration=15):
@@ -26,6 +31,12 @@ class MissionController:
             self.state = "ACTIVE" if mode == 'tdm' else "PREPARING"
             self.global_duration = duration * 60
             self.global_time_left = duration * 60
+            
+            # Se la modalità è S&D, memorizziamo le fazioni dal dizionario sd_settings
+            if mode == 'sd':
+                self.sd_attacker_team = self.sd_settings.get('attacker', "ALPHA")
+                self.sd_defender_team = "BRAVO" if self.sd_attacker_team == "ALPHA" else "ALPHA"
+                
             logger.info(f"[MISSION CONTROL] Missione Globale Avviata: {mode.upper()} su {target_id}")
 
     def end_mission(self):
@@ -160,17 +171,18 @@ def on_mqtt_message(client, userdata, msg):
                 if mission_control.is_authorized_node(device_id):
                     mission_control.end_mission()
 
-            # --- NUOVO: INTERCETTAZIONE EVENTI NEUTRALI DAL RAT ---
+            # --- ARBITRO EVENTI NEUTRALI S&D (Gestione Dinamica delle Fazioni) ---
             if msg_type == 'MATCH_EVENT':
-                if mission_control.is_authorized_node(device_id):
+                if mission_control.is_authorized_node(device_id) and mission_control.mode == 'sd':
                     event_name = payload.get('event')
                     cmd_to_send = None
+                    
                     if event_name == 'BOMB_EXPLODED':
-                        # La bomba è esplosa. Il Server decreta la vittoria (Attualmente fissa su Alpha/T)
-                        cmd_to_send = {"cmd": "FORCE_WIN", "winner": "ALPHA", "reason": "BOMBA ESPLOSA!"}
+                        # Se la bomba esplode, vince la fazione Attaccante
+                        cmd_to_send = {"cmd": "FORCE_WIN", "winner": mission_control.sd_attacker_team, "reason": "BOMBA ESPLOSA!"}
                     elif event_name == 'BOMB_DEFUSED':
-                        # La bomba è disinnescata. Il Server decreta la vittoria (Attualmente fissa su Bravo/CT)
-                        cmd_to_send = {"cmd": "FORCE_WIN", "winner": "BRAVO", "reason": "BOMBA DISINNESCATA!"}
+                        # Se la bomba viene disinnescata, vince la fazione Difensore
+                        cmd_to_send = {"cmd": "FORCE_WIN", "winner": mission_control.sd_defender_team, "reason": "BOMBA DISINNESCATA!"}
                     
                     if cmd_to_send:
                         try: mqtt_client.publish(f"zulu/cmd/{mission_control.target_id}", json.dumps(cmd_to_send))
@@ -180,8 +192,16 @@ def on_mqtt_message(client, userdata, msg):
             if msg_type not in ['TAG_SCANNED', 'TAG_ASSIGN', 'TERMINAL_INPUT', 'MATCH_EVENT']:
                 if msg_type in ['SD_UPDATE', 'DOM_UPDATE', 'COUNTDOWN_UPDATE', 'TIME_UPDATE', 'MODE_ENTER', 'MODE_EXIT', 'SETTINGS_UPDATE', 'TDM_UPDATE']:
                      if mission_control.is_authorized_node(device_id):
-                          if msg_type == 'SD_UPDATE' and mission_control.state not in ['T WINS', 'CT WINS', 'DRAW', 'STOPPED']:
+                          if msg_type == 'SD_UPDATE' and mission_control.state not in ['T WINS', 'CT WINS', 'ALPHA WINS', 'BRAVO WINS', 'DRAW', 'STOPPED']:
                               parsed['payload']['game_time'] = mission_control.global_time_left
+                              
+                              # UI MAPPING: Il Web Monitor si aspetta 'T WINS' o 'CT WINS', 
+                              # quindi traduciamo temporaneamente ALPHA/BRAVO WINS prima di inviare al socket
+                              if parsed['payload']['state'] == f"{mission_control.sd_attacker_team} WINS":
+                                  parsed['payload']['state'] = 'T WINS'
+                              elif parsed['payload']['state'] == f"{mission_control.sd_defender_team} WINS":
+                                  parsed['payload']['state'] = 'CT WINS'
+                                  
                           socketio.emit('esp_event', {"parsed_data": parsed})
 
             # --- ARBITRO DEL GAME OVER (Statistiche e Suoni) ---
@@ -189,6 +209,12 @@ def on_mqtt_message(client, userdata, msg):
                 if mission_control.is_authorized_node(device_id):
                     new_state = payload.get('state')
                     old_state = registry.devices[device_id].get("game_state", "STANDBY")
+                    
+                    # Normalizzazione S&D per le statistiche: Il RAT manda 'T WINS', lo convertiamo nella fazione reale
+                    if mission_control.mode == 'sd':
+                        if new_state == 'T WINS': new_state = f"{mission_control.sd_attacker_team} WINS"
+                        elif new_state == 'CT WINS': new_state = f"{mission_control.sd_defender_team} WINS"
+
                     if registry.update_telemetry(device_id, payload, new_state):
                         if new_state in ['T WINS', 'CT WINS', 'ALPHA WINS', 'BRAVO WINS', 'DRAW', 'STOPPED'] and old_state not in ['T WINS', 'CT WINS', 'ALPHA WINS', 'BRAVO WINS', 'DRAW', 'STOPPED']:
                             trigger_siren("SIREN_LONG")
@@ -251,6 +277,7 @@ def background_cleanup(fetch_weather_callback):
                     match_ends = False
                     end_state_str = "ACTIVE"
                     
+                    # 1. Regola: Tempo Scaduto
                     if mission_control.global_time_left <= 0:
                         match_ends = True
                         if mission_control.mode == 'tdm':
@@ -258,8 +285,10 @@ def background_cleanup(fetch_weather_callback):
                             elif bravo_in > alpha_in: end_state_str = "BRAVO WINS"
                             else: end_state_str = "DRAW"
                         elif mission_control.mode == 'sd':
-                            end_state_str = "CT WINS"
+                            # Se il tempo scade in S&D, vince il Difensore
+                            end_state_str = f"{mission_control.sd_defender_team} WINS"
                             
+                    # 2. Regola: Eliminazione totale squadra
                     if alpha_in == 0 and bravo_in > 0:
                         match_ends = True
                         end_state_str = "BRAVO WINS"
@@ -279,14 +308,16 @@ def background_cleanup(fetch_weather_callback):
                             doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": end_state_str, "game_time": mission_control.global_time_left } }
                             if socketio: socketio.emit('esp_event', {"parsed_data": doc})
                             mqtt_client.publish("zulu/telemetry/SERVER-TDM", json.dumps(doc))
+                        
                         elif mission_control.mode == 'sd':
                             cmd_to_send = None
-                            if "BRAVO WINS" in end_state_str or "CT WINS" in end_state_str:
-                                # Inviamo la reason esplicita alla valigetta
-                                reason_str = "SQUADRA ELIMINATA!" if "BRAVO WINS" in end_state_str else "TEMPO SCADUTO!"
-                                cmd_to_send = {"cmd": "FORCE_WIN", "winner": "BRAVO", "reason": reason_str}
-                            elif "ALPHA WINS" in end_state_str:
-                                cmd_to_send = {"cmd": "FORCE_WIN", "winner": "ALPHA", "reason": "SQUADRA ELIMINATA!"}
+                            
+                            # Logica Asimmetrica S&D: Confrontiamo il vincitore con l'attaccante designato
+                            if end_state_str == f"{mission_control.sd_attacker_team} WINS":
+                                cmd_to_send = {"cmd": "FORCE_WIN", "winner": mission_control.sd_attacker_team, "reason": "SQUADRA ELIMINATA!"}
+                            elif end_state_str == f"{mission_control.sd_defender_team} WINS":
+                                reason_str = "SQUADRA ELIMINATA!" if (alpha_in == 0 or bravo_in == 0) else "TEMPO SCADUTO!"
+                                cmd_to_send = {"cmd": "FORCE_WIN", "winner": mission_control.sd_defender_team, "reason": reason_str}
                             else:
                                 cmd_to_send = {"cmd": "FORCE_END_GAME"}
                             
