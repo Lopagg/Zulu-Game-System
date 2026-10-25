@@ -42,6 +42,7 @@ public:
     void enterInGame();
     void forceEndGame();
     void forceWin(String winnerTeam, String reason = "");
+    void resumeGame(JsonDocument& doc);
 
     void sendTelemetry();
 
@@ -145,7 +146,6 @@ private:
 
     unsigned long _lastTelemetryTime;
     
-
 };
 
 #endif // SEARCH_DESTROY_MODE_H

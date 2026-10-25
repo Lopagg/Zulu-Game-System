@@ -517,4 +517,13 @@ void handleNetworkCommands() {
         currentAppState = APP_STATE_DOMINATION_MODE;
         if (domMode) domMode->enterInGame();
     }
+    // --- RICEZIONE DISASTER RECOVERY ---
+    else if (cmdStr == "RESUME_MISSION") {
+        Serial.println("Ricevuto RESUME_MISSION dal server!");
+        String modeStr = doc["mode"] | "";
+        if (modeStr == "sd" && sdMode) {
+            currentAppState = APP_STATE_SEARCH_DESTROY_MODE;
+            sdMode->resumeGame(doc); // Chiama la nuova funzione
+        }
+    }
 }

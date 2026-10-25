@@ -1036,3 +1036,54 @@ void SearchDestroyMode::sendTelemetry() {
 
     _network->sendEvent("SD_UPDATE", doc);
 }
+
+void SearchDestroyMode::resumeGame(JsonDocument& doc) {
+    Serial.println("=== ESECUZIONE DISASTER RECOVERY ===");
+    
+    // 1. Allineamento Autorità
+    _isServerAuthoritative = true;
+    _gameIsActive = true;
+    
+    // 2. Viaggio nel tempo del Timer Globale
+    long globalTimeLeft = doc["global_time_left"] | (_settings->getGameDuration() * 60);
+    long totalMatchSeconds = _settings->getGameDuration() * 60;
+    long elapsedMatch = totalMatchSeconds - globalTimeLeft;
+    
+    TimeSpan tsElapsedMatch(elapsedMatch);
+    _gameMatchStartTime = _hardware->getRTCTime() - tsElapsedMatch;
+
+    // 3. Ripristino dello Stato della Bomba
+    String state = doc["sd_state"] | "SAFE";
+    _bombIsActive = false;
+    _hardware->noTone();
+    _endGameStatus = "";
+
+    if (state == "ARMING..." || state == "SAFE") {
+        Serial.println("Stato Ripristinato: SAFE / IN ATTESA DI INNESCO");
+        _currentState = ModeState::IN_GAME_AWAIT_ARM;
+        displayAwaitArmScreen();
+    }
+    else if (state == "ARMED" || state == "DEFUSING...") {
+        Serial.println("Stato Ripristinato: BOMBA ARMATA");
+        _currentState = ModeState::IN_GAME_COUNTDOWN;
+        _bombIsActive = true;
+        
+        // Viaggio nel tempo del Timer Bomba
+        long bombTimeLeft = doc["bomb_time_left"] | (_settings->getBombTime() * 60);
+        long totalBombSeconds = _settings->getBombTime() * 60;
+        long elapsedBomb = totalBombSeconds - bombTimeLeft;
+        
+        TimeSpan tsElapsedBomb(elapsedBomb);
+        _roundStartTime = _hardware->getRTCTime() - tsElapsedBomb;
+        
+        displayCountdownLayout();
+    }
+    else if (state.indexOf("WINS") != -1 || state == "GAME OVER" || state == "AWAITING ARBITER") {
+        // Se la partita era già finita (o se il server stava arbitrando), 
+        // ci affidiamo all'arbitro per chiuderla in pace.
+        Serial.println("Stato Ripristinato: PARTITA GIA' TERMINATA");
+        forceWin("", "RIPRISTINO POST-CRASH");
+    }
+
+    sendTelemetry(); // Aggiorna subito il monitor web
+}
