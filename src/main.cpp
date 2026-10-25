@@ -523,7 +523,7 @@ void handleNetworkCommands() {
         String modeStr = doc["mode"] | "";
         if (modeStr == "sd" && sdMode) {
             currentAppState = APP_STATE_SEARCH_DESTROY_MODE;
-            sdMode->resumeGame(doc); // Chiama la nuova funzione
+            sdMode->resumeGame(doc); 
         }
     }
 }

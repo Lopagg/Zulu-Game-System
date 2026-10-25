@@ -220,12 +220,10 @@ def on_mqtt_message(client, userdata, msg):
                 if mission_control.active_mission and device_id == mission_control.target_id:
                     logger.info(f"[DISASTER RECOVERY] Il nodo {device_id} si è riavviato. Ripristino stato...")
                     
-                    # Recupera l'ultima telemetria nota prima del crash
                     last_tel = registry.devices.get(device_id, {}).get("telemetry", {})
                     sd_state = last_tel.get("state", "SAFE")
                     bomb_time = last_tel.get("bomb_time", 0)
                     
-                    # Invia la macchina del tempo al RAT
                     resume_payload = {
                         "cmd": "RESUME_MISSION",
                         "mode": mission_control.mode,
@@ -233,8 +231,19 @@ def on_mqtt_message(client, userdata, msg):
                         "bomb_time_left": bomb_time,
                         "global_time_left": mission_control.global_time_left
                     }
-                    try: mqtt_client.publish(f"zulu/cmd/{device_id}", json.dumps(resume_payload))
-                    except: pass
+                    
+                    # Funzione asincrona per dare 2 secondi di respiro al RAT al boot
+                    def delayed_resume():
+                        time.sleep(2.0)
+                        try:
+                            mqtt_client.publish(f"zulu/cmd/{device_id}", json.dumps(resume_payload))
+                            logger.info(f"[DISASTER RECOVERY] Inviato RESUME_MISSION a {device_id}")
+                        except Exception as e:
+                            logger.error(f"[DISASTER RECOVERY ERROR] {e}")
+                            
+                    # Avvia l'invio in background usando il framework socketio
+                    if socketio:
+                        socketio.start_background_task(delayed_resume)
             
             if msg_type == 'MODE_EXIT':
                 if mission_control.is_authorized_node(device_id):
