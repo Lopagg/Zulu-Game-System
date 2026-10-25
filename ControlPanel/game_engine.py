@@ -216,10 +216,14 @@ def on_mqtt_message(client, userdata, msg):
             has_changed = registry.update_device(device_id, msg_type, mode, version)
 
             # --- DISASTER RECOVERY (LAZY RECOVERY) ---
-            # Intercettiamo quando un nodo, che dovrebbe essere in partita, entra nel Main Menu (tipico dopo un crash/riavvio)
             if msg_type == 'MODE_CHANGE' and parsed.get('payload', {}).get('new_mode') == 'MAIN_MENU':
                 if mission_control.active_mission and device_id == mission_control.target_id:
-                    logger.info(f"[DISASTER RECOVERY] Il nodo {device_id} è nel Main Menu durante una missione attiva. Forzo il ripristino...")
+                    logger.info(f"[DISASTER RECOVERY] Il nodo {device_id} è nel Main Menu. Forzo il ripristino...")
+                    
+                    # Se la missione era in pausa per offline, la rimettiamo in stato PREPARING 
+                    # in attesa che il RAT risponda con MODE_ENTER
+                    if mission_control.state == "PAUSED_OFFLINE":
+                        mission_control.state = "PREPARING"
                     
                     last_tel = registry.devices.get(device_id, {}).get("telemetry", {})
                     sd_state = last_tel.get("state", "SAFE")
@@ -234,13 +238,20 @@ def on_mqtt_message(client, userdata, msg):
                     }
                     try:
                         mqtt_client.publish(f"zulu/cmd/{device_id}", json.dumps(resume_payload))
-                        logger.info(f"[DISASTER RECOVERY] Inviato RESUME_MISSION a {device_id}")
                     except Exception as e:
                         logger.error(f"[DISASTER RECOVERY ERROR] {e}")
             
             if msg_type == 'MODE_EXIT':
                 if mission_control.is_authorized_node(device_id):
-                    mission_control.end_mission()
+                    # Se l'uscita è involontaria (blackout, LWT MQTT), NON chiudere la missione. 
+                    # Congelala solo in attesa del Disaster Recovery.
+                    if payload.get('mode') == 'OFFLINE':
+                        logger.warning(f"[WARNING] Nodo {device_id} andato offline durante una missione!")
+                        # Mettiamo in pausa il timer bloccando temporaneamente lo stato
+                        mission_control.state = "PAUSED_OFFLINE"
+                    else:
+                        # Se è un'uscita volontaria (es. ritorno al menu manuale), chiudi tutto.
+                        mission_control.end_mission()
 
             # --- ARBITRO EVENTI NEUTRALI S&D (Gestione Dinamica delle Fazioni) ---
             if msg_type == 'MATCH_EVENT':
@@ -347,6 +358,7 @@ def background_cleanup(fetch_weather_callback):
             if mission_control.active_mission:
                 
                 # --- ARBITRO ELIMINAZIONI E TEMPO GLOBALE ---
+                # Il tempo scorre solo se la missione è pienamente attiva (non se è in pausa per crash)
                 if mission_control.state == "ACTIVE":
                     if mission_control.global_time_left > 0:
                         mission_control.global_time_left -= 1
