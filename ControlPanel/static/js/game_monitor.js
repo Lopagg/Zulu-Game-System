@@ -1,3 +1,5 @@
+import { currentFactions } from './main.js';
+
 let lastConfiguredMode = null;
 let debounceTimer1 = null;
 let debounceTimer2 = null;
@@ -42,20 +44,24 @@ export function updateUniversalFeed(payload, mode, msgType) {
     }
 
     if (payload.state) {
-        const statusEl = document.getElementById('sd-bomb-status');
-        statusEl.textContent = payload.state;
-        const s = payload.state;
+        // --- TRADUZIONE DINAMICA DELLO STATO (Es. converte "ALPHA WINS" in "SPETSNAZ WINS") ---
+        let s = payload.state;
+        s = s.replace('ALPHA', currentFactions.ALPHA).replace('BRAVO', currentFactions.BRAVO);
         
-        if (s.includes('DEFUS') || s.includes('CT WINS') || s.includes('CAPTURING B') || s.includes('OWNED BRAVO') || s.includes('BRAVO WINS')) {
+        const statusEl = document.getElementById('sd-bomb-status');
+        statusEl.textContent = s;
+        
+        // Il CSS usa ancora i check sulla stringa tradotta o sugli stati fissi
+        if (s.includes('DEFUS') || s.includes('CT WINS') || s.includes('CAPTURING B') || s.includes('OWNED BRAVO') || s.includes('BRAVO WINS') || s.includes(currentFactions.BRAVO)) {
             statusEl.style.color = '#55ff55'; 
-        } else if (s.includes('ARM') || s.includes('EXPLODED') || s.includes('T WINS') || s.includes('CAPTURING A') || s.includes('OWNED ALPHA') || s.includes('ALPHA WINS')) {
+        } else if (s.includes('ARM') || s.includes('EXPLODED') || s.includes('T WINS') || s.includes('CAPTURING A') || s.includes('OWNED ALPHA') || s.includes('ALPHA WINS') || s.includes(currentFactions.ALPHA)) {
             statusEl.style.color = 'var(--sop-alert)'; 
         } else if (s === 'STANDBY' || s === 'PREPARING' || s === 'DRAW') {
             statusEl.style.color = '#ff9900'; 
         } else {
             statusEl.style.color = 'var(--sop-primary)';
         }
-        updateForceEndButton(s);
+        updateForceEndButton(payload.state); // Passa lo stato originale per i check interni
     }
 
     const formatTime = (seconds) => {
@@ -100,8 +106,10 @@ export function updateUniversalFeed(payload, mode, msgType) {
         bombContainer.classList.add('hidden');
         domScores.classList.remove('hidden');
         progSection.classList.remove('hidden');
-        document.getElementById('lbl-prog-1').textContent = "ALPHA ACTION";
-        document.getElementById('lbl-prog-2').textContent = "BRAVO ACTION";
+        
+        // --- ETICHETTE DINAMICHE DOMINIO ---
+        document.getElementById('lbl-prog-1').textContent = `${currentFactions.ALPHA} ACTION`;
+        document.getElementById('lbl-prog-2').textContent = `${currentFactions.BRAVO} ACTION`;
         
         if (payload.score_a !== undefined) document.getElementById('d-val-a').textContent = formatTime(payload.score_a);
         if (payload.score_b !== undefined) document.getElementById('d-val-b').textContent = formatTime(payload.score_b);

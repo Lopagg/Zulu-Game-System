@@ -7,7 +7,6 @@ let currentDevices = [];
 let arenaRoster = {}; 
 let monitoredDeviceId = null;
 
-// --- NUOVO: VARIABILE GLOBALE FAZIONI ---
 export let currentFactions = { ALPHA: 'ALPHA', BRAVO: 'BRAVO' };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -32,7 +31,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
     
-    // --- NUOVO: Funzione per rinominare le Fazioni ---
     window.renameFaction = (teamId) => {
         const oldName = currentFactions[teamId];
         const newName = prompt(`Inserisci nuovo nome per il Team ${teamId}:`, oldName);
@@ -44,7 +42,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // Aliasing/Rinomina Dispositivo
     const btnSaveAlias = document.getElementById('save-alias-btn');
     if (btnSaveAlias) {
         btnSaveAlias.addEventListener('click', () => {
@@ -57,7 +54,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    // Tasto Hardware Reset
     const btnHardReset = document.getElementById('hard-reset-btn');
     if (btnHardReset) {
         btnHardReset.addEventListener('click', () => {
@@ -125,18 +121,15 @@ socket.on('server_restarting', () => {
     alert("IL SERVER SI STA RIAVVIANDO. Attendi qualche secondo che il pannello torni online in automatico.");
 });
 
-// --- Ascolto aggiornamento Nomi Fazioni ---
 socket.on('factions_update', (factions) => {
     currentFactions = factions;
     logSystem(`FAZIONI SETTATE: ${factions.ALPHA} / ${factions.BRAVO}`);
     
-    // 1. Aggiorna le viste del Roster
     renderArenaRoster(arenaRoster, socket);
     if (globalPlayersDB && globalPlayersDB.length > 0) {
         renderDatabase(globalPlayersDB, socket, arenaRoster);
     }
     
-    // 2. Aggiorna la select nel pannello di setup
     const attackerSelect = document.getElementById('sd-attacker-team');
     if (attackerSelect) {
         Array.from(attackerSelect.options).forEach(opt => {
@@ -145,7 +138,13 @@ socket.on('factions_update', (factions) => {
         });
     }
 
-    // 3. Aggiorna le scritte fisse nel Monitor
+    // --- AGGIORNAMENTO ETICHETTE SETUP ---
+    const setupAlpha = document.getElementById('setup-label-alpha');
+    const setupBravo = document.getElementById('setup-label-bravo');
+    if (setupAlpha) setupAlpha.textContent = `TEAM ${currentFactions.ALPHA}`;
+    if (setupBravo) setupBravo.textContent = `TEAM ${currentFactions.BRAVO}`;
+
+    // --- AGGIORNAMENTO ETICHETTE MONITOR ---
     const monAlpha = document.getElementById('monitor-name-alpha');
     const monBravo = document.getElementById('monitor-name-bravo');
     if (monAlpha) monAlpha.textContent = currentFactions.ALPHA;
