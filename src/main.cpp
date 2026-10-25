@@ -536,3 +536,4 @@ void handleNetworkCommands() {
             sdMode->resumeGame(doc); 
         }
     }
+}
