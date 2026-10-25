@@ -17,6 +17,9 @@ public:
     void loop() override;
     void exit() override;
 
+    // Spostato in public per renderlo accessibile da main.cpp
+    void parseCommand(JsonDocument& doc);
+
 private:
     HardwareManager* _hardware;
     NetworkManager* _network;
@@ -25,7 +28,6 @@ private:
 
     unsigned long _lastInputTime;
 
-    void parseCommand(JsonDocument& doc);
     void handleInput();
 };
 

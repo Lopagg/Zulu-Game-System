@@ -248,8 +248,17 @@ def handle_request_mission_start(data):
         socketio.emit('esp_event', {"parsed_data": rules_doc})
         logger.info(f"START MISSION: TEAM DEATHMATCH ({dur} min).")
         game_engine.trigger_siren("SIREN_LONG")
+    elif mode == 'sd':
+        # V2: Forza il RAT ad entrare nella modalità "schiavo" (Terminal Mode)
+        cmd_payload = {"cmd": "ENTER_TERMINAL_MODE"}
+        try:
+            game_engine.mqtt_client.publish(f"zulu/cmd/{target_id}", json.dumps(cmd_payload))
+            logger.info(f"[MQTT TX] Forzato Terminal Mode su {target_id}")
+        except Exception as e:
+            logger.error(f"[ERROR MQTT START] {e}")
     else:
-        cmd_str = "START_SD_GAME" if mode == 'sd' else "START_DOM_GAME"
+        # V1: Le altre modalità usano ancora il vecchio avvio (Domination)
+        cmd_str = "START_DOM_GAME"
         cmd_payload = {"cmd": cmd_str}
         try:
             game_engine.mqtt_client.publish(f"zulu/cmd/{target_id}", json.dumps(cmd_payload))

@@ -414,7 +414,36 @@ void handleNetworkCommands() {
     String cmdStr = String(cmd);
     Serial.print("Comando GLOBALE ricevuto: ");
     Serial.println(cmdStr);
+    
+    // --- 1. GESTIONE TERMINAL MODE (Thin Client V2) ---
+    if (cmdStr == "ENTER_TERMINAL_MODE") {
+        Serial.println("Comando remoto: Forza ingresso in Terminal Mode");
+        if (currentAppState != APP_STATE_TERMINAL_MODE) {
+            currentAppState = APP_STATE_TERMINAL_MODE;
+            if (terminalMode) terminalMode->enter();
+        }
+        return;
+    }
+    
+    if (currentAppState == APP_STATE_TERMINAL_MODE) {
+        if (cmdStr == "UPDATE_UI") {
+            // Instrada l'aggiornamento UI al terminale
+            if (terminalMode) terminalMode->parseCommand(doc);
+            return;
+        }
+        if (cmdStr == "RETURN_TO_MENU") {
+            if (terminalMode) terminalMode->exit();
+            currentAppState = APP_STATE_MAIN_MENU;
+            displayMainMenu();
+            return;
+        }
+        // Ignora totalmente comandi di configurazione e avvio del vecchio motore V1
+        if (cmdStr == "START_SD_GAME" || cmdStr == "START_DOM_GAME" || cmdStr == "SET_SD_SETTINGS" || cmdStr == "SET_DOM_SETTINGS") {
+            return; 
+        }
+    }
 
+    // --- 2. GESTIONE MOTORE LOCALE V1 (Offline/Standalone) ---
     if (cmdStr == "FORCE_END_GAME") {
         if (currentAppState == APP_STATE_SEARCH_DESTROY_MODE && sdMode) sdMode->forceEndGame();
         else if (currentAppState == APP_STATE_DOMINATION_MODE && domMode) domMode->forceEndGame();
@@ -426,13 +455,9 @@ void handleNetworkCommands() {
     } 
     else if (cmdStr == "RETURN_TO_MENU") {
         Serial.println("Comando remoto ricevuto: Ritorno forzato al menu principale.");
-        if (currentAppState == APP_STATE_SEARCH_DESTROY_MODE && sdMode) {
-            sdMode->exit();
-        } else if (currentAppState == APP_STATE_DOMINATION_MODE && domMode) {
-            domMode->exit();
-        } else if (currentAppState == APP_STATE_TERMINAL_MODE && terminalMode) {
-            terminalMode->exit();
-        }
+        if (currentAppState == APP_STATE_SEARCH_DESTROY_MODE && sdMode) sdMode->exit();
+        else if (currentAppState == APP_STATE_DOMINATION_MODE && domMode) domMode->exit();
+        
         currentAppState = APP_STATE_MAIN_MENU;
         displayMainMenu();
     }
@@ -445,7 +470,6 @@ void handleNetworkCommands() {
             domMode->sendTelemetry();
         }
     }
-    
     else if (cmdStr == "SET_SD_SETTINGS") {
         if (doc["bomb_time"].is<int>()) sdSettings->setBombTime(doc["bomb_time"]);
         if (doc["arm_time"].is<int>()) sdSettings->setArmingTime(doc["arm_time"]);
@@ -467,7 +491,7 @@ void handleNetworkCommands() {
         Serial.println("Impostazioni Dominio aggiornate da remoto.");
     }
     else if (cmdStr == "START_SD_GAME") {
-        Serial.println("Avvio partita C&D da remoto...");
+        Serial.println("Avvio partita C&D da remoto (V1)");
         JsonDocument resp;
         resp["target_mode"] = "SEARCH_AND_DESTROY";
         networkManager.sendEvent("REMOTE_START_ACK", resp);
@@ -475,7 +499,7 @@ void handleNetworkCommands() {
         if (sdMode) sdMode->enterInGame();
     }
     else if (cmdStr == "START_DOM_GAME") {
-        Serial.println("Avvio partita Dominio da remoto...");
+        Serial.println("Avvio partita Dominio da remoto (V1)");
         JsonDocument resp;
         resp["target_mode"] = "DOMINATION";
         networkManager.sendEvent("REMOTE_START_ACK", resp);
