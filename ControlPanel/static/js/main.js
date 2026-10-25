@@ -280,3 +280,22 @@ window.handlePhotoUpload = (input) => {
     })
     .catch(err => { console.error(err); });
 };
+
+window.uiForceEndMission = function() {
+    const mode = document.getElementById('setup-mode-select').value;
+    const btn = document.getElementById('btn-force-end');
+    const action = btn.dataset.action || "FORCE_END_GAME"; 
+    
+    const msg = (action === "FORCE_END_GAME") 
+        ? "ATTENZIONE: Terminare forzatamente la partita selezionata?" 
+        : "Chiudere definitivamente la partita e riportare il sistema in STANDBY?";
+        
+    if(confirm(msg)) {
+        let target = (mode === 'tdm' || monitoredDeviceId === 'SERVER-TDM') ? "SERVER-TDM" : monitoredDeviceId;
+        if(target) {
+            socket.emit('send_command', { target_id: target, command: { cmd: action } });
+        } else {
+            alert("Nessuna partita attiva individuata in rete.");
+        }
+    }
+};

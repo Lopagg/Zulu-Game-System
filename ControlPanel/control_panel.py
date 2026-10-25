@@ -287,10 +287,8 @@ def handle_socket_command(data):
                 return
             elif cmd_val == "SET_TDM_SETTINGS":
                 return
-            elif cmd_val in ["FORCE_END_GAME", "FORCE_WIN", "RESET"]:
-                game_engine.mission_ready_flag = False
-                game_engine.mission_control.end_mission(final_state="STOPPED")
 
+        # LOGICA TEAM DEATHMATCH
         if target_id == "SERVER-TDM":
             if "FORCE_END_GAME" in cmd_str or "FORCE_WIN" in cmd_str:
                 state_str = "STOPPED"
@@ -298,29 +296,32 @@ def handle_socket_command(data):
                     if "ALPHA" in cmd_str: state_str = "ALPHA WINS"
                     elif "BRAVO" in cmd_str: state_str = "BRAVO WINS"
                 
-                game_engine.mission_control.end_mission(final_state=state_str)
-                doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": state_str, "game_time": 0 } }
+                game_engine.mission_control.state = state_str
+                doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": state_str, "game_time": game_engine.mission_control.tdm_time_left } }
                 socketio.emit('esp_event', {"parsed_data": doc})
                 game_engine.trigger_siren("SIREN_LONG")
                 db_manager.process_match_stats(state_str) 
+            elif "CLOSE_MISSION" in cmd_str:
+                game_engine.mission_control.end_mission()
+                socketio.emit('esp_event', {"parsed_data": {"id": "SERVER-TDM", "type": "MODE_EXIT"}})
             return
         
+        # COMANDI AMBIENTALI BROADCAST
         if target_id == "BROADCAST_ENV":
             game_engine.mqtt_client.publish("zulu/cmd/broadcast", cmd_str)
             return
 
-        # 1. Invia il comando originale (es. FORCE_END_GAME)
-        game_engine.mqtt_client.publish(f"zulu/cmd/{target_id}", cmd_str)
-        
-        # 2. Se stiamo inviando uno stop, il server chiude la sessione internamente
-        if "FORCE_END_GAME" in cmd_str:
+        # LOGICA NODI HARDWARE (RAT)
+        if "CLOSE_MISSION" in cmd_str:
+             # Chiude formalmente la sessione sul server
              game_engine.mission_control.end_mission()
-             
-             # Il server dice attivamente al RAT di chiudere la schermata e tornare al menu
+             # Invia il comando nativo sviluppato sul C++ del RAT per farlo uscire al menu
              game_engine.mqtt_client.publish(f"zulu/cmd/{target_id}", json.dumps({"cmd": "RETURN_TO_MENU"}))
-             
-             # Finta un MODE_EXIT locale per pulire istantaneamente la pagina web
+             # Finta un MODE_EXIT locale di sicurezza (nel caso il RAT sia spento o non risponda)
              socketio.emit('esp_event', {"parsed_data": {"id": target_id, "type": "MODE_EXIT"}})
+        else:
+             # Trasmette i comandi standard in gioco (es. FORCE_END_GAME)
+             game_engine.mqtt_client.publish(f"zulu/cmd/{target_id}", cmd_str)
              
     except Exception as e:
         logger.error(f"[ERROR SOCKET CMD] {e}")

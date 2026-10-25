@@ -2,7 +2,6 @@ let lastConfiguredMode = null;
 let debounceTimer1 = null;
 let debounceTimer2 = null;
 
-// Riavvia il layout HTML nascondendo TUTTI i moduli tattici e mostrando la mappa neutra
 export function resetMonitorLayout() {
     document.getElementById('global-timer-display').textContent = "--:--";
     document.getElementById('sd-bomb-status').textContent = "WAITING...";
@@ -14,12 +13,10 @@ export function resetMonitorLayout() {
     document.getElementById('sd-rules-list').innerHTML = '<li>WAITING FOR TELEMETRY...</li>';
     document.getElementById('monitor-mode-title').textContent = "AWAITING MISSION DATA...";
 
-    // Forza la chiusura del tactical feed e riapre la mappa generica
     document.getElementById('widget-sd-tactical').classList.add('hidden');
     document.getElementById('widget-sd-rules').classList.add('hidden');
     document.getElementById('widget-generic-map').classList.remove('hidden');
 
-    // Assicura che i contenitori dinamici interni siano spenti
     document.querySelector('.bomb-timer-container').classList.add('hidden');
     document.getElementById('domination-scores').classList.add('hidden');
     document.querySelector('.progress-section').classList.add('hidden');
@@ -28,10 +25,8 @@ export function resetMonitorLayout() {
 }
 
 export function updateUniversalFeed(payload, mode, msgType) {
-    // IGNORA I PACCHETTI DEL KIOSK HARDWARE CHE CREANO SOVRAPPOSIZIONI
     if (['KIOSK', 'MAIN MENU', 'TERMINAL'].includes(mode)) return;
     
-    // 1. Visibilità Pannelli
     if (mode && mode !== lastConfiguredMode) {
         lastConfiguredMode = mode;
         const feed = document.getElementById('widget-sd-tactical');
@@ -42,12 +37,10 @@ export function updateUniversalFeed(payload, mode, msgType) {
         rules.classList.remove('hidden');
         map.classList.add('hidden');
         
-        // Imposta il titolo grande della modalità dinamicamente
         const modeTitle = mode.replace(/_/g, ' ').toUpperCase();
         document.getElementById('monitor-mode-title').textContent = `OPERATION: ${modeTitle}`;
     }
 
-    // 2. Aggiornamento Testo Stato Globale
     if (payload.state) {
         const statusEl = document.getElementById('sd-bomb-status');
         statusEl.textContent = payload.state;
@@ -65,7 +58,6 @@ export function updateUniversalFeed(payload, mode, msgType) {
         updateForceEndButton(s);
     }
 
-    // 3. Formattazione e Aggiornamento Timer
     const formatTime = (seconds) => {
         if(seconds === undefined) return "00:00";
         const m = Math.floor(seconds / 60);
@@ -83,7 +75,6 @@ export function updateUniversalFeed(payload, mode, msgType) {
         document.getElementById('global-timer-display').style.color = '#ff9900'; 
     }
 
-    // 4. Timer Secondari / Punteggi (Variano in base alla modalità)
     const isDom = (msgType === 'DOM_UPDATE' || mode === 'DOMINATION');
     const isTdm = (msgType === 'TDM_UPDATE' || mode === 'TEAM_DEATHMATCH');
     const isSd = (msgType === 'SD_UPDATE' || mode === 'SEARCH_AND_DESTROY');
@@ -121,9 +112,7 @@ export function updateUniversalFeed(payload, mode, msgType) {
         progSection.classList.add('hidden');
     }
 
-    // 5. Aggiornamento Barre di Progresso Generiche
     let width1 = 0, width2 = 0, bar1Active = false, bar2Active = false;
-
     if (isSd) {
         if(payload.arm_prog !== undefined) { width1 = payload.arm_prog; bar1Active = width1 > 0; }
         if(payload.def_prog !== undefined) { width2 = payload.def_prog; bar2Active = width2 > 0; }
@@ -160,8 +149,22 @@ function updateForceEndButton(state) {
     if (btnForceEnd) {
         const footer = btnForceEnd.parentElement;
         const activeStates = ['SAFE', 'ARMING...', 'ARMED', 'DEFUSING...', 'NEUTRAL', 'OWNED ALPHA', 'OWNED BRAVO', 'CAPTURING A...', 'CAPTURING B...', 'ACTIVE'];
+        const endStates = ['T WINS', 'CT WINS', 'ALPHA WINS', 'BRAVO WINS', 'DRAW', 'STOPPED'];
+        
         if (activeStates.includes(state)) {
             footer.classList.remove('hidden');
+            btnForceEnd.textContent = "[ TERMINATE MISSION ]";
+            btnForceEnd.dataset.action = "FORCE_END_GAME";
+            btnForceEnd.className = "deck-btn btn-danger full-width";
+            btnForceEnd.style.borderColor = "var(--sop-alert)";
+            btnForceEnd.style.color = "var(--sop-alert)";
+        } else if (endStates.includes(state)) {
+            footer.classList.remove('hidden');
+            btnForceEnd.textContent = "[ CLOSE & DISMISS ]";
+            btnForceEnd.dataset.action = "CLOSE_MISSION";
+            btnForceEnd.className = "deck-btn full-width";
+            btnForceEnd.style.borderColor = "var(--sop-success)";
+            btnForceEnd.style.color = "var(--sop-success)";
         } else {
             footer.classList.add('hidden');
         }
