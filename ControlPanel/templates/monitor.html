@@ -4,7 +4,6 @@
         <span class="monitor-label">STATUS: <span style="color:var(--sop-primary)">GLOBAL TELEMETRY</span></span>
     </div>
     
-    <!-- Modalità Attiva (Mostrata Grande in Alto) -->
     <div style="text-align: center; margin-bottom: 15px;">
         <h2 id="monitor-mode-title" style="color: var(--sop-text); letter-spacing: 4px; font-size: 28px; font-weight: bold; text-shadow: 0 0 15px rgba(0,255,204,0.4);">AWAITING MISSION DATA...</h2>
     </div>
@@ -24,12 +23,12 @@
                 <div class="faction-grid">
                     <div class="faction faction-a">
                         <span class="faction-score" id="score-a">0</span>
-                        <span class="faction-name">TEAM ALPHA</span>
+                        <span class="faction-name" id="monitor-name-alpha">TEAM ALPHA</span> <!-- Modificato ID -->
                     </div>
                     <div class="vs-divider">VS</div>
                     <div class="faction faction-b">
                         <span class="faction-score" id="score-b">0</span>
-                        <span class="faction-name">TEAM BRAVO</span>
+                        <span class="faction-name" id="monitor-name-bravo">TEAM BRAVO</span> <!-- Modificato ID -->
                     </div>
                 </div>
                 <div class="faction-rosters">
@@ -52,9 +51,9 @@
                     <div id="sd-bomb-timer" class="digital-clock">00:00</div>
                 </div>
                 <div id="domination-scores" class="dom-scores-box hidden">
-                    <div class="d-score"><span class="d-label">ALPHA</span><span id="d-val-a" class="d-val-red">0</span></div>
+                    <div class="d-score"><span class="d-label" id="dom-lbl-alpha">ALPHA</span><span id="d-val-a" class="d-val-red">0</span></div> <!-- Modificato ID -->
                     <div class="d-vs">VS</div>
-                    <div class="d-score"><span class="d-label">BRAVO</span><span id="d-val-b" class="d-val-green">0</span></div>
+                    <div class="d-score"><span class="d-label" id="dom-lbl-bravo">BRAVO</span><span id="d-val-b" class="d-val-green">0</span></div> <!-- Modificato ID -->
                 </div>
                 <div class="progress-section">
                     <div class="prog-group"><span id="lbl-prog-1" class="prog-label">ACTION 1</span><div class="progress-track"><div id="sd-arm-bar" class="progress-fill fill-red" style="width: 0%"></div></div></div>

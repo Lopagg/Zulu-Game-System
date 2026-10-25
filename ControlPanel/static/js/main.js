@@ -125,18 +125,18 @@ socket.on('server_restarting', () => {
     alert("IL SERVER SI STA RIAVVIANDO. Attendi qualche secondo che il pannello torni online in automatico.");
 });
 
-// --- NUOVO: Ascolto aggiornamento Nomi Fazioni ---
+// --- Ascolto aggiornamento Nomi Fazioni ---
 socket.on('factions_update', (factions) => {
     currentFactions = factions;
     logSystem(`FAZIONI SETTATE: ${factions.ALPHA} / ${factions.BRAVO}`);
     
-    // Aggiorna le viste del Roster
+    // 1. Aggiorna le viste del Roster
     renderArenaRoster(arenaRoster, socket);
     if (globalPlayersDB && globalPlayersDB.length > 0) {
         renderDatabase(globalPlayersDB, socket, arenaRoster);
     }
     
-    // Aggiorna la select nel pannello di setup
+    // 2. Aggiorna la select nel pannello di setup
     const attackerSelect = document.getElementById('sd-attacker-team');
     if (attackerSelect) {
         Array.from(attackerSelect.options).forEach(opt => {
@@ -144,6 +144,17 @@ socket.on('factions_update', (factions) => {
             if (opt.value === 'BRAVO') opt.textContent = currentFactions.BRAVO;
         });
     }
+
+    // 3. Aggiorna le scritte fisse nel Monitor
+    const monAlpha = document.getElementById('monitor-name-alpha');
+    const monBravo = document.getElementById('monitor-name-bravo');
+    if (monAlpha) monAlpha.textContent = currentFactions.ALPHA;
+    if (monBravo) monBravo.textContent = currentFactions.BRAVO;
+
+    const domLblAlpha = document.getElementById('dom-lbl-alpha');
+    const domLblBravo = document.getElementById('dom-lbl-bravo');
+    if (domLblAlpha) domLblAlpha.textContent = currentFactions.ALPHA;
+    if (domLblBravo) domLblBravo.textContent = currentFactions.BRAVO;
 });
 
 socket.on('weather_update', (data) => {
