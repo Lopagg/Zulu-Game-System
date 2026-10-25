@@ -19,7 +19,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
     
-    // RIMOSSA la conferma per l'Arena Horn / comandi ambientali
     window.sendEnvCommand = (envCmd) => {
         socket.emit('send_command', { target_id: "BROADCAST_ENV", command: { cmd: envCmd } });
     };
@@ -38,9 +37,20 @@ document.addEventListener('DOMContentLoaded', () => {
             if (activeInspectorId && aliasInput) {
                 socket.emit('rename_device', { id: activeInspectorId, name: aliasInput });
                 logSystem(`ALIAS SALVATO: ${aliasInput}`);
-                
-                // Aggiorna subito il titolo dell'Inspector per reattività visiva
                 document.getElementById('inspector-title').textContent = `${aliasInput} // CONFIG`;
+            }
+        });
+    }
+    
+    // Tasto Hardware Reset
+    const btnHardReset = document.getElementById('hard-reset-btn');
+    if (btnHardReset) {
+        btnHardReset.addEventListener('click', () => {
+            if (activeInspectorId) {
+                if (confirm(`Forzare il riavvio hardware (RESET) del dispositivo ${activeInspectorId}?`)) {
+                    socket.emit('send_command', { target_id: activeInspectorId, command: { cmd: "RESET" } });
+                    logSystem(`RESET COMMAND SENT TO ${activeInspectorId}`);
+                }
             }
         });
     }
@@ -277,10 +287,8 @@ document.getElementById('setup-mode-select').addEventListener('change', (e) => {
     }
 });
 
-// RIMOSSA la conferma per chiudere la missione, chiusura immediata e pulita
 window.uiForceEndMission = function() {
     const btn = document.getElementById('btn-force-end');
     const action = btn ? (btn.dataset.action || "FORCE_END_GAME") : "FORCE_END_GAME"; 
-    
     socket.emit('send_command', { target_id: "SERVER-ROUTER", command: { cmd: action } });
 };

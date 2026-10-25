@@ -101,6 +101,22 @@ function updateInspectorData(device) {
     document.getElementById('insp-state').textContent = device.status || 'UNKNOWN';
     document.getElementById('insp-ip').textContent = device.ip || 'UNKNOWN';
     document.getElementById('insp-fw-ver').textContent = `FW_VER: ${device.version || '--'}`;
+    
+    // Testo Dinamico Profilo Hardware
+    const hwTitle = document.getElementById('insp-hw-title');
+    const hwDesc = document.getElementById('insp-hw-desc');
+    if (hwTitle && hwDesc) {
+        if (device.mode === 'KIOSK') {
+            hwTitle.textContent = "TACTICAL KIOSK V1";
+            hwDesc.textContent = "Terminale RFID per l'assegnazione squadre e gestione sistema.";
+        } else if (device.id === 'SERVER-TDM' || device.mode === 'TEAM_DEATHMATCH') {
+            hwTitle.textContent = "VIRTUAL TDM SERVER";
+            hwDesc.textContent = "Motore logico software in esecuzione sul server centrale.";
+        } else {
+            hwTitle.textContent = "REMOTE ACCESS TERMINAL V1";
+            hwDesc.textContent = "Terminale tattico multi-ruolo basato su architettura ESP32.";
+        }
+    }
 }
 
 export function updateClock() {
