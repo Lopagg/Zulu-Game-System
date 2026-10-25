@@ -536,4 +536,15 @@ void handleNetworkCommands() {
             sdMode->resumeGame(doc); 
         }
     }
+
+    // --- SINCRONIZZAZIONE TEMPORALE ---
+    else if (cmdStr == "SYNC_TIME") {
+        long g_time = doc["global_time_left"] | -1;
+        if (g_time >= 0) {
+            if (currentAppState == APP_STATE_SEARCH_DESTROY_MODE && sdMode) {
+                sdMode->syncTime(g_time);
+            }
+            // (Predisposto per il futuro: if (APP_STATE_DOMINATION_MODE) domMode->syncTime... )
+        }
+    }
 }

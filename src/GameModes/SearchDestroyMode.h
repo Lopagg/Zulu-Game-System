@@ -44,6 +44,8 @@ public:
     void forceWin(String winnerTeam, String reason = "");
     void resumeGame(JsonDocument& doc);
 
+    void syncTime(long globalTimeLeft);
+
     void sendTelemetry();
 
 private:

@@ -410,3 +410,17 @@ def background_cleanup(fetch_weather_callback):
         if tick_counter % 10 == 0:
             weather_data = fetch_weather_callback()
             if socketio: socketio.emit('weather_update', {'weather': weather_data})
+
+            # --- SINCRONIZZAZIONE TEMPORALE (Time Drift) ---
+            with mission_control.lock:
+                if mission_control.active_mission and mission_control.state == "ACTIVE" and mission_control.target_id:
+                    if mission_control.mode in ['sd', 'dom']:
+                        sync_payload = {
+                            "cmd": "SYNC_TIME",
+                            "global_time_left": mission_control.global_time_left
+                        }
+                        try:
+                            # QoS 0 è sufficiente: se un pacchetto si perde, si correggerà 10 sec dopo
+                            mqtt_client.publish(f"zulu/cmd/{mission_control.target_id}", json.dumps(sync_payload), qos=0)
+                        except Exception as e:
+                            logger.error(f"[SYNC ERROR] {e}")

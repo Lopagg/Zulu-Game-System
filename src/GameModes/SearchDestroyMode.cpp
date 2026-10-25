@@ -1100,3 +1100,22 @@ void SearchDestroyMode::resumeGame(JsonDocument& doc) {
 
     sendTelemetry(); // Aggiorna subito il monitor web
 }
+
+void SearchDestroyMode::syncTime(long globalTimeLeft) {
+    // Sincronizziamo solo se la partita è in corso
+    if (!_gameIsActive) return;
+    
+    long totalMatchSeconds = _settings->getGameDuration() * 60;
+    long elapsedMatch = totalMatchSeconds - globalTimeLeft;
+    
+    // Evita calcoli negativi dovuti a lag
+    if (elapsedMatch < 0) elapsedMatch = 0;
+    
+    TimeSpan tsElapsedMatch(elapsedMatch);
+    
+    // Corregge retroattivamente il momento di inizio partita per annullare ogni drift
+    _gameMatchStartTime = _hardware->getRTCTime() - tsElapsedMatch;
+    
+    // Opzionale: decommenta questa riga per debug se vuoi vedere l'allineamento sul monitor seriale del RAT
+    // Serial.printf("SYNC TIME: Orologio allineato al server. Secondi globali rimanenti: %ld\n", globalTimeLeft);
+}
