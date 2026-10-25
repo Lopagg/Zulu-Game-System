@@ -5,10 +5,11 @@ import { renderArenaRoster, renderDatabase, populateProfileModal, getCurrentProf
 const socket = io();
 let currentDevices = [];
 let arenaRoster = {}; 
+let monitoredDeviceId = null;
 
 document.addEventListener('DOMContentLoaded', () => {
     updateClock();
-    resetMonitorLayout(); // Forza un reset pulito all'avvio
+    resetMonitorLayout(); 
     
     window.showView = (view) => showView(view, socket);
     window.clearActiveRoster = () => {
@@ -17,48 +18,54 @@ document.addEventListener('DOMContentLoaded', () => {
             logSystem("RICHIESTA PULIZIA ROSTER INVIATA.");
         }
     };
+    
+    // RIMOSSA la conferma per l'Arena Horn / comandi ambientali
     window.sendEnvCommand = (envCmd) => {
-        if(confirm("Eseguire override ambientale: " + envCmd + "?")) {
-            socket.emit('send_command', { target_id: "BROADCAST_ENV", command: { cmd: envCmd } });
-        }
+        socket.emit('send_command', { target_id: "BROADCAST_ENV", command: { cmd: envCmd } });
     };
     
-    // --- NUOVO: Reset Globale del Server (dal footer) ---
     window.triggerServerReset = () => {
         if(confirm("ATTENZIONE CRITICA!\nVuoi davvero forzare il riavvio completo del server Python? Tutte le comunicazioni si interromperanno per qualche secondo.")) {
             socket.emit('server_reset_request');
         }
     };
     
-    // --- NUOVO: Calcolo reale Latenza di Rete (NET_LOAD) ---
+    // Aliasing/Rinomina Dispositivo
+    const btnSaveAlias = document.getElementById('save-alias-btn');
+    if (btnSaveAlias) {
+        btnSaveAlias.addEventListener('click', () => {
+            const aliasInput = document.getElementById('insp-alias-input').value.trim();
+            if (activeInspectorId && aliasInput) {
+                socket.emit('rename_device', { id: activeInspectorId, name: aliasInput });
+                logSystem(`ALIAS SALVATO: ${aliasInput}`);
+                
+                // Aggiorna subito il titolo dell'Inspector per reattività visiva
+                document.getElementById('inspector-title').textContent = `${aliasInput} // CONFIG`;
+            }
+        });
+    }
+    
     setInterval(() => {
         if (socket.connected) {
             const startPing = Date.now();
             socket.emit('request_roster', () => {
-                // Non ci serve il dato in sé (arriverà da roster_update),
-                // ma il round-trip time. Qui usiamo un workaround "silenzioso":
             });
-            // Il socket.io ha nativamente un misuratore di latenza incorporato nelle ultime versioni.
-            // Possiamo estrarre il valore dai ping interni del motore Engine.IO.
             let latencyStr = "-- ms";
             if (socket.io && socket.io.engine) {
-                // Estrae la latenza calcolata dall'ultimo pacchetto PING/PONG di Socket.IO
                 const rtt = socket.io.engine.lastPingTimestamp ? (Date.now() - socket.io.engine.lastPingTimestamp) : 12;
-                // Lo rendiamo un filo più stabile visivamente evitando sbalzi di 1ms
                 latencyStr = `${Math.round(rtt / 5) * 5} ms`;
             }
             
             const loadEl = document.getElementById('net-load');
             if (loadEl) {
                 loadEl.textContent = latencyStr;
-                // Colora in verde se sotto 50ms, giallo sotto 100, rosso se altissimo
                 const rtt_val = parseInt(latencyStr);
                 if (rtt_val < 50) loadEl.style.color = '#55ff55';
                 else if (rtt_val < 150) loadEl.style.color = '#ff9900';
                 else loadEl.style.color = 'var(--sop-alert)';
             }
         }
-    }, 2500); // Aggiorna ogni 2.5 secondi
+    }, 2500); 
 });
 
 socket.on('connect', () => {
@@ -82,7 +89,6 @@ socket.on('disconnect', () => {
     }
 });
 
-// Ascolto del messaggio di riavvio in corso
 socket.on('server_restarting', () => {
     logSystem("CRITICAL: SYSTEM REBOOT IN PROGRESS...");
     const elGlobalStatus = document.getElementById('global-status');
@@ -117,7 +123,6 @@ socket.on('devices_update', (devices) => {
     updateSetupDropdown();
 });
 
-// --- EVENTI DI MISSIONE (Avvia Navigazione Automatica) ---
 socket.on('mission_start_success', () => {
     resetMonitorLayout();
     window.showView('monitor');
@@ -158,9 +163,7 @@ socket.on('kiosk_hardware_cmd', (data) => {
     }
 });
 
-// --- CORE ENGINE (MQTT BRIDGE) ---
 socket.on('esp_event', (msg) => {
-    // Ora la UI è "stupida". Se riceve un evento, significa che il Server lo ha autorizzato.
     const raw = msg.parsed_data || {};
     const type = raw.type || 'UNKNOWN';
     const payload = raw.payload || {};
@@ -189,7 +192,6 @@ socket.on('esp_event', (msg) => {
     updateUniversalFeed(payload, mode, type);
 });
 
-// --- SETUP START MISSION LOGIC ---
 export function updateSetupDropdown() {
     const elSetupTargetSelect = document.getElementById('setup-target-select');
     if (!elSetupTargetSelect) return;
@@ -275,17 +277,10 @@ document.getElementById('setup-mode-select').addEventListener('change', (e) => {
     }
 });
 
+// RIMOSSA la conferma per chiudere la missione, chiusura immediata e pulita
 window.uiForceEndMission = function() {
     const btn = document.getElementById('btn-force-end');
-    // Se c'è un bottone (es. nel monitor), usa il suo data-action. 
-    // Altrimenti, forziamo il FORCE_END_GAME di default.
     const action = btn ? (btn.dataset.action || "FORCE_END_GAME") : "FORCE_END_GAME"; 
     
-    const msg = (action === "FORCE_END_GAME") 
-        ? "ATTENZIONE: Terminare forzatamente la partita in corso?" 
-        : "Chiudere definitivamente la partita e riportare il sistema in STANDBY?";
-        
-    if(confirm(msg)) {
-        socket.emit('send_command', { target_id: "SERVER-ROUTER", command: { cmd: action } });
-    }
+    socket.emit('send_command', { target_id: "SERVER-ROUTER", command: { cmd: action } });
 };
