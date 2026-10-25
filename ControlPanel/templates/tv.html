@@ -12,7 +12,7 @@
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     
     <style>
-        /* Stili specifici per forzare il Fullscreen sulla TV e disabilitare lo scroll */
+        /* Forzare il Fullscreen sulla TV e disabilitare lo scroll */
         body { overflow: hidden; margin: 0; padding: 0; height: 100vh; width: 100vw; }
         
         .tv-container {
@@ -36,10 +36,10 @@
             text-shadow: 0 0 15px rgba(255,255,255,0.3); font-weight: 700;
         }
         
-        /* GRIGLIA A 3 COLONNE (Perfetta per il 16:9) */
+        /* GRIGLIA A 3 COLONNE (Centrale più larga per il Feed) */
         .tv-grid {
             display: grid;
-            grid-template-columns: 1fr 1.6fr 1fr; 
+            grid-template-columns: 1.3fr 1.6fr 0.9fr; 
             gap: 25px;
             height: 100%;
         }
@@ -51,50 +51,75 @@
         
         /* FONT INGRANDITI PER LA DISTANZA */
         .tv-timer-huge { 
-            font-size: 8rem; text-align: center; margin: auto; 
+            font-size: 10rem; text-align: center; margin: auto; 
             color: var(--sop-text); text-shadow: 0 0 20px rgba(255,255,255,0.2); 
-            line-height: 1;
+            line-height: 1; font-weight: bold;
         }
+        
+        .tv-bomb-box {
+            display: inline-block;
+            border: 4px solid var(--sop-alert);
+            border-radius: 12px;
+            background: rgba(255, 51, 51, 0.1);
+            padding: 10px 40px;
+            margin-top: 15px;
+            box-shadow: 0 0 20px rgba(255, 51, 51, 0.3), inset 0 0 20px rgba(255, 51, 51, 0.2);
+        }
+        
         .tv-bomb-huge { 
-            font-size: 6rem; text-align: center; margin: 15px 0; 
+            font-size: 8rem; text-align: center; margin: 0; 
             color: var(--sop-alert); text-shadow: 0 0 25px var(--sop-alert); 
-            line-height: 1;
+            line-height: 1; font-weight: bold;
         }
+        
         .tv-status-huge { 
-            font-size: 3.5rem; text-align: center; margin: 20px 0; 
-            font-weight: bold; letter-spacing: 2px;
+            font-size: 4.5rem; text-align: center; margin: 15px 0; 
+            font-weight: bold; letter-spacing: 3px;
         }
         
         /* OPERATORI */
         .tv-roster-row {
-            display: flex; justify-content: space-between; align-items: center;
+            display: flex; flex-direction: column; justify-content: flex-start; align-items: stretch;
             background: rgba(0,0,0,0.3); padding: 15px 25px; border-radius: 8px;
-            margin-bottom: 15px; border-left: 5px solid transparent;
+            margin-bottom: 20px; border-left: 5px solid transparent;
         }
         .tv-roster-row.alpha { border-left-color: var(--sop-alert); }
         .tv-roster-row.bravo { border-left-color: #55ff55; }
         
-        .tv-roster-name { font-size: 2.2rem; color: #ccc; }
-        .tv-roster-count { font-size: 4.5rem; font-weight: bold; line-height: 1;}
+        .tv-roster-header { display: flex; justify-content: space-between; align-items: center; width: 100%; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px; margin-bottom: 10px;}
+        .tv-roster-name { font-size: 2rem; color: #ccc; }
+        .tv-roster-count { font-size: 3.5rem; font-weight: bold; line-height: 1;}
         .count-alpha { color: var(--sop-alert); text-shadow: 0 0 15px rgba(255,51,51,0.4); }
         .count-bravo { color: #55ff55; text-shadow: 0 0 15px rgba(85,255,85,0.4); }
 
+        .tv-roster-list {
+            list-style: none; padding: 0; margin: 0;
+            display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+        }
+        .tv-roster-list li {
+            background: rgba(0,0,0,0.5);
+            padding: 6px 10px; border-radius: 4px; font-size: 1.3rem; color: #fff;
+            border-left: 4px solid #555; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .tv-roster-list.alpha li { border-left-color: var(--sop-alert); }
+        .tv-roster-list.bravo li { border-left-color: #55ff55; }
+
         /* DOMINIO */
-        .tv-dom-score { font-size: 5rem; font-weight: bold; line-height: 1;}
+        .tv-dom-score { font-size: 6rem; font-weight: bold; line-height: 1;}
 
         /* REGOLE */
         .tv-rule-item {
             display: flex; justify-content: space-between; align-items: center;
             border-bottom: 1px solid #333; padding: 12px 0;
-            font-size: 1.3rem;
+            font-size: 1.4rem;
         }
         .tv-rule-label { color: #888; }
-        .tv-rule-val { color: var(--sop-primary); font-weight: bold; font-size: 1.5rem; }
+        .tv-rule-val { color: var(--sop-primary); font-weight: bold; font-size: 1.6rem; }
         
         /* SYSTEM LOG */
         #tv-log {
-            font-size: 1rem; color: var(--sop-dim); 
-            height: 120px; overflow: hidden; 
+            font-size: 1.1rem; color: var(--sop-dim); 
+            height: 140px; overflow: hidden; 
             display: flex; flex-direction: column; justify-content: flex-end;
             font-family: monospace; line-height: 1.5;
         }
@@ -102,7 +127,6 @@
 </head>
 <body class="sop-theme">
 
-    <!-- SFONDO TATTICO EREDITATO DAL BASE.HTML -->
     <div class="tactical-background">
         <div class="grid-overlay"></div>
         <div class="scan-line"></div>
@@ -136,16 +160,22 @@
                 
                 <div class="sop-card tv-widget" style="flex: 1.2;">
                     <div class="widget-header">ACTIVE OPERATORS IN FIELD</div>
-                    <div style="flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 0 10px;">
+                    <div style="flex: 1; display: flex; flex-direction: column; justify-content: flex-start; padding: 15px 10px 0 10px;">
                         
                         <div class="tv-roster-row alpha">
-                            <span class="tv-roster-name">TEAM ALPHA</span>
-                            <span id="tv-op-alpha" class="tv-roster-count count-alpha">0</span>
+                            <div class="tv-roster-header">
+                                <span class="tv-roster-name">TEAM ALPHA</span>
+                                <span id="tv-op-alpha" class="tv-roster-count count-alpha">0</span>
+                            </div>
+                            <ul id="tv-list-alpha" class="tv-roster-list alpha"></ul>
                         </div>
                         
                         <div class="tv-roster-row bravo">
-                            <span class="tv-roster-name">TEAM BRAVO</span>
-                            <span id="tv-op-bravo" class="tv-roster-count count-bravo">0</span>
+                            <div class="tv-roster-header">
+                                <span class="tv-roster-name">TEAM BRAVO</span>
+                                <span id="tv-op-bravo" class="tv-roster-count count-bravo">0</span>
+                            </div>
+                            <ul id="tv-list-bravo" class="tv-roster-list bravo"></ul>
                         </div>
                         
                     </div>
@@ -154,28 +184,30 @@
 
             <!-- COLONNA CENTRALE: Feed Tattico Gigante -->
             <div class="sop-card tv-widget">
-                <div class="widget-header" style="text-align: center; font-size: 1.5rem; border-bottom: 2px solid var(--sop-primary);">TACTICAL FEED</div>
+                <div class="widget-header" style="text-align: center; font-size: 1.6rem; border-bottom: 2px solid var(--sop-primary);">TACTICAL FEED</div>
                 
                 <div style="flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center;">
-                    <div style="font-size: 1.5rem; color: #888; letter-spacing: 2px;">CURRENT STATUS</div>
+                    <div style="font-size: 1.8rem; color: #888; letter-spacing: 2px;">CURRENT STATUS</div>
                     <div id="tv-tac-status" class="tv-status-huge" style="color: var(--sop-primary);">WAITING FOR DATA</div>
                     
                     <!-- BOX CERCA E DISTRUGGI -->
-                    <div id="tv-bomb-container" style="display: none; width: 100%; text-align: center; margin-top: 20px;">
-                        <div style="font-size: 1.5rem; color: var(--sop-alert); letter-spacing: 2px;">DETONATION SEQUENCE</div>
-                        <div id="tv-bomb-timer" class="tv-bomb-huge">00:00</div>
+                    <div id="tv-bomb-container" style="display: none; width: 100%; text-align: center; margin-top: 30px;">
+                        <div style="font-size: 1.8rem; color: var(--sop-alert); letter-spacing: 3px;">DETONATION SEQUENCE</div>
+                        <div class="tv-bomb-box">
+                            <div id="tv-bomb-timer" class="tv-bomb-huge">00:00</div>
+                        </div>
                     </div>
 
                     <!-- BOX DOMINIO -->
                     <div id="tv-dom-container" style="display: none; width: 100%; margin-top: 40px;">
                         <div style="display: flex; justify-content: space-around; align-items: center; width: 100%;">
                             <div style="text-align: center;">
-                                <div style="font-size: 1.5rem; color: var(--sop-alert); letter-spacing: 1px;">ALPHA SCORE</div>
+                                <div style="font-size: 1.8rem; color: var(--sop-alert); letter-spacing: 2px;">ALPHA SCORE</div>
                                 <div id="tv-dom-a" class="tv-dom-score" style="color: var(--sop-alert);">00:00</div>
                             </div>
-                            <div style="font-size: 3rem; color: #555; font-weight: bold;">VS</div>
+                            <div style="font-size: 4rem; color: #555; font-weight: bold;">VS</div>
                             <div style="text-align: center;">
-                                <div style="font-size: 1.5rem; color: #55ff55; letter-spacing: 1px;">BRAVO SCORE</div>
+                                <div style="font-size: 1.8rem; color: #55ff55; letter-spacing: 2px;">BRAVO SCORE</div>
                                 <div id="tv-dom-b" class="tv-dom-score" style="color: #55ff55;">00:00</div>
                             </div>
                         </div>
@@ -185,18 +217,18 @@
                 <!-- Barre di Progresso -->
                 <div id="tv-progress-container" style="display: none; padding: 25px; background: rgba(0,0,0,0.5); border-top: 1px solid #333; margin: -20px;">
                     <div style="margin-bottom: 25px;">
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                            <span id="tv-lbl-prog-1" style="color: var(--sop-alert); font-weight: bold; font-size: 1.2rem; letter-spacing: 1px;">ARMING PROGRESS</span>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                            <span id="tv-lbl-prog-1" style="color: var(--sop-alert); font-weight: bold; font-size: 1.5rem; letter-spacing: 1px;">ARMING PROGRESS</span>
                         </div>
-                        <div class="progress-track" style="height: 25px; background: #111; border-radius: 15px; overflow: hidden; border: 1px solid #333;">
+                        <div class="progress-track" style="height: 30px; background: #111; border-radius: 15px; overflow: hidden; border: 1px solid #333;">
                             <div id="tv-prog-1" class="progress-fill fill-red" style="width: 0%; background: var(--sop-alert); box-shadow: 0 0 15px var(--sop-alert); height: 100%; transition: width 0.2s;"></div>
                         </div>
                     </div>
                     <div>
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                            <span id="tv-lbl-prog-2" style="color: #55ff55; font-weight: bold; font-size: 1.2rem; letter-spacing: 1px;">DEFUSING PROGRESS</span>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                            <span id="tv-lbl-prog-2" style="color: #55ff55; font-weight: bold; font-size: 1.5rem; letter-spacing: 1px;">DEFUSING PROGRESS</span>
                         </div>
-                        <div class="progress-track" style="height: 25px; background: #111; border-radius: 15px; overflow: hidden; border: 1px solid #333;">
+                        <div class="progress-track" style="height: 30px; background: #111; border-radius: 15px; overflow: hidden; border: 1px solid #333;">
                             <div id="tv-prog-2" class="progress-fill fill-green" style="width: 0%; background: #55ff55; box-shadow: 0 0 15px #55ff55; height: 100%; transition: width 0.2s;"></div>
                         </div>
                     </div>
@@ -207,11 +239,11 @@
             <div class="sop-card tv-widget">
                 <div class="widget-header">MISSION INTEL // RULES</div>
                 <div id="tv-rules-list" style="padding: 10px 10px;">
-                    <div style="color: var(--sop-dim); text-align: center; margin-top: 20px;">Nessun parametro caricato...</div>
+                    <div style="color: var(--sop-dim); text-align: center; margin-top: 20px; font-size: 1.4rem;">Nessun parametro caricato...</div>
                 </div>
                 
                 <div style="margin-top: auto; padding-top: 20px; border-top: 1px solid #333;">
-                    <div class="widget-header" style="font-size: 1.1rem; margin-bottom: 10px;">SYSTEM LOG</div>
+                    <div class="widget-header" style="font-size: 1.2rem; margin-bottom: 10px;">SYSTEM LOG</div>
                     <div id="tv-log">
                         <div>> TACTICAL SPECTATOR TERMINAL ONLINE...</div>
                         <div>> WAITING FOR TELEMETRY LINK...</div>
@@ -222,21 +254,22 @@
         </div>
     </div>
 
-    <!-- LOGICA JAVASCRIPT (STANDALONE) -->
+    <!-- LOGICA JAVASCRIPT -->
     <script>
-        // Gestione Orologio Header
+        // Variabile globale per ricordare la modalità corrente ed evitare sfarfallii
+        let currentTvMode = null;
+        
         setInterval(() => {
             document.getElementById('tv-clock').textContent = new Date().toLocaleTimeString('it-IT', { hour12: false });
         }, 1000);
 
-        // Funzione Log
         function log(msg) {
             const logEl = document.getElementById('tv-log');
             const div = document.createElement('div');
             const timeStr = new Date().toLocaleTimeString('it-IT', { hour12: false });
             div.textContent = `[${timeStr}] > ${msg}`;
             logEl.appendChild(div);
-            if (logEl.children.length > 5) logEl.removeChild(logEl.firstChild);
+            if (logEl.children.length > 6) logEl.removeChild(logEl.firstChild);
         }
 
         const formatTime = (seconds) => {
@@ -251,37 +284,43 @@
         socket.on('connect', () => log("LINK ESTABLISHED WITH SOP SERVER."));
         socket.on('disconnect', () => log("CRITICAL: CONNECTION LOST."));
         
-        // Richiede subito i giocatori al primo caricamento
         socket.emit('request_roster');
 
-        // Aggiorna il conteggio operatori in campo
+        // Aggiorna l'elenco dei nomi in campo (Lista e Conteggio)
         socket.on('roster_update', (roster) => {
             let a = 0, b = 0;
+            const listAlpha = document.getElementById('tv-list-alpha');
+            const listBravo = document.getElementById('tv-list-bravo');
+            listAlpha.innerHTML = ''; 
+            listBravo.innerHTML = '';
+            
             Object.values(roster).forEach(op => {
                 if (op.status === 'IN') {
-                    if (op.team === 'ALPHA') a++;
-                    if (op.team === 'BRAVO') b++;
+                    const li = document.createElement('li');
+                    li.textContent = op.name; // Inserisce l'Alias del giocatore
+                    if (op.team === 'ALPHA') {
+                        a++;
+                        listAlpha.appendChild(li);
+                    }
+                    if (op.team === 'BRAVO') {
+                        b++;
+                        listBravo.appendChild(li);
+                    }
                 }
             });
             document.getElementById('tv-op-alpha').textContent = a;
             document.getElementById('tv-op-bravo').textContent = b;
         });
 
-        // Motore principale: Intercetta gli stessi dati dell'arbitro
+        // Motore Principale Telemetria
         socket.on('esp_event', (msg) => {
             const raw = msg.parsed_data || {};
             const type = raw.type || 'UNKNOWN';
             const payload = raw.payload || {};
-            let mode = payload.mode || raw.mode;
             
-            if (!mode) {
-                if (type === 'SD_UPDATE') mode = 'SEARCH_AND_DESTROY';
-                else if (type === 'DOM_UPDATE') mode = 'DOMINATION';
-                else if (type === 'TDM_UPDATE') mode = 'TEAM_DEATHMATCH';
-            }
-
-            // GESTIONE USCITA DALLA MISSIONE
+            // GESTIONE USCITA E RESET
             if (type === 'MODE_EXIT') {
+                currentTvMode = null;
                 document.getElementById('tv-mode-title').textContent = "STANDBY";
                 document.getElementById('tv-global-timer').textContent = "--:--";
                 document.getElementById('tv-global-timer').style.color = "var(--sop-text)";
@@ -293,24 +332,34 @@
                 document.getElementById('tv-progress-container').style.display = 'none';
                 return;
             }
+            
+            // MEMORIZZAZIONE DELLA MODALITA' (Evita lo sfarfallio sui pacchetti TIME_UPDATE)
+            let incMode = payload.mode || raw.mode;
+            if (incMode) {
+                currentTvMode = incMode;
+            } else if (type === 'SD_UPDATE') {
+                currentTvMode = 'SEARCH_AND_DESTROY';
+            } else if (type === 'DOM_UPDATE') {
+                currentTvMode = 'DOMINATION';
+            } else if (type === 'TDM_UPDATE') {
+                currentTvMode = 'TEAM_DEATHMATCH';
+            }
 
-            // AGGIORNAMENTO TITOLO MISSIONE
-            if (mode) {
-                document.getElementById('tv-mode-title').textContent = "OPERATION: " + mode.replace(/_/g, ' ').toUpperCase();
+            if (currentTvMode) {
+                document.getElementById('tv-mode-title').textContent = "OPERATION: " + currentTvMode.replace(/_/g, ' ').toUpperCase();
             }
 
             // TIMER GLOBALE
             if (payload.game_time !== undefined) {
                 document.getElementById('tv-global-timer').textContent = formatTime(payload.game_time);
-                // Se mancano meno di 30 secondi, il timer diventa rosso
                 if (payload.game_time <= 30 && payload.game_time > 0) {
                     document.getElementById('tv-global-timer').style.color = "var(--sop-alert)";
                 } else {
-                    document.getElementById('tv-global-timer').style.color = "var(--sop-primary)";
+                    document.getElementById('tv-global-timer').style.color = "var(--sop-text)";
                 }
             }
 
-            // STATUS TESTUALE COLORATO
+            // STATUS TESTUALE
             if (payload.state) {
                 const s = payload.state;
                 const statusEl = document.getElementById('tv-tac-status');
@@ -327,9 +376,9 @@
                 }
             }
 
-            // GESTIONE GRAFICA PER MODALITA'
-            const isSd = (type === 'SD_UPDATE' || mode === 'SEARCH_AND_DESTROY');
-            const isDom = (type === 'DOM_UPDATE' || mode === 'DOMINATION');
+            // VISIBILITÀ BASATA SULLA MODALITA' SALVATA
+            const isSd = (currentTvMode === 'SEARCH_AND_DESTROY' || currentTvMode === 'sd');
+            const isDom = (currentTvMode === 'DOMINATION' || currentTvMode === 'dom');
             
             if (isSd) {
                 document.getElementById('tv-bomb-container').style.display = 'block';
@@ -339,7 +388,6 @@
                 document.getElementById('tv-lbl-prog-1').textContent = "ARMING PROGRESS";
                 document.getElementById('tv-lbl-prog-2').textContent = "DEFUSING PROGRESS";
                 
-                if (payload.bomb_time !== undefined) document.getElementById('tv-bomb-timer').textContent = formatTime(payload.bomb_time);
                 if (payload.arm_prog !== undefined) document.getElementById('tv-prog-1').style.width = payload.arm_prog + '%';
                 if (payload.def_prog !== undefined) document.getElementById('tv-prog-2').style.width = payload.def_prog + '%';
                 
@@ -354,7 +402,6 @@
                 if (payload.score_a !== undefined) document.getElementById('tv-dom-a').textContent = formatTime(payload.score_a);
                 if (payload.score_b !== undefined) document.getElementById('tv-dom-b').textContent = formatTime(payload.score_b);
                 
-                // Barre progresso dominio
                 const prog = payload.capture_prog || 0;
                 const state = payload.state || '';
                 if (state.includes('CAPTURING A')) {
@@ -371,6 +418,15 @@
                 document.getElementById('tv-bomb-container').style.display = 'none';
                 document.getElementById('tv-dom-container').style.display = 'none';
                 document.getElementById('tv-progress-container').style.display = 'none';
+            }
+            
+            // AGGIORNAMENTO DIRETTO TIMER BOMBA (Cattura sia i TIME_UPDATE che gli SD_UPDATE)
+            if (payload.bomb_time !== undefined) {
+                document.getElementById('tv-bomb-timer').textContent = formatTime(payload.bomb_time);
+            } else if (type === 'TIME_UPDATE' && payload.time !== undefined) {
+                document.getElementById('tv-bomb-timer').textContent = formatTime(payload.time);
+            } else if (type === 'COUNTDOWN_UPDATE' && payload.time !== undefined) {
+                document.getElementById('tv-bomb-timer').textContent = formatTime(payload.time);
             }
 
             // GESTIONE REGOLE
