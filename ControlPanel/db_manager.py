@@ -15,7 +15,6 @@ def init_db():
         c.execute('''CREATE TABLE IF NOT EXISTS players
                      (uid TEXT PRIMARY KEY, alias TEXT, games_played INTEGER DEFAULT 0, wins INTEGER DEFAULT 0)''')
         
-        # Aggiunta colonne retrocompatibili
         try: c.execute("ALTER TABLE players ADD COLUMN registered_at TEXT")
         except sqlite3.OperationalError: pass
         try: c.execute("ALTER TABLE players ADD COLUMN notes TEXT")
@@ -26,11 +25,39 @@ def init_db():
         c.execute('''CREATE TABLE IF NOT EXISTS active_roster
                      (uid TEXT PRIMARY KEY, team TEXT, status TEXT)''')
                      
-        # --- NUOVO: Tabella per la persistenza degli Alias dei Dispositivi ---
         c.execute('''CREATE TABLE IF NOT EXISTS device_aliases
                      (device_id TEXT PRIMARY KEY, alias TEXT)''')
+        
+        # --- NUOVO: Tabella configurazione Fazioni ---
+        c.execute('''CREATE TABLE IF NOT EXISTS factions_config
+                     (team_id TEXT PRIMARY KEY, display_name TEXT)''')
+        
+        # Inserisci i valori di default se la tabella è appena stata creata
+        c.execute("INSERT OR IGNORE INTO factions_config (team_id, display_name) VALUES ('ALPHA', 'ALPHA')")
+        c.execute("INSERT OR IGNORE INTO factions_config (team_id, display_name) VALUES ('BRAVO', 'BRAVO')")
                      
         conn.commit()
+
+# --- NUOVE FUNZIONI PER GESTIRE I NOMI DELLE FAZIONI ---
+def get_factions_config():
+    """Restituisce il nome attuale delle due fazioni."""
+    with sqlite3.connect(DB_PATH) as conn:
+        c = conn.cursor()
+        c.execute("SELECT team_id, display_name FROM factions_config")
+        rows = c.fetchall()
+        config = {'ALPHA': 'ALPHA', 'BRAVO': 'BRAVO'} # Default
+        for row in rows:
+            config[row[0]] = row[1]
+        return config
+
+def set_faction_name(team_id, new_name):
+    """Aggiorna il nome di una specifica fazione."""
+    if team_id not in ['ALPHA', 'BRAVO']: return False
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("UPDATE factions_config SET display_name = ? WHERE team_id = ?", (new_name, team_id))
+        conn.commit()
+    return True
+# ------------------------------------------------------
 
 # --- NUOVE FUNZIONI PER ALIAS DISPOSITIVI ---
 def get_device_alias(device_id):

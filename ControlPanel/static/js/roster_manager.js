@@ -1,4 +1,5 @@
 // roster_manager.js
+import { currentFactions } from './main.js';
 
 let currentProfileUid = null;
 export let globalPlayersDB = [];
@@ -57,8 +58,22 @@ export function renderArenaRoster(arenaRoster, socket) {
     if(alphaCount === 0) listAlphaManage.innerHTML = '<li class="placeholder-text" style="color:var(--sop-dim); text-align:center; margin-top:20px;">NESSUN OPERATORE</li>';
     if(bravoCount === 0) listBravoManage.innerHTML = '<li class="placeholder-text" style="color:var(--sop-dim); text-align:center; margin-top:20px;">NESSUN OPERATORE</li>';
     
-    document.getElementById('header-alpha-manage').textContent = `TEAM ALPHA (${alphaCount})`;
-    document.getElementById('header-bravo-manage').textContent = `TEAM BRAVO (${bravoCount})`;
+    // --- NUOVO: Applicazione Nomi Dinamici con Tasto Edit ---
+    document.getElementById('header-alpha-manage').innerHTML = `${currentFactions.ALPHA} (${alphaCount}) <span class="action-btn" onclick="renameFaction('ALPHA')" style="font-size:14px; float:right;">[EDIT]</span>`;
+    document.getElementById('header-bravo-manage').innerHTML = `${currentFactions.BRAVO} (${bravoCount}) <span class="action-btn" onclick="renameFaction('BRAVO')" style="font-size:14px; float:right;">[EDIT]</span>`;
+    
+    const trackAlphaIn = document.getElementById('header-alpha-track-in');
+    if(trackAlphaIn) trackAlphaIn.textContent = `${currentFactions.ALPHA} IN CAMPO (${alphaInCount})`;
+    
+    const trackAlphaOut = document.getElementById('header-alpha-track-out');
+    if(trackAlphaOut) trackAlphaOut.textContent = `${currentFactions.ALPHA} FUORI (${alphaCount - alphaInCount})`;
+    
+    const trackBravoIn = document.getElementById('header-bravo-track-in');
+    if(trackBravoIn) trackBravoIn.textContent = `${currentFactions.BRAVO} IN CAMPO (${bravoInCount})`;
+    
+    const trackBravoOut = document.getElementById('header-bravo-track-out');
+    if(trackBravoOut) trackBravoOut.textContent = `${currentFactions.BRAVO} FUORI (${bravoCount - bravoInCount})`;
+
     document.getElementById('total-op-count').textContent = (alphaCount + bravoCount);
     document.getElementById('track-in-count').textContent = inFieldCount;
 
@@ -158,7 +173,8 @@ export function renderAddPlayerList(socket, arenaRoster) {
         const controlsDiv = document.createElement('div');
 
         const btnAlpha = document.createElement('button');
-        btnAlpha.textContent = '[ + ALPHA ]';
+        // --- NUOVO: Usa il nome Fazione dinamico per il pulsante ---
+        btnAlpha.textContent = `[ + ${currentFactions.ALPHA} ]`;
         btnAlpha.className = 'deck-btn';
         btnAlpha.style.color = 'var(--sop-alert)';
         btnAlpha.style.borderColor = 'var(--sop-alert)';
@@ -166,7 +182,8 @@ export function renderAddPlayerList(socket, arenaRoster) {
         btnAlpha.onclick = () => { socket.emit('register_operator', { uid: player.uid, team: 'ALPHA' }); };
 
         const btnBravo = document.createElement('button');
-        btnBravo.textContent = '[ + BRAVO ]';
+        // --- NUOVO: Usa il nome Fazione dinamico per il pulsante ---
+        btnBravo.textContent = `[ + ${currentFactions.BRAVO} ]`;
         btnBravo.className = 'deck-btn';
         btnBravo.style.color = '#55ff55';
         btnBravo.style.borderColor = '#55ff55';

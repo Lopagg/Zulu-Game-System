@@ -7,6 +7,9 @@ let currentDevices = [];
 let arenaRoster = {}; 
 let monitoredDeviceId = null;
 
+// --- NUOVO: VARIABILE GLOBALE FAZIONI ---
+export let currentFactions = { ALPHA: 'ALPHA', BRAVO: 'BRAVO' };
+
 document.addEventListener('DOMContentLoaded', () => {
     updateClock();
     resetMonitorLayout(); 
@@ -29,6 +32,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
     
+    // --- NUOVO: Funzione per rinominare le Fazioni ---
+    window.renameFaction = (teamId) => {
+        const oldName = currentFactions[teamId];
+        const newName = prompt(`Inserisci nuovo nome per il Team ${teamId}:`, oldName);
+        if (newName && newName.trim() !== '' && newName !== oldName) {
+            const data = {};
+            if (teamId === 'ALPHA') data.alpha_name = newName.trim().toUpperCase();
+            if (teamId === 'BRAVO') data.bravo_name = newName.trim().toUpperCase();
+            socket.emit('update_factions', data);
+        }
+    };
+
     // Aliasing/Rinomina Dispositivo
     const btnSaveAlias = document.getElementById('save-alias-btn');
     if (btnSaveAlias) {
@@ -108,6 +123,27 @@ socket.on('server_restarting', () => {
         elGlobalStatus.classList.add('status-alert');
     }
     alert("IL SERVER SI STA RIAVVIANDO. Attendi qualche secondo che il pannello torni online in automatico.");
+});
+
+// --- NUOVO: Ascolto aggiornamento Nomi Fazioni ---
+socket.on('factions_update', (factions) => {
+    currentFactions = factions;
+    logSystem(`FAZIONI SETTATE: ${factions.ALPHA} / ${factions.BRAVO}`);
+    
+    // Aggiorna le viste del Roster
+    renderArenaRoster(arenaRoster, socket);
+    if (globalPlayersDB && globalPlayersDB.length > 0) {
+        renderDatabase(globalPlayersDB, socket, arenaRoster);
+    }
+    
+    // Aggiorna la select nel pannello di setup
+    const attackerSelect = document.getElementById('sd-attacker-team');
+    if (attackerSelect) {
+        Array.from(attackerSelect.options).forEach(opt => {
+            if (opt.value === 'ALPHA') opt.textContent = currentFactions.ALPHA;
+            if (opt.value === 'BRAVO') opt.textContent = currentFactions.BRAVO;
+        });
+    }
 });
 
 socket.on('weather_update', (data) => {

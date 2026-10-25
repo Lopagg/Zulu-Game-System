@@ -42,20 +42,30 @@
     </div>
     <div class="arena-grid">
         <div class="sop-card roster-box team-alpha-box">
-            <div id="header-alpha-manage" class="widget-header arena-header" style="background: rgba(255, 51, 51, 0.2); color: var(--sop-alert);">TEAM ALPHA (0)</div>
+            <div id="header-alpha-manage" class="widget-header arena-header" style="background: rgba(255, 51, 51, 0.2); color: var(--sop-alert);">TEAM A (0)</div>
             <ul id="roster-alpha-manage" class="roster-list"></ul>
         </div>
         <div class="sop-card roster-box team-bravo-box">
-            <div id="header-bravo-manage" class="widget-header arena-header" style="background: rgba(85, 255, 85, 0.2); color: #55ff55;">TEAM BRAVO (0)</div>
+            <div id="header-bravo-manage" class="widget-header arena-header" style="background: rgba(85, 255, 85, 0.2); color: #55ff55;">TEAM B (0)</div>
             <ul id="roster-bravo-manage" class="roster-list"></ul>
         </div>
+        <!-- RIMOSSO ENVIRONMENT OVERRIDE. SPAZIO PER FUTURE IMPOSTAZIONI SQUADRE -->
         <div class="sop-card env-controls">
-            <div class="widget-header">ENVIRONMENT OVERRIDE</div>
-            <div class="override-grid">
-                <button class="override-btn btn-danger" onclick="sendEnvCommand('SIREN_LONG')">[ ARENA HORN ]</button>
-                <button class="override-btn" onclick="sendEnvCommand('SIREN_SHORT')">[ WARN BEEP ]</button>
-                <button class="override-btn" style="color:var(--sop-primary)" onclick="sendEnvCommand('LIGHTS_TOGGLE')">[ TOGGLE LIGHTS ]</button>
-                <button class="override-btn" style="color:var(--sop-secondary)" onclick="sendEnvCommand('DOOR_UNLOCK')">[ UNLOCK GATE ]</button>
+            <div class="widget-header">FACTION SETTINGS (WIP)</div>
+            <div class="override-grid" style="grid-template-columns: 1fr 1fr;">
+                <div class="input-group-tactical">
+                    <label>NOME TEAM A (Rosso)</label>
+                    <div class="row-inputs">
+                        <input type="text" id="custom-name-a" placeholder="ALPHA">
+                        <button class="deck-btn" onclick="saveTeamNames()">[SALVA]</button>
+                    </div>
+                </div>
+                <div class="input-group-tactical">
+                    <label>NOME TEAM B (Verde)</label>
+                    <div class="row-inputs">
+                        <input type="text" id="custom-name-b" placeholder="BRAVO">
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -68,15 +78,15 @@
     </div>
     <div class="arena-grid">
         <div class="sop-card roster-box">
-            <div id="header-alpha-track-in" class="widget-header arena-header" style="background: rgba(255, 51, 51, 0.2); color: var(--sop-alert);">ALPHA IN CAMPO (0)</div>
+            <div id="header-alpha-track-in" class="widget-header arena-header" style="background: rgba(255, 51, 51, 0.2); color: var(--sop-alert);">A IN CAMPO (0)</div>
             <ul id="track-alpha-in" class="roster-list"></ul>
-            <div id="header-alpha-track-out" class="widget-header arena-header" style="background: rgba(255, 51, 51, 0.05); color: #888; border-top: 1px solid var(--sop-dim);">ALPHA FUORI (0)</div>
+            <div id="header-alpha-track-out" class="widget-header arena-header" style="background: rgba(255, 51, 51, 0.05); color: #888; border-top: 1px solid var(--sop-dim);">A FUORI (0)</div>
             <ul id="track-alpha-out" class="roster-list"></ul>
         </div>
         <div class="sop-card roster-box">
-            <div id="header-bravo-track-in" class="widget-header arena-header" style="background: rgba(85, 255, 85, 0.2); color: #55ff55;">BRAVO IN CAMPO (0)</div>
+            <div id="header-bravo-track-in" class="widget-header arena-header" style="background: rgba(85, 255, 85, 0.2); color: #55ff55;">B IN CAMPO (0)</div>
             <ul id="track-bravo-in" class="roster-list"></ul>
-            <div id="header-bravo-track-out" class="widget-header arena-header" style="background: rgba(85, 255, 85, 0.05); color: #888; border-top: 1px solid var(--sop-dim);">BRAVO FUORI (0)</div>
+            <div id="header-bravo-track-out" class="widget-header arena-header" style="background: rgba(85, 255, 85, 0.05); color: #888; border-top: 1px solid var(--sop-dim);">B FUORI (0)</div>
             <ul id="track-bravo-out" class="roster-list"></ul>
         </div>
     </div>

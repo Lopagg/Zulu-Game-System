@@ -141,14 +141,39 @@ def upload_photo():
 @socketio.on('connect')
 def handle_connect():
     if not game_engine.background_thread_started:
-        # Avvia l'arbitro passandogli la funzione del meteo
         socketio.start_background_task(game_engine.background_cleanup, fetch_weather)
         game_engine.background_thread_started = True
     
     active_devs, _ = game_engine.registry.get_active_devices()
     emit('devices_update', active_devs)
     emit('weather_update', {'weather': fetch_weather()})
+    
+    # Invia la configurazione fazioni corrente ai client appena si collegano
+    emit('factions_update', db_manager.get_factions_config())
+    
     socketio.emit('roster_update', db_manager.get_full_roster())
+
+# --- NUOVO: ROTTA PER AGGIORNARE I NOMI DELLE FAZIONI ---
+@socketio.on('update_factions')
+@login_required
+def handle_update_factions(data):
+    if 'alpha_name' in data:
+        db_manager.set_faction_name('ALPHA', data['alpha_name'])
+    if 'bravo_name' in data:
+        db_manager.set_faction_name('BRAVO', data['bravo_name'])
+    
+    # Avvisa tutti i client collegati (Arbitro e TV) del cambio nome
+    new_config = db_manager.get_factions_config()
+    socketio.emit('factions_update', new_config)
+    
+    # Invia il cambio nome anche in broadcast ai dispositivi hardware (Kiosk e RAT)
+    # Lo inviamo in un formato compatto.
+    game_engine.mqtt_client.publish("zulu/cmd/broadcast", json.dumps({
+        "cmd": "SET_FACTION_NAMES",
+        "t1": new_config['ALPHA'],
+        "t2": new_config['BRAVO']
+    }))
+    logger.info(f"[SYSTEM] Nomi fazioni aggiornati: {new_config}")
 
 @socketio.on('request_roster')
 def handle_request_roster():
