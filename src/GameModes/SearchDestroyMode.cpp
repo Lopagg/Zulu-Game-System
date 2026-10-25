@@ -30,6 +30,7 @@ SearchDestroyMode::SearchDestroyMode(HardwareManager* hardware, NetworkManager* 
       _lastDisplayedSeconds(-1),
       _gameIsActive(false),
       _bombIsActive(false),
+      _isServerAuthoritative(false),
       _lastTelemetryTime(0),
       _endGameStatus("") {
 }
@@ -46,6 +47,7 @@ void SearchDestroyMode::enter() {
     _subMenuIndex = 0;
     _gameIsActive = false;
     _bombIsActive = false;
+    _isServerAuthoritative = false;
     _endGameStatus = ""; // Reset vincitore
     displaySubMenu();
     _hardware->setStripColor(255, 100, 0);
@@ -77,6 +79,7 @@ void SearchDestroyMode::enterInGame() {
     _gameMatchStartTime = _hardware->getRTCTime();
     _gameIsActive = true;
     _bombIsActive = false;
+    _isServerAuthoritative = true;
     
     // Opzionale: notifica avvio gioco immediato
     // _network->sendEvent("GAME_START");
@@ -306,12 +309,11 @@ void SearchDestroyMode::handleBooleanEditInput(char key, bool btn1, bool btn2) {
 void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_was_pressed, bool btn2_is_pressed, bool btn2_was_pressed) {
 
     // GESTIONE TIMER GLOBALE PARTITA ---
-    if (_gameIsActive) {
+    if (_gameIsActive && !_isServerAuthoritative) { 
         long totalMatchSeconds = _settings->getGameDuration() * 60;
         TimeSpan matchElapsed = _hardware->getRTCTime() - _gameMatchStartTime;
         long remainingMatchSeconds = totalMatchSeconds - matchElapsed.totalseconds();
 
-        // Se il tempo partita scade, vincono i CT (Tempo esaurito per i terroristi)
         if (remainingMatchSeconds <= 0 && _currentState != ModeState::IN_GAME_ENDED && _currentState != ModeState::IN_GAME_DEFUSED) {
             
             // Forza fine partita
