@@ -522,8 +522,17 @@ void handleNetworkCommands() {
         Serial.println("Ricevuto RESUME_MISSION dal server!");
         String modeStr = doc["mode"] | "";
         if (modeStr == "sd" && sdMode) {
+            
+            // 1. Prima facciamo un ingresso pulito (notifica rete e setup base) come se venisse avviata da remoto
+            JsonDocument resp;
+            resp["target_mode"] = "SEARCH_AND_DESTROY";
+            networkManager.sendEvent("REMOTE_START_ACK", resp);
             currentAppState = APP_STATE_SEARCH_DESTROY_MODE;
+            
+            // IMPORTANTE: Entra in game pulito (manda impostazioni e suona beep iniziale)
+            sdMode->enterInGame(); 
+            
+            // 2. ORA applichiamo la "macchina del tempo" sovrascrivendo i timer appena creati
             sdMode->resumeGame(doc); 
         }
     }
-}

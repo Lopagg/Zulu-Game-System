@@ -215,10 +215,11 @@ def on_mqtt_message(client, userdata, msg):
             version = payload.get('version') or parsed.get('version')
             has_changed = registry.update_device(device_id, msg_type, mode, version)
 
-            # --- DISASTER RECOVERY ---
-            if msg_type == 'DEVICE_ONLINE':
+            # --- DISASTER RECOVERY (LAZY RECOVERY) ---
+            # Intercettiamo quando un nodo, che dovrebbe essere in partita, entra nel Main Menu (tipico dopo un crash/riavvio)
+            if msg_type == 'MODE_CHANGE' and parsed.get('payload', {}).get('new_mode') == 'MAIN_MENU':
                 if mission_control.active_mission and device_id == mission_control.target_id:
-                    logger.info(f"[DISASTER RECOVERY] Il nodo {device_id} si è riavviato. Ripristino stato...")
+                    logger.info(f"[DISASTER RECOVERY] Il nodo {device_id} è nel Main Menu durante una missione attiva. Forzo il ripristino...")
                     
                     last_tel = registry.devices.get(device_id, {}).get("telemetry", {})
                     sd_state = last_tel.get("state", "SAFE")
@@ -231,19 +232,11 @@ def on_mqtt_message(client, userdata, msg):
                         "bomb_time_left": bomb_time,
                         "global_time_left": mission_control.global_time_left
                     }
-                    
-                    # Funzione asincrona per dare 2 secondi di respiro al RAT al boot
-                    def delayed_resume():
-                        time.sleep(2.0)
-                        try:
-                            mqtt_client.publish(f"zulu/cmd/{device_id}", json.dumps(resume_payload))
-                            logger.info(f"[DISASTER RECOVERY] Inviato RESUME_MISSION a {device_id}")
-                        except Exception as e:
-                            logger.error(f"[DISASTER RECOVERY ERROR] {e}")
-                            
-                    # Avvia l'invio in background usando il framework socketio
-                    if socketio:
-                        socketio.start_background_task(delayed_resume)
+                    try:
+                        mqtt_client.publish(f"zulu/cmd/{device_id}", json.dumps(resume_payload))
+                        logger.info(f"[DISASTER RECOVERY] Inviato RESUME_MISSION a {device_id}")
+                    except Exception as e:
+                        logger.error(f"[DISASTER RECOVERY ERROR] {e}")
             
             if msg_type == 'MODE_EXIT':
                 if mission_control.is_authorized_node(device_id):
