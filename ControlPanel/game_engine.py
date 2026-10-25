@@ -129,6 +129,7 @@ def on_mqtt_connect(client, userdata, flags, rc):
     client.subscribe("zulu/telemetry/#")
 
 def on_mqtt_message(client, userdata, msg):
+    global mission_ready_flag # <-- AGGIUNTO per permettere l'avvio dal Kiosk
     if not socketio: return
     try:
         payload_str = msg.payload.decode('utf-8')
@@ -141,9 +142,56 @@ def on_mqtt_message(client, userdata, msg):
             logger.info(f"[MQTT RX] {device_id} -> TYPE: {msg_type} | PAYLOAD: {payload}")
         
         if device_id:
+            # --- INTERCETTAZIONE COMANDI HARDWARE DAL KIOSK ---
             if msg_type == 'KIOSK_CMD':
-                if payload.get('cmd'): socketio.emit('kiosk_hardware_cmd', {'cmd': payload.get('cmd')})
+                cmd_str = payload.get('cmd')
+                if cmd_str: 
+                    # 1. Se il Kiosk preme START
+                    if cmd_str == "GAME_START":
+                        with mission_control.lock:
+                            if mission_ready_flag and not mission_control.active_mission:
+                                # Il Kiosk non sa i parametri esatti, ma il server li ha memorizzati.
+                                # Recuperiamo l'ultimo target_id e la durata impostata dall'admin
+                                target = mission_control.target_id
+                                mode = mission_control.mode
+                                dur = int(mission_control.global_duration / 60) if mission_control.global_duration > 0 else 15
+                                
+                                if target and mode:
+                                    logger.info(f"[KIOSK OVERRIDE] Avvio Hardware Missione: {mode} su {target}")
+                                    mission_control.active_mission = True
+                                    mission_control.state = "ACTIVE" if mode == 'tdm' else "PREPARING"
+                                    
+                                    # Invio dei comandi fisici di START all'hardware e al web
+                                    if mode == 'tdm':
+                                        doc = { "id": "SERVER-TDM", "type": "MODE_ENTER", "payload": {"mode": "TEAM_DEATHMATCH"} }
+                                        socketio.emit('esp_event', {"parsed_data": doc})
+                                        trigger_siren("SIREN_LONG")
+                                    else:
+                                        cmd_start = "START_SD_GAME" if mode == 'sd' else "START_DOM_GAME"
+                                        mqtt_client.publish(f"zulu/cmd/{target}", json.dumps({"cmd": cmd_start}))
+                                        
+                                    socketio.emit('mission_start_success') # Sblocca anche l'interfaccia web
+                    
+                    # 2. Se il Kiosk preme STOP
+                    elif cmd_str == "FORCE_END_GAME":
+                        with mission_control.lock:
+                            if mission_control.active_mission:
+                                logger.info("[KIOSK OVERRIDE] Chiusura Forzata Hardware della Missione")
+                                
+                                if mission_control.mode == 'tdm':
+                                    mission_control.state = "STOPPED"
+                                    db_manager.process_match_stats("STOPPED")
+                                    doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": "STOPPED", "game_time": mission_control.global_time_left } }
+                                    socketio.emit('esp_event', {"parsed_data": doc})
+                                    trigger_siren("SIREN_LONG")
+                                else:
+                                    # Se è un nodo hardware, inoltriamo il FORCE_END_GAME nativo
+                                    mqtt_client.publish(f"zulu/cmd/{mission_control.target_id}", json.dumps({"cmd": "FORCE_END_GAME"}))
+
+                    # Mantieni la vecchia logica per il web monitor
+                    socketio.emit('kiosk_hardware_cmd', {'cmd': cmd_str})
                 return
+            # ----------------------------------------------------
 
             elif msg_type == 'TAG_SCANNED':
                 uid = payload.get('uid')
