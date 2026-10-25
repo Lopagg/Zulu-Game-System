@@ -4,232 +4,257 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ARENA TV // PHILANTHROPY</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <!-- Usa lo STESSO foglio stile del pannello arbitro! -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    
     <style>
-        :root {
-            --bg-color: #0d1117;
-            --panel-bg: rgba(20, 25, 35, 0.85);
-            --primary: #00ffcc;
-            --alert: #ff3333;
-            --text: #e0e0e0;
-        }
-        body {
-            margin: 0; padding: 20px;
-            background-color: var(--bg-color); color: var(--text);
-            font-family: 'Share Tech Mono', monospace;
-            overflow-x: hidden;
-        }
-        .tv-header {
-            display: flex; justify-content: space-between; align-items: center;
-            border-bottom: 2px solid var(--primary); padding-bottom: 10px; margin-bottom: 20px;
-        }
-        .tv-title { font-size: 2rem; color: var(--primary); letter-spacing: 3px; margin: 0; text-shadow: 0 0 10px var(--primary); }
-        .tv-status { font-size: 1.5rem; }
+        /* Stili specifici per forzare il Fullscreen sulla TV e disabilitare lo scroll */
+        body { overflow: hidden; margin: 0; padding: 0; height: 100vh; width: 100vw; }
         
-        /* SISTEMA DI GRIGLIA CUSTOMIZZABILE */
-        .dashboard-grid {
+        .tv-container {
             display: grid;
-            grid-template-columns: repeat(12, 1fr);
-            gap: 20px;
-            align-items: start;
-        }
-        .widget {
-            background: var(--panel-bg);
-            border: 1px solid #333;
-            border-radius: 8px;
-            padding: 20px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-            transition: all 0.3s ease;
+            grid-template-rows: auto 1fr;
+            height: 100vh;
+            padding: 25px;
+            box-sizing: border-box;
+            gap: 25px;
+            z-index: 2;
             position: relative;
         }
-        .widget-header {
-            font-size: 1.2rem; color: #888; border-bottom: 1px solid #333;
-            padding-bottom: 10px; margin-bottom: 15px; letter-spacing: 1px;
+        
+        /* HEADER TV */
+        .tv-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 15px 30px; box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+        }
+        .tv-title { 
+            color: #fff; font-size: 2.2rem; margin: 0; letter-spacing: 6px; 
+            text-shadow: 0 0 15px rgba(255,255,255,0.3); font-weight: 700;
         }
         
-        /* EDIT MODE STYLES */
-        body.edit-mode .widget { border: 2px dashed var(--primary); }
-        .edit-controls {
-            display: none; position: absolute; top: -15px; right: 10px;
-            background: #000; padding: 5px; border: 1px solid var(--primary); border-radius: 5px; z-index: 10;
+        /* GRIGLIA A 3 COLONNE (Perfetta per il 16:9) */
+        .tv-grid {
+            display: grid;
+            grid-template-columns: 1fr 1.6fr 1fr; 
+            gap: 25px;
+            height: 100%;
         }
-        body.edit-mode .edit-controls { display: flex; gap: 5px; }
-        .edit-btn { background: #333; color: white; border: none; cursor: pointer; padding: 5px 10px; font-family: monospace; }
-        .edit-btn:hover { background: var(--primary); color: #000; }
-        
-        /* TOOLBAR NASCOSTA */
-        #hidden-widgets-bar { display: none; margin-bottom: 20px; padding: 10px; background: #222; border: 1px solid #555; }
-        body.edit-mode #hidden-widgets-bar { display: block; }
 
-        /* WIDGET SPECIFICI */
-        .huge-text { font-size: 6rem; text-align: center; margin: 0; color: var(--primary); }
-        .faction-box { display: flex; justify-content: space-between; font-size: 2rem; margin: 15px 0; }
-        .score { font-weight: bold; font-size: 3rem; }
-        .score.alpha { color: var(--alert); }
-        .score.bravo { color: #55ff55; }
+        .tv-widget { 
+            display: flex; flex-direction: column; 
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
+        }
         
-        ul.rule-list { list-style: none; padding: 0; font-size: 1.5rem; line-height: 2; }
-        ul.rule-list span.val { color: var(--primary); float: right; font-weight: bold; }
+        /* FONT INGRANDITI PER LA DISTANZA */
+        .tv-timer-huge { 
+            font-size: 8rem; text-align: center; margin: auto; 
+            color: var(--sop-text); text-shadow: 0 0 20px rgba(255,255,255,0.2); 
+            line-height: 1;
+        }
+        .tv-bomb-huge { 
+            font-size: 6rem; text-align: center; margin: 15px 0; 
+            color: var(--sop-alert); text-shadow: 0 0 25px var(--sop-alert); 
+            line-height: 1;
+        }
+        .tv-status-huge { 
+            font-size: 3.5rem; text-align: center; margin: 20px 0; 
+            font-weight: bold; letter-spacing: 2px;
+        }
         
-        .progress-track { background: #222; height: 30px; width: 100%; border-radius: 15px; overflow: hidden; margin-top: 10px; }
-        .progress-fill { height: 100%; width: 0%; transition: width 0.3s linear; }
-        .fill-red { background: var(--alert); box-shadow: 0 0 10px var(--alert); }
-        .fill-green { background: #55ff55; box-shadow: 0 0 10px #55ff55; }
+        /* OPERATORI */
+        .tv-roster-row {
+            display: flex; justify-content: space-between; align-items: center;
+            background: rgba(0,0,0,0.3); padding: 15px 25px; border-radius: 8px;
+            margin-bottom: 15px; border-left: 5px solid transparent;
+        }
+        .tv-roster-row.alpha { border-left-color: var(--sop-alert); }
+        .tv-roster-row.bravo { border-left-color: #55ff55; }
+        
+        .tv-roster-name { font-size: 2.2rem; color: #ccc; }
+        .tv-roster-count { font-size: 4.5rem; font-weight: bold; line-height: 1;}
+        .count-alpha { color: var(--sop-alert); text-shadow: 0 0 15px rgba(255,51,51,0.4); }
+        .count-bravo { color: #55ff55; text-shadow: 0 0 15px rgba(85,255,85,0.4); }
 
-        .config-toggle { position: fixed; bottom: 20px; right: 20px; opacity: 0.1; cursor: pointer; font-size: 2rem; transition: opacity 0.3s; }
-        .config-toggle:hover { opacity: 1; }
+        /* DOMINIO */
+        .tv-dom-score { font-size: 5rem; font-weight: bold; line-height: 1;}
+
+        /* REGOLE */
+        .tv-rule-item {
+            display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 1px solid #333; padding: 12px 0;
+            font-size: 1.3rem;
+        }
+        .tv-rule-label { color: #888; }
+        .tv-rule-val { color: var(--sop-primary); font-weight: bold; font-size: 1.5rem; }
+        
+        /* SYSTEM LOG */
+        #tv-log {
+            font-size: 1rem; color: var(--sop-dim); 
+            height: 120px; overflow: hidden; 
+            display: flex; flex-direction: column; justify-content: flex-end;
+            font-family: monospace; line-height: 1.5;
+        }
     </style>
 </head>
-<body>
+<body class="sop-theme">
 
-    <div class="tv-header">
-        <h1 class="tv-title">ARENA LIVE STATUS</h1>
-        <div class="tv-status" id="main-status">AWAITING MISSION...</div>
+    <!-- SFONDO TATTICO EREDITATO DAL BASE.HTML -->
+    <div class="tactical-background">
+        <div class="grid-overlay"></div>
+        <div class="scan-line"></div>
     </div>
 
-    <div id="hidden-widgets-bar">
-        <strong>Pannelli Nascosti:</strong> <span id="hidden-list">Nessuno</span>
-    </div>
-
-    <div class="dashboard-grid" id="tv-grid">
+    <div class="tv-container">
         
-        <!-- WIDGET: TIMER GLOBALE -->
-        <div class="widget" id="w-timer" data-default-span="12" data-default-order="1">
-            <div class="edit-controls">
-                <button class="edit-btn" onclick="modWidget('w-timer', 'shrink')">-</button>
-                <button class="edit-btn" onclick="modWidget('w-timer', 'grow')">+</button>
-                <button class="edit-btn" onclick="modWidget('w-timer', 'hide')">NASCONDI</button>
-                <button class="edit-btn" onclick="modWidget('w-timer', 'up')">SU</button>
-                <button class="edit-btn" onclick="modWidget('w-timer', 'down')">GIU</button>
+        <!-- HEADER -->
+        <header class="tv-header sop-card">
+            <div class="logo-box">
+                <span class="logo-text">PHILANTHROPY</span>
+                <span class="logo-sub">SPECTATOR DISPLAY</span>
             </div>
-            <div class="widget-header">GLOBAL MATCH TIMER</div>
-            <p class="huge-text" id="tv-timer">--:--</p>
-        </div>
+            <h1 class="tv-title" id="tv-mode-title">STANDBY</h1>
+            <div class="hud-center-group" style="margin: 0;">
+                <div id="tv-clock" class="hud-text" style="font-size: 2rem;">00:00:00</div>
+            </div>
+        </header>
 
-        <!-- WIDGET: OPERATORI / FAZIONI -->
-        <div class="widget" id="w-factions" data-default-span="6" data-default-order="2">
-            <div class="edit-controls">
-                <button class="edit-btn" onclick="modWidget('w-factions', 'shrink')">-</button>
-                <button class="edit-btn" onclick="modWidget('w-factions', 'grow')">+</button>
-                <button class="edit-btn" onclick="modWidget('w-factions', 'hide')">NASCONDI</button>
-                <button class="edit-btn" onclick="modWidget('w-factions', 'up')">SU</button>
-                <button class="edit-btn" onclick="modWidget('w-factions', 'down')">GIU</button>
-            </div>
-            <div class="widget-header">ACTIVE OPERATORS</div>
-            <div class="faction-box"><span>TEAM ALPHA</span><span class="score alpha" id="tv-op-alpha">0</span></div>
-            <div class="faction-box"><span>TEAM BRAVO</span><span class="score bravo" id="tv-op-bravo">0</span></div>
-        </div>
-
-        <!-- WIDGET: FEED TATTICO -->
-        <div class="widget" id="w-tactical" data-default-span="6" data-default-order="3">
-            <div class="edit-controls">
-                <button class="edit-btn" onclick="modWidget('w-tactical', 'shrink')">-</button>
-                <button class="edit-btn" onclick="modWidget('w-tactical', 'grow')">+</button>
-                <button class="edit-btn" onclick="modWidget('w-tactical', 'hide')">NASCONDI</button>
-                <button class="edit-btn" onclick="modWidget('w-tactical', 'up')">SU</button>
-                <button class="edit-btn" onclick="modWidget('w-tactical', 'down')">GIU</button>
-            </div>
-            <div class="widget-header">TACTICAL EVENTS</div>
-            <p style="font-size: 1.5rem; text-align:center;">STATUS: <span id="tv-tac-status" style="font-weight:bold; color:var(--primary);">SAFE</span></p>
-            <p style="font-size: 2rem; text-align:center; color: var(--alert); display: none;" id="tv-bomb-timer-box">BOMB: <span id="tv-bomb-timer">00:00</span></p>
+        <!-- GRIGLIA PRINCIPALE -->
+        <div class="tv-grid">
             
-            <div id="tv-progress-container" style="display: none;">
-                <div style="margin-top:20px;">
-                    <span>ALPHA ACTION</span>
-                    <div class="progress-track"><div class="progress-fill fill-red" id="tv-prog-1"></div></div>
+            <!-- COLONNA SINISTRA: Timer Globale e Operatori -->
+            <div style="display: flex; flex-direction: column; gap: 25px;">
+                <div class="sop-card tv-widget" style="flex: 0.8;">
+                    <div class="widget-header">GLOBAL MATCH TIMER</div>
+                    <div style="flex: 1; display: flex; align-items: center; justify-content: center;">
+                        <div id="tv-global-timer" class="tv-timer-huge">--:--</div>
+                    </div>
                 </div>
-                <div style="margin-top:20px;">
-                    <span>BRAVO ACTION</span>
-                    <div class="progress-track"><div class="progress-fill fill-green" id="tv-prog-2"></div></div>
+                
+                <div class="sop-card tv-widget" style="flex: 1.2;">
+                    <div class="widget-header">ACTIVE OPERATORS IN FIELD</div>
+                    <div style="flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 0 10px;">
+                        
+                        <div class="tv-roster-row alpha">
+                            <span class="tv-roster-name">TEAM ALPHA</span>
+                            <span id="tv-op-alpha" class="tv-roster-count count-alpha">0</span>
+                        </div>
+                        
+                        <div class="tv-roster-row bravo">
+                            <span class="tv-roster-name">TEAM BRAVO</span>
+                            <span id="tv-op-bravo" class="tv-roster-count count-bravo">0</span>
+                        </div>
+                        
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <!-- WIDGET: REGOLE -->
-        <div class="widget" id="w-rules" data-default-span="12" data-default-order="4">
-            <div class="edit-controls">
-                <button class="edit-btn" onclick="modWidget('w-rules', 'shrink')">-</button>
-                <button class="edit-btn" onclick="modWidget('w-rules', 'grow')">+</button>
-                <button class="edit-btn" onclick="modWidget('w-rules', 'hide')">NASCONDI</button>
-                <button class="edit-btn" onclick="modWidget('w-rules', 'up')">SU</button>
-                <button class="edit-btn" onclick="modWidget('w-rules', 'down')">GIU</button>
+            <!-- COLONNA CENTRALE: Feed Tattico Gigante -->
+            <div class="sop-card tv-widget">
+                <div class="widget-header" style="text-align: center; font-size: 1.5rem; border-bottom: 2px solid var(--sop-primary);">TACTICAL FEED</div>
+                
+                <div style="flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+                    <div style="font-size: 1.5rem; color: #888; letter-spacing: 2px;">CURRENT STATUS</div>
+                    <div id="tv-tac-status" class="tv-status-huge" style="color: var(--sop-primary);">WAITING FOR DATA</div>
+                    
+                    <!-- BOX CERCA E DISTRUGGI -->
+                    <div id="tv-bomb-container" style="display: none; width: 100%; text-align: center; margin-top: 20px;">
+                        <div style="font-size: 1.5rem; color: var(--sop-alert); letter-spacing: 2px;">DETONATION SEQUENCE</div>
+                        <div id="tv-bomb-timer" class="tv-bomb-huge">00:00</div>
+                    </div>
+
+                    <!-- BOX DOMINIO -->
+                    <div id="tv-dom-container" style="display: none; width: 100%; margin-top: 40px;">
+                        <div style="display: flex; justify-content: space-around; align-items: center; width: 100%;">
+                            <div style="text-align: center;">
+                                <div style="font-size: 1.5rem; color: var(--sop-alert); letter-spacing: 1px;">ALPHA SCORE</div>
+                                <div id="tv-dom-a" class="tv-dom-score" style="color: var(--sop-alert);">00:00</div>
+                            </div>
+                            <div style="font-size: 3rem; color: #555; font-weight: bold;">VS</div>
+                            <div style="text-align: center;">
+                                <div style="font-size: 1.5rem; color: #55ff55; letter-spacing: 1px;">BRAVO SCORE</div>
+                                <div id="tv-dom-b" class="tv-dom-score" style="color: #55ff55;">00:00</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Barre di Progresso -->
+                <div id="tv-progress-container" style="display: none; padding: 25px; background: rgba(0,0,0,0.5); border-top: 1px solid #333; margin: -20px;">
+                    <div style="margin-bottom: 25px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                            <span id="tv-lbl-prog-1" style="color: var(--sop-alert); font-weight: bold; font-size: 1.2rem; letter-spacing: 1px;">ARMING PROGRESS</span>
+                        </div>
+                        <div class="progress-track" style="height: 25px; background: #111; border-radius: 15px; overflow: hidden; border: 1px solid #333;">
+                            <div id="tv-prog-1" class="progress-fill fill-red" style="width: 0%; background: var(--sop-alert); box-shadow: 0 0 15px var(--sop-alert); height: 100%; transition: width 0.2s;"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                            <span id="tv-lbl-prog-2" style="color: #55ff55; font-weight: bold; font-size: 1.2rem; letter-spacing: 1px;">DEFUSING PROGRESS</span>
+                        </div>
+                        <div class="progress-track" style="height: 25px; background: #111; border-radius: 15px; overflow: hidden; border: 1px solid #333;">
+                            <div id="tv-prog-2" class="progress-fill fill-green" style="width: 0%; background: #55ff55; box-shadow: 0 0 15px #55ff55; height: 100%; transition: width 0.2s;"></div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="widget-header">MISSION RULES</div>
-            <ul class="rule-list" id="tv-rules-list">
-                <li>IN ATTESA DI DATI...</li>
-            </ul>
+
+            <!-- COLONNA DESTRA: Regole e System Log -->
+            <div class="sop-card tv-widget">
+                <div class="widget-header">MISSION INTEL // RULES</div>
+                <div id="tv-rules-list" style="padding: 10px 10px;">
+                    <div style="color: var(--sop-dim); text-align: center; margin-top: 20px;">Nessun parametro caricato...</div>
+                </div>
+                
+                <div style="margin-top: auto; padding-top: 20px; border-top: 1px solid #333;">
+                    <div class="widget-header" style="font-size: 1.1rem; margin-bottom: 10px;">SYSTEM LOG</div>
+                    <div id="tv-log">
+                        <div>> TACTICAL SPECTATOR TERMINAL ONLINE...</div>
+                        <div>> WAITING FOR TELEMETRY LINK...</div>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
 
-    <!-- Tasto Nascosto per configurare il Layout -->
-    <div class="config-toggle" onclick="document.body.classList.toggle('edit-mode')">⚙️</div>
-
+    <!-- LOGICA JAVASCRIPT (STANDALONE) -->
     <script>
-        // === GESTIONE LAYOUT CUSTOM (Salvataggio su TV) ===
-        const widgets = ['w-timer', 'w-factions', 'w-tactical', 'w-rules'];
-        
-        function loadLayout() {
-            widgets.forEach(id => {
-                const el = document.getElementById(id);
-                const saved = JSON.parse(localStorage.getItem('tv_layout_' + id));
-                if (saved) {
-                    el.style.gridColumn = `span ${saved.span}`;
-                    el.style.order = saved.order;
-                    el.style.display = saved.hidden ? 'none' : 'block';
-                } else {
-                    el.style.gridColumn = `span ${el.dataset.defaultSpan}`;
-                    el.style.order = el.dataset.defaultOrder;
-                }
-            });
-            updateHiddenList();
+        // Gestione Orologio Header
+        setInterval(() => {
+            document.getElementById('tv-clock').textContent = new Date().toLocaleTimeString('it-IT', { hour12: false });
+        }, 1000);
+
+        // Funzione Log
+        function log(msg) {
+            const logEl = document.getElementById('tv-log');
+            const div = document.createElement('div');
+            const timeStr = new Date().toLocaleTimeString('it-IT', { hour12: false });
+            div.textContent = `[${timeStr}] > ${msg}`;
+            logEl.appendChild(div);
+            if (logEl.children.length > 5) logEl.removeChild(logEl.firstChild);
         }
 
-        window.modWidget = function(id, action) {
-            const el = document.getElementById(id);
-            let span = parseInt(el.style.gridColumn.replace('span ', '')) || parseInt(el.dataset.defaultSpan);
-            let order = parseInt(el.style.order) || parseInt(el.dataset.defaultOrder);
-            let hidden = el.style.display === 'none';
-
-            if (action === 'grow' && span < 12) span += 2;
-            if (action === 'shrink' && span > 2) span -= 2;
-            if (action === 'up') order -= 1;
-            if (action === 'down') order += 1;
-            if (action === 'hide') hidden = true;
-            if (action === 'show') hidden = false;
-
-            el.style.gridColumn = `span ${span}`;
-            el.style.order = order;
-            el.style.display = hidden ? 'none' : 'block';
-
-            localStorage.setItem('tv_layout_' + id, JSON.stringify({ span, order, hidden }));
-            updateHiddenList();
+        const formatTime = (seconds) => {
+            if(seconds === undefined || seconds < 0) return "--:--";
+            const m = Math.floor(seconds / 60);
+            const s = seconds % 60;
+            return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
         };
 
-        function updateHiddenList() {
-            const bar = document.getElementById('hidden-list');
-            bar.innerHTML = '';
-            let hiddenAny = false;
-            widgets.forEach(id => {
-                if (document.getElementById(id).style.display === 'none') {
-                    hiddenAny = true;
-                    bar.innerHTML += `<button class="edit-btn" onclick="modWidget('${id}', 'show')">Mostra ${id}</button> `;
-                }
-            });
-            if (!hiddenAny) bar.innerHTML = 'Nessuno';
-        }
-
-        loadLayout(); // Applica il layout salvato all'avvio
-
-        // === LOGICA SOCKET (Solo Lettura) ===
         const socket = io();
-        
-        socket.on('connect', () => document.getElementById('main-status').style.color = 'var(--primary)');
-        socket.on('disconnect', () => {
-            document.getElementById('main-status').textContent = 'CONNECTION LOST';
-            document.getElementById('main-status').style.color = 'var(--alert)';
-        });
 
+        socket.on('connect', () => log("LINK ESTABLISHED WITH SOP SERVER."));
+        socket.on('disconnect', () => log("CRITICAL: CONNECTION LOST."));
+        
+        // Richiede subito i giocatori al primo caricamento
+        socket.emit('request_roster');
+
+        // Aggiorna il conteggio operatori in campo
         socket.on('roster_update', (roster) => {
             let a = 0, b = 0;
             Object.values(roster).forEach(op => {
@@ -242,56 +267,141 @@
             document.getElementById('tv-op-bravo').textContent = b;
         });
 
-        const formatTime = (seconds) => {
-            if(seconds === undefined) return "--:--";
-            const m = Math.floor(seconds / 60);
-            const s = seconds % 60;
-            return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-        };
-
+        // Motore principale: Intercetta gli stessi dati dell'arbitro
         socket.on('esp_event', (msg) => {
             const raw = msg.parsed_data || {};
             const type = raw.type || 'UNKNOWN';
             const payload = raw.payload || {};
+            let mode = payload.mode || raw.mode;
             
+            if (!mode) {
+                if (type === 'SD_UPDATE') mode = 'SEARCH_AND_DESTROY';
+                else if (type === 'DOM_UPDATE') mode = 'DOMINATION';
+                else if (type === 'TDM_UPDATE') mode = 'TEAM_DEATHMATCH';
+            }
+
+            // GESTIONE USCITA DALLA MISSIONE
             if (type === 'MODE_EXIT') {
-                document.getElementById('main-status').textContent = "STANDBY";
-                document.getElementById('tv-timer').textContent = "--:--";
+                document.getElementById('tv-mode-title').textContent = "STANDBY";
+                document.getElementById('tv-global-timer').textContent = "--:--";
+                document.getElementById('tv-global-timer').style.color = "var(--sop-text)";
+                document.getElementById('tv-tac-status').textContent = "WAITING FOR DATA";
+                document.getElementById('tv-tac-status').style.color = "var(--sop-primary)";
+                
+                document.getElementById('tv-bomb-container').style.display = 'none';
+                document.getElementById('tv-dom-container').style.display = 'none';
+                document.getElementById('tv-progress-container').style.display = 'none';
                 return;
             }
 
-            if (payload.mode) document.getElementById('main-status').textContent = payload.mode.replace('_', ' ').toUpperCase();
-            if (payload.game_time !== undefined) document.getElementById('tv-timer').textContent = formatTime(payload.game_time);
+            // AGGIORNAMENTO TITOLO MISSIONE
+            if (mode) {
+                document.getElementById('tv-mode-title').textContent = "OPERATION: " + mode.replace(/_/g, ' ').toUpperCase();
+            }
 
+            // TIMER GLOBALE
+            if (payload.game_time !== undefined) {
+                document.getElementById('tv-global-timer').textContent = formatTime(payload.game_time);
+                // Se mancano meno di 30 secondi, il timer diventa rosso
+                if (payload.game_time <= 30 && payload.game_time > 0) {
+                    document.getElementById('tv-global-timer').style.color = "var(--sop-alert)";
+                } else {
+                    document.getElementById('tv-global-timer').style.color = "var(--sop-primary)";
+                }
+            }
+
+            // STATUS TESTUALE COLORATO
             if (payload.state) {
                 const s = payload.state;
                 const statusEl = document.getElementById('tv-tac-status');
                 statusEl.textContent = s;
-                if (s.includes('DEFUS') || s.includes('WINS')) statusEl.style.color = '#55ff55';
-                else if (s.includes('ARM') || s.includes('EXPLOD')) statusEl.style.color = 'var(--alert)';
-                else statusEl.style.color = 'var(--primary)';
+                
+                if (s.includes('DEFUS') || s.includes('CT WINS') || s.includes('BRAVO WINS') || s.includes('OWNED BRAVO') || s.includes('CAPTURING B')) {
+                    statusEl.style.color = '#55ff55';
+                } else if (s.includes('ARM') || s.includes('EXPLOD') || s.includes('T WINS') || s.includes('ALPHA WINS') || s.includes('OWNED ALPHA') || s.includes('CAPTURING A')) {
+                    statusEl.style.color = 'var(--sop-alert)';
+                } else if (s === 'STANDBY' || s === 'PREPARING' || s === 'DRAW') {
+                    statusEl.style.color = '#ff9900';
+                } else {
+                    statusEl.style.color = 'var(--sop-primary)';
+                }
             }
 
-            if (type === 'SD_UPDATE' || payload.mode === 'SEARCH_AND_DESTROY') {
+            // GESTIONE GRAFICA PER MODALITA'
+            const isSd = (type === 'SD_UPDATE' || mode === 'SEARCH_AND_DESTROY');
+            const isDom = (type === 'DOM_UPDATE' || mode === 'DOMINATION');
+            
+            if (isSd) {
+                document.getElementById('tv-bomb-container').style.display = 'block';
+                document.getElementById('tv-dom-container').style.display = 'none';
                 document.getElementById('tv-progress-container').style.display = 'block';
-                document.getElementById('tv-bomb-timer-box').style.display = (payload.bomb_time !== undefined && payload.bomb_time > 0) ? 'block' : 'none';
-                if (payload.bomb_time !== undefined) document.getElementById('tv-bomb-timer').textContent = formatTime(payload.bomb_time);
                 
+                document.getElementById('tv-lbl-prog-1').textContent = "ARMING PROGRESS";
+                document.getElementById('tv-lbl-prog-2').textContent = "DEFUSING PROGRESS";
+                
+                if (payload.bomb_time !== undefined) document.getElementById('tv-bomb-timer').textContent = formatTime(payload.bomb_time);
                 if (payload.arm_prog !== undefined) document.getElementById('tv-prog-1').style.width = payload.arm_prog + '%';
                 if (payload.def_prog !== undefined) document.getElementById('tv-prog-2').style.width = payload.def_prog + '%';
+                
+            } else if (isDom) {
+                document.getElementById('tv-bomb-container').style.display = 'none';
+                document.getElementById('tv-dom-container').style.display = 'block';
+                document.getElementById('tv-progress-container').style.display = 'block';
+                
+                document.getElementById('tv-lbl-prog-1').textContent = "ALPHA ACTION";
+                document.getElementById('tv-lbl-prog-2').textContent = "BRAVO ACTION";
+                
+                if (payload.score_a !== undefined) document.getElementById('tv-dom-a').textContent = formatTime(payload.score_a);
+                if (payload.score_b !== undefined) document.getElementById('tv-dom-b').textContent = formatTime(payload.score_b);
+                
+                // Barre progresso dominio
+                const prog = payload.capture_prog || 0;
+                const state = payload.state || '';
+                if (state.includes('CAPTURING A')) {
+                    document.getElementById('tv-prog-1').style.width = prog + '%';
+                    document.getElementById('tv-prog-2').style.width = '0%';
+                } else if (state.includes('CAPTURING B')) {
+                    document.getElementById('tv-prog-1').style.width = '0%';
+                    document.getElementById('tv-prog-2').style.width = prog + '%';
+                } else {
+                    document.getElementById('tv-prog-1').style.width = '0%';
+                    document.getElementById('tv-prog-2').style.width = '0%';
+                }
             } else {
+                document.getElementById('tv-bomb-container').style.display = 'none';
+                document.getElementById('tv-dom-container').style.display = 'none';
                 document.getElementById('tv-progress-container').style.display = 'none';
-                document.getElementById('tv-bomb-timer-box').style.display = 'none';
             }
 
+            // GESTIONE REGOLE
             if (type === 'SETTINGS_UPDATE' || (type === 'MODE_ENTER' && payload.bomb_time)) {
+                log("MISSION INTEL CARICATA.");
                 const list = document.getElementById('tv-rules-list');
                 list.innerHTML = '';
-                const keysMap = { 'bomb_time': 'TIMER BOMBA (Min)', 'game_duration': 'DURATA (Min)', 'use_arm_pin': 'PIN ATTACCANTI', 'use_defuse_pin': 'PIN DIFENSORI' };
+                const keysMap = { 
+                    'bomb_time': 'TIMER BOMBA', 
+                    'arm_time': 'TEMPO INNESCO',
+                    'defuse_time': 'TEMPO DISINNESCO',
+                    'game_duration': 'DURATA ROUND', 
+                    'use_arm_pin': 'PIN ATTACCANTI', 
+                    'use_defuse_pin': 'PIN DIFENSORI',
+                    'capture_time': 'TEMPO CATTURA',
+                    'countdown': 'START DELAY'
+                };
                 for (const [key, val] of Object.entries(payload)) {
                     if (keysMap[key]) {
-                        let v = val; if(v===true) v="SI"; if(v===false) v="NO";
-                        list.innerHTML += `<li>${keysMap[key]} <span class="val">${v}</span></li>`;
+                        let v = val; 
+                        if(v===true) v="SI"; 
+                        if(v===false) v="NO";
+                        if (key.includes('time') || key.includes('duration') || key.includes('countdown')) {
+                            v += (key === 'game_duration' || key === 'bomb_time') ? ' Min' : ' Sec';
+                        }
+                        
+                        list.innerHTML += `
+                            <div class="tv-rule-item">
+                                <span class="tv-rule-label">${keysMap[key]}</span>
+                                <span class="tv-rule-val">${v}</span>
+                            </div>`;
                     }
                 }
             }
