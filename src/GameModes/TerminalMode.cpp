@@ -4,21 +4,15 @@
 #include <ArduinoJson.h>
 
 // Costruttore
-TerminalMode::TerminalMode(HardwareManager* hardware, NetworkManager* network, AppState* appState, MainMenuDisplayFunction displayFunc, 
-                         DominationSettings* domSettings, DominationMode* domMode,
-                         SearchDestroySettings* sdSettings, SearchDestroyMode* sdMode)
+TerminalMode::TerminalMode(HardwareManager* hardware, NetworkManager* network, AppState* appState, MainMenuDisplayFunction displayFunc)
     : _hardware(hardware),
       _network(network),
       _appStatePtr(appState),
-      _mainMenuDisplayFunc(displayFunc),
-      _domSettings(domSettings),
-      _domMode(domMode),
-      _sdSettings(sdSettings),
-      _sdMode(sdMode) {
+      _mainMenuDisplayFunc(displayFunc) {
 }
 
 void TerminalMode::enter() {
-    Serial.println("Entrato in Modalita' Terminale");
+    Serial.println("Entrato in Modalita' Terminale (Thin Client V2)");
     
     JsonDocument doc;
     doc["mode"] = "TERMINAL";
@@ -27,16 +21,21 @@ void TerminalMode::enter() {
     _hardware->clearLcd();
     _hardware->printLcd(0, 1, "MODALITA' TERMINALE");
     _hardware->printLcd(0, 2, "In attesa di comandi");
-    _hardware->setStripColor(50, 50, 255); // Colore blu per indicare lo stato
+    _hardware->setStripColor(50, 50, 255); // Colore blu
     _hardware->printOled1("INDIETRO", 2, 10, 25);
     _hardware->clearOled2();
+    
+    _lastInputTime = millis();
 }
 
 void TerminalMode::loop() {
+    // 1. GESTIONE INPUT HARDWARE VERSO IL SERVER (Event-Driven)
+    handleInput();
+
+    // 2. RICEZIONE COMANDI DI RENDERING DAL SERVER
     String message = _network->getReceivedMessage();
     
     if (message != "") {
-        // Tentiamo di decodificare il messaggio come JSON
         JsonDocument doc;
         DeserializationError error = deserializeJson(doc, message);
 
@@ -47,11 +46,39 @@ void TerminalMode::loop() {
             Serial.println(error.c_str());
         }
     }
-    
-    if (_hardware->wasButton1Pressed()) {
-        exit();
-        *_appStatePtr = APP_STATE_MAIN_MENU;
-        _mainMenuDisplayFunc();
+}
+
+void TerminalMode::handleInput() {
+    char key = _hardware->getKey();
+    bool btn1_pressed = _hardware->isButton1Pressed();
+    bool btn2_pressed = _hardware->isButton2Pressed();
+    bool btn1_was_pressed = _hardware->wasButton1Pressed();
+    bool btn2_was_pressed = _hardware->wasButton2Pressed();
+
+    // USCITA DI EMERGENZA LATO HARDWARE (Premi P1 + P2 insieme)
+    if (btn1_pressed && btn2_pressed) {
+        delay(2000); // Aspetta 2 secondi
+        if (_hardware->isButton1Pressed() && _hardware->isButton2Pressed()) {
+            _hardware->playTone(1500, 500);
+            exit();
+            *_appStatePtr = APP_STATE_MAIN_MENU;
+            _mainMenuDisplayFunc();
+            return;
+        }
+    }
+
+    if (millis() - _lastInputTime > 100) { 
+        if (key != NO_KEY || btn1_was_pressed || btn2_was_pressed || btn1_pressed || btn2_pressed) {
+            JsonDocument doc;
+            if (key != NO_KEY) doc["key"] = String(key);
+            if (btn1_was_pressed) doc["btn1"] = "click";
+            else if (btn1_pressed) doc["btn1"] = "hold";
+            if (btn2_was_pressed) doc["btn2"] = "click";
+            else if (btn2_pressed) doc["btn2"] = "hold";
+
+            _network->sendEvent("TERMINAL_INPUT", doc);
+            _lastInputTime = millis();
+        }
     }
 }
 
@@ -63,76 +90,74 @@ void TerminalMode::exit() {
     _network->sendEvent("MODE_EXIT", doc);
     
     _hardware->turnOffStrip();
+    _hardware->noTone();
+    _hardware->clearOled1();
+    _hardware->clearOled2();
 }
 
 /**
- * @brief Interpreta i comandi JSON ricevuti dal server.
- * @param doc Il documento JSON contenente il comando e i parametri.
+ * @brief Interpreta i comandi JSON di RENDERING ricevuti dal server.
  */
 void TerminalMode::parseCommand(JsonDocument& doc) {
     const char* cmd = doc["cmd"]; 
-    
     if (!cmd) return;
 
-    Serial.print("Comando JSON ricevuto: ");
-    Serial.println(cmd);
-
-    if (strcmp(cmd, "SET_DOM_SETTINGS") == 0) {
-        // CORREZIONE: Usiamo doc["key"].is<T>() invece di containsKey
+    if (strcmp(cmd, "UPDATE_UI") == 0) {
         
-        if (doc["duration"].is<int>()) {
-            _domSettings->setGameDuration(doc["duration"]);
+        // 1. AGGIORNAMENTO LCD
+        if (doc.containsKey("lcd_0")) {
+            _hardware->printLcd(0, 0, "                    "); // Pulisce la riga
+            _hardware->printLcd(0, 0, doc["lcd_0"].as<String>());
         }
-        if (doc["capture_time"].is<int>()) {
-            _domSettings->setCaptureTime(doc["capture_time"]);
+        if (doc.containsKey("lcd_1")) {
+            _hardware->printLcd(0, 1, "                    ");
+            _hardware->printLcd(0, 1, doc["lcd_1"].as<String>());
         }
-        
-        _domSettings->saveParameters();
-        Serial.println("Impostazioni Dominio aggiornate da remoto.");
-        _domMode->sendSettingsStatus();
-
-    } else if (strcmp(cmd, "START_DOM_GAME") == 0) {
-        Serial.println("Avvio partita Dominio da remoto...");
-        
-        JsonDocument resp;
-        resp["target_mode"] = "DOMINATION";
-        _network->sendEvent("REMOTE_START_ACK", resp);
-        
-        *_appStatePtr = APP_STATE_DOMINATION_MODE;
-        _domMode->enterInGame();
-
-    } else if (strcmp(cmd, "SET_SD_SETTINGS") == 0) {
-        
-        // CORREZIONE: Aggiornato sintassi per ArduinoJson 7
-        if (doc["bomb_time"].is<int>()) _sdSettings->setBombTime(doc["bomb_time"]);
-        if (doc["arm_time"].is<int>()) _sdSettings->setArmingTime(doc["arm_time"]);
-        if (doc["defuse_time"].is<int>()) _sdSettings->setDefuseTime(doc["defuse_time"]);
-        
-        if (doc["use_arm_pin"].is<bool>()) _sdSettings->setUseArmingPin(doc["use_arm_pin"]);
-        if (doc["use_defuse_pin"].is<bool>()) _sdSettings->setUseDisarmingPin(doc["use_defuse_pin"]);
-        
-        // Per le stringhe, controlliamo se è una stringa valida (const char*)
-        if (doc["arm_pin"].is<const char*>()) {
-            String pin = doc["arm_pin"].as<String>();
-            _sdSettings->setArmingPin(pin);
+        if (doc.containsKey("lcd_2")) {
+            _hardware->printLcd(0, 2, "                    ");
+            _hardware->printLcd(0, 2, doc["lcd_2"].as<String>());
         }
-        if (doc["defuse_pin"].is<const char*>()) {
-            String pin = doc["defuse_pin"].as<String>();
-            _sdSettings->setDisarmingPin(pin);
+        if (doc.containsKey("lcd_3")) {
+            _hardware->printLcd(0, 3, "                    ");
+            _hardware->printLcd(0, 3, doc["lcd_3"].as<String>());
         }
-        
-        _sdSettings->saveParameters();
-        Serial.println("Impostazioni C&D aggiornate da remoto.");
-        _sdMode->sendSettingsStatus();
+        if (doc.containsKey("clear_lcd") && doc["clear_lcd"] == true) {
+            _hardware->clearLcd();
+        }
 
-    } else if (strcmp(cmd, "START_SD_GAME") == 0) {
-        Serial.println("Avvio partita C&D da remoto...");
-        
-        JsonDocument resp;
-        resp["target_mode"] = "SEARCH_AND_DESTROY";
-        _network->sendEvent("REMOTE_START_ACK", resp);
+        // 2. AGGIORNAMENTO OLED
+        if (doc.containsKey("oled_1")) {
+            _hardware->printOled1(doc["oled_1"].as<String>(), 2, 10, 25);
+        }
+        if (doc.containsKey("oled_2")) {
+            _hardware->printOled2(doc["oled_2"].as<String>(), 2, 10, 25);
+        }
+        if (doc.containsKey("clear_oled") && doc["clear_oled"] == true) {
+            _hardware->clearOled1();
+            _hardware->clearOled2();
+        }
 
-        *_appStatePtr = APP_STATE_SEARCH_DESTROY_MODE;
-        _sdMode->enterInGame();
+        // 3. AGGIORNAMENTO LED
+        if (doc.containsKey("led_r") && doc.containsKey("led_g") && doc.containsKey("led_b")) {
+            _hardware->setStripColor(doc["led_r"], doc["led_g"], doc["led_b"]);
+        }
+        if (doc.containsKey("led_off") && doc["led_off"] == true) {
+            _hardware->turnOffStrip();
+        }
+
+        // 4. SUONI (Buzzer Asincrono per non bloccare il terminale)
+        if (doc.containsKey("sound_freq") && doc.containsKey("sound_dur")) {
+            _hardware->playToneAsync(doc["sound_freq"], doc["sound_dur"]);
+        }
+        if (doc.containsKey("sound_off") && doc["sound_off"] == true) {
+            _hardware->noTone();
+        }
+
+    } 
+    // Fallback: comandi di sistema
+    else if (strcmp(cmd, "RETURN_TO_MENU") == 0) {
+        exit();
+        *_appStatePtr = APP_STATE_MAIN_MENU;
+        _mainMenuDisplayFunc();
     }
 }

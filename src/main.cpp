@@ -23,6 +23,7 @@
 #include "GameModes/DominationMode.h"
 #include "GameModes/DominationSettings.h"
 #include "GameModes/Foxhuntmode.h"
+#include "GameModes/TerminalMode.h" // Aggiunta per il Thin Client
 
 HardwareManager hardware;
 NetworkManager networkManager;
@@ -34,6 +35,9 @@ DominationMode* domMode = nullptr;
 FoxhuntMode* foxhuntMode = nullptr;
 MusicRoomMode* musicRoomMode = nullptr;
 
+// Variabile globale per il nuovo Terminal Mode (Thin Client)
+TerminalMode* terminalMode = nullptr;
+
 void displayMainMenu();
 void handleNetworkCommands();
 
@@ -42,7 +46,8 @@ AppState* appState = &currentAppState;
 
 int mainMenuIndex = 0;
 
-String mainMenuOptions[] = { "Cerca & Distruggi", "Dominio", "Stanza dei Suoni", "Test Hardware" };
+// Reintrodotto "Terminale" nel menu per i test. Potrai rimuoverlo in futuro.
+String mainMenuOptions[] = { "Cerca & Distruggi", "Dominio", "Stanza dei Suoni", "Test Hardware", "Terminale" };
 int numMainMenuOptions = sizeof(mainMenuOptions) / sizeof(mainMenuOptions[0]);
 
 enum TestHardwareSubState {
@@ -67,6 +72,7 @@ String getCurrentModeString() {
         case APP_STATE_MUSIC_ROOM: return "MUSIC ROOM";
         case APP_STATE_FOXHUNT: return "FOXHUNT";
         case APP_STATE_TEST_HARDWARE: return "HARDWARE TEST";
+        case APP_STATE_TERMINAL_MODE: return "TERMINAL";
         default: return "UNKNOWN";
     }
 }
@@ -89,8 +95,10 @@ void setup() {
     domMode = new DominationMode(&hardware, &networkManager, domSettings, &currentAppState, displayMainMenu);
 
     musicRoomMode = new MusicRoomMode(&hardware, &currentAppState, displayMainMenu);
-
     foxhuntMode = new FoxhuntMode(&hardware, &networkManager, &currentAppState, displayMainMenu);
+    
+    // Inizializzazione della nuova modalità Terminale (Thin Client V2)
+    terminalMode = new TerminalMode(&hardware, &networkManager, &currentAppState, displayMainMenu);
 
     hardware.initialize();
     networkManager.initialize(&hardware); 
@@ -147,6 +155,10 @@ void loop() {
             break;
         case APP_STATE_TEST_HARDWARE:
             handleTestHardwareState();
+            break;
+        // Chiamata al loop del Thin Client quando è attivo
+        case APP_STATE_TERMINAL_MODE:
+            terminalMode->loop();
             break;
     }
 }
@@ -274,6 +286,11 @@ void handleMainMenuState() {
                 networkManager.sendEvent("MODE_CHANGE", doc);
                 currentTestSubState = TEST_MAIN; 
                 displayTestHardwareMainMenu(); 
+                break;
+            case 4: // Nuova opzione per testare il Terminale
+                Serial.println("TRANSIZIONE: Main Menu -> Terminale");
+                currentAppState = APP_STATE_TERMINAL_MODE;
+                terminalMode->enter();
                 break;
         }
     }
@@ -407,19 +424,18 @@ void handleNetworkCommands() {
         if (currentAppState == APP_STATE_SEARCH_DESTROY_MODE && sdMode) sdMode->forceWin(winner);
         else if (currentAppState == APP_STATE_DOMINATION_MODE && domMode) domMode->forceWin(winner);
     } 
-    // --- NUOVO COMANDO: Ritorno forzato al menu principale ---
     else if (cmdStr == "RETURN_TO_MENU") {
         Serial.println("Comando remoto ricevuto: Ritorno forzato al menu principale.");
         if (currentAppState == APP_STATE_SEARCH_DESTROY_MODE && sdMode) {
             sdMode->exit();
         } else if (currentAppState == APP_STATE_DOMINATION_MODE && domMode) {
             domMode->exit();
+        } else if (currentAppState == APP_STATE_TERMINAL_MODE && terminalMode) {
+            terminalMode->exit();
         }
-        // Forza lo stato globale dell'applicazione al menu principale
         currentAppState = APP_STATE_MAIN_MENU;
         displayMainMenu();
     }
-    // ---------------------------------------------------------
     else if (cmdStr == "GET_STATUS") {
         if (currentAppState == APP_STATE_SEARCH_DESTROY_MODE && sdMode) {
             sdMode->sendSettingsStatus();

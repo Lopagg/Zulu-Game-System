@@ -285,6 +285,10 @@ def handle_socket_command(data):
             if cmd_val == "SET_READY":
                 game_engine.mission_ready_flag = True
                 return
+            elif cmd_val == "SET_SD_SETTINGS":
+                # Salva i parametri nel server prima che inizi la partita
+                game_engine.mission_control.sd_settings = command_obj
+                return
             elif cmd_val == "SET_TDM_SETTINGS":
                 return
 
