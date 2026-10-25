@@ -126,6 +126,9 @@ def handle_connect():
     emit('weather_update', {'weather': fetch_weather()})
     emit('factions_update', db_manager.get_factions_config())
     socketio.emit('roster_update', db_manager.get_full_roster())
+    
+    # Invia il database completo subito dopo la connessione per precaricarlo
+    emit('database_update', db_manager.get_all_players())
 
 @socketio.on('update_factions')
 @login_required

@@ -3,7 +3,6 @@ import { updateSetupDropdown } from './main.js';
 
 export let activeInspectorId = null;
 
-// Gestione delle Viste (Hub, Setup, Monitor, ecc.)
 const views = {
     'hub': document.getElementById('view-hub'),
     'setup': document.getElementById('view-setup'),
@@ -16,6 +15,10 @@ const views = {
 };
 
 export function showView(viewName, socket) {
+    if(viewName === 'arena-db' && socket) {
+        socket.emit('request_database'); 
+    }
+    
     Object.values(views).forEach(el => {
         if(el) { el.classList.remove('active'); el.classList.add('hidden'); }
     });
@@ -27,13 +30,8 @@ export function showView(viewName, socket) {
         activeInspectorId = null;
         document.querySelectorAll('.device-item').forEach(el => el.classList.remove('active'));
     }
-    
-    if(viewName === 'arena-db' && socket) {
-        socket.emit('request_database');
-    }
 }
 
-// Log di Sistema
 const elMiniLog = document.getElementById('mini-log');
 export function logSystem(text) {
     if(!elMiniLog) return;
@@ -42,7 +40,6 @@ export function logSystem(text) {
     elMiniLog.prepend(div);
 }
 
-// Aggiornamento Sidebar Dispositivi
 export function updateDeviceList(devices, socket, setMonitoredDeviceCb) {
     const elDeviceList = document.getElementById('device-list');
     const elAssetCount = document.getElementById('asset-count');
@@ -102,7 +99,6 @@ function updateInspectorData(device) {
     document.getElementById('insp-ip').textContent = device.ip || 'UNKNOWN';
     document.getElementById('insp-fw-ver').textContent = `FW_VER: ${device.version || '--'}`;
     
-    // Testo Dinamico Profilo Hardware
     const hwTitle = document.getElementById('insp-hw-title');
     const hwDesc = document.getElementById('insp-hw-desc');
     if (hwTitle && hwDesc) {
