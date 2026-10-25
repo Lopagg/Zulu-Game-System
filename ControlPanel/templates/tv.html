@@ -51,8 +51,10 @@
         
         /* FONT INGRANDITI PER LA DISTANZA */
         .tv-timer-huge { 
-            font-size: 10rem; text-align: center; margin: auto; 
-            color: var(--sop-text); text-shadow: 0 0 20px rgba(255,255,255,0.2); 
+            font-size: 13rem; /* Ingrandito */
+            text-align: center; margin: auto; 
+            color: var(--sop-primary); /* Colore Azzurro di default */
+            text-shadow: 0 0 20px rgba(0,255,204,0.3); 
             line-height: 1; font-weight: bold;
         }
         
@@ -60,15 +62,17 @@
             display: inline-block;
             border: 4px solid var(--sop-alert);
             border-radius: 12px;
-            background: rgba(255, 51, 51, 0.1);
+            background: rgba(255, 51, 51, 0.05); /* Sfondo più tenue */
             padding: 10px 40px;
             margin-top: 15px;
-            box-shadow: 0 0 20px rgba(255, 51, 51, 0.3), inset 0 0 20px rgba(255, 51, 51, 0.2);
+            /* Glow ridotto per maggiore leggibilità dei numeri */
+            box-shadow: 0 0 10px rgba(255, 51, 51, 0.2), inset 0 0 10px rgba(255, 51, 51, 0.15);
         }
         
         .tv-bomb-huge { 
-            font-size: 8rem; text-align: center; margin: 0; 
-            color: var(--sop-alert); text-shadow: 0 0 25px var(--sop-alert); 
+            font-size: 11rem; /* Ingrandito */
+            text-align: center; margin: 0; 
+            color: var(--sop-alert); text-shadow: 0 0 15px var(--sop-alert); 
             line-height: 1; font-weight: bold;
         }
         
@@ -107,7 +111,14 @@
         /* DOMINIO */
         .tv-dom-score { font-size: 6rem; font-weight: bold; line-height: 1;}
 
-        /* REGOLE */
+        /* VITTORIE GIORNALIERE E REGOLE */
+        .tv-daily-wins {
+            display: flex; justify-content: space-around; align-items: center;
+            padding: 15px 0; border-bottom: 1px solid #333; margin-bottom: 20px;
+        }
+        .daily-team { text-align: center; }
+        .daily-score { font-size: 4.5rem; font-weight: bold; line-height: 1; }
+        
         .tv-rule-item {
             display: flex; justify-content: space-between; align-items: center;
             border-bottom: 1px solid #333; padding: 12px 0;
@@ -235,13 +246,30 @@
                 </div>
             </div>
 
-            <!-- COLONNA DESTRA: Regole e System Log -->
+            <!-- COLONNA DESTRA: Punteggio Globale, Regole e System Log -->
             <div class="sop-card tv-widget">
-                <div class="widget-header">MISSION INTEL // RULES</div>
-                <div id="tv-rules-list" style="padding: 10px 10px;">
-                    <div style="color: var(--sop-dim); text-align: center; margin-top: 20px; font-size: 1.4rem;">Nessun parametro caricato...</div>
+                
+                <!-- WIDGET: VITTORIE GIORNALIERE -->
+                <div class="widget-header">DAILY MATCH WINS</div>
+                <div class="tv-daily-wins">
+                    <div class="daily-team">
+                        <div style="color: var(--sop-alert); font-size: 1.2rem; letter-spacing: 1px;">ALPHA</div>
+                        <div id="tv-wins-alpha" class="daily-score" style="color: var(--sop-alert); text-shadow: 0 0 15px rgba(255,51,51,0.3);">0</div>
+                    </div>
+                    <div style="font-size: 3rem; color: #555; font-weight: bold;">-</div>
+                    <div class="daily-team">
+                        <div style="color: #55ff55; font-size: 1.2rem; letter-spacing: 1px;">BRAVO</div>
+                        <div id="tv-wins-bravo" class="daily-score" style="color: #55ff55; text-shadow: 0 0 15px rgba(85,255,85,0.3);">0</div>
+                    </div>
                 </div>
                 
+                <!-- WIDGET: REGOLE -->
+                <div class="widget-header">MISSION INTEL // RULES</div>
+                <div id="tv-rules-list" style="padding: 10px 10px;">
+                    <div style="color: var(--sop-dim); text-align: center; margin-top: 10px; font-size: 1.4rem;">Nessun parametro caricato...</div>
+                </div>
+                
+                <!-- WIDGET: SYSTEM LOG -->
                 <div style="margin-top: auto; padding-top: 20px; border-top: 1px solid #333;">
                     <div class="widget-header" style="font-size: 1.2rem; margin-bottom: 10px;">SYSTEM LOG</div>
                     <div id="tv-log">
@@ -256,7 +284,6 @@
 
     <!-- LOGICA JAVASCRIPT -->
     <script>
-        // Variabile globale per ricordare la modalità corrente ed evitare sfarfallii
         let currentTvMode = null;
         
         setInterval(() => {
@@ -269,7 +296,7 @@
             const timeStr = new Date().toLocaleTimeString('it-IT', { hour12: false });
             div.textContent = `[${timeStr}] > ${msg}`;
             logEl.appendChild(div);
-            if (logEl.children.length > 6) logEl.removeChild(logEl.firstChild);
+            if (logEl.children.length > 5) logEl.removeChild(logEl.firstChild);
         }
 
         const formatTime = (seconds) => {
@@ -286,7 +313,6 @@
         
         socket.emit('request_roster');
 
-        // Aggiorna l'elenco dei nomi in campo (Lista e Conteggio)
         socket.on('roster_update', (roster) => {
             let a = 0, b = 0;
             const listAlpha = document.getElementById('tv-list-alpha');
@@ -297,7 +323,7 @@
             Object.values(roster).forEach(op => {
                 if (op.status === 'IN') {
                     const li = document.createElement('li');
-                    li.textContent = op.name; // Inserisce l'Alias del giocatore
+                    li.textContent = op.name; 
                     if (op.team === 'ALPHA') {
                         a++;
                         listAlpha.appendChild(li);
@@ -312,18 +338,20 @@
             document.getElementById('tv-op-bravo').textContent = b;
         });
 
-        // Motore Principale Telemetria
         socket.on('esp_event', (msg) => {
             const raw = msg.parsed_data || {};
             const type = raw.type || 'UNKNOWN';
             const payload = raw.payload || {};
             
-            // GESTIONE USCITA E RESET
             if (type === 'MODE_EXIT') {
                 currentTvMode = null;
                 document.getElementById('tv-mode-title').textContent = "STANDBY";
                 document.getElementById('tv-global-timer').textContent = "--:--";
-                document.getElementById('tv-global-timer').style.color = "var(--sop-text)";
+                
+                // Ripristina Colore Timer
+                document.getElementById('tv-global-timer').style.color = "var(--sop-primary)";
+                document.getElementById('tv-global-timer').style.textShadow = "0 0 20px rgba(0,255,204,0.3)";
+                
                 document.getElementById('tv-tac-status').textContent = "WAITING FOR DATA";
                 document.getElementById('tv-tac-status').style.color = "var(--sop-primary)";
                 
@@ -333,7 +361,6 @@
                 return;
             }
             
-            // MEMORIZZAZIONE DELLA MODALITA' (Evita lo sfarfallio sui pacchetti TIME_UPDATE)
             let incMode = payload.mode || raw.mode;
             if (incMode) {
                 currentTvMode = incMode;
@@ -349,17 +376,18 @@
                 document.getElementById('tv-mode-title').textContent = "OPERATION: " + currentTvMode.replace(/_/g, ' ').toUpperCase();
             }
 
-            // TIMER GLOBALE
+            // GESTIONE TIMER GLOBALE CON AZZURRO DEFAULT / ROSSO A 30S
             if (payload.game_time !== undefined) {
                 document.getElementById('tv-global-timer').textContent = formatTime(payload.game_time);
                 if (payload.game_time <= 30 && payload.game_time > 0) {
                     document.getElementById('tv-global-timer').style.color = "var(--sop-alert)";
+                    document.getElementById('tv-global-timer').style.textShadow = "0 0 20px rgba(255,51,51,0.4)";
                 } else {
-                    document.getElementById('tv-global-timer').style.color = "var(--sop-text)";
+                    document.getElementById('tv-global-timer').style.color = "var(--sop-primary)";
+                    document.getElementById('tv-global-timer').style.textShadow = "0 0 20px rgba(0,255,204,0.3)";
                 }
             }
 
-            // STATUS TESTUALE
             if (payload.state) {
                 const s = payload.state;
                 const statusEl = document.getElementById('tv-tac-status');
@@ -376,7 +404,6 @@
                 }
             }
 
-            // VISIBILITÀ BASATA SULLA MODALITA' SALVATA
             const isSd = (currentTvMode === 'SEARCH_AND_DESTROY' || currentTvMode === 'sd');
             const isDom = (currentTvMode === 'DOMINATION' || currentTvMode === 'dom');
             
@@ -420,7 +447,6 @@
                 document.getElementById('tv-progress-container').style.display = 'none';
             }
             
-            // AGGIORNAMENTO DIRETTO TIMER BOMBA (Cattura sia i TIME_UPDATE che gli SD_UPDATE)
             if (payload.bomb_time !== undefined) {
                 document.getElementById('tv-bomb-timer').textContent = formatTime(payload.bomb_time);
             } else if (type === 'TIME_UPDATE' && payload.time !== undefined) {
@@ -429,7 +455,6 @@
                 document.getElementById('tv-bomb-timer').textContent = formatTime(payload.time);
             }
 
-            // GESTIONE REGOLE
             if (type === 'SETTINGS_UPDATE' || (type === 'MODE_ENTER' && payload.bomb_time)) {
                 log("MISSION INTEL CARICATA.");
                 const list = document.getElementById('tv-rules-list');
