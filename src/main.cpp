@@ -448,11 +448,22 @@ void handleNetworkCommands() {
         if (currentAppState == APP_STATE_SEARCH_DESTROY_MODE && sdMode) sdMode->forceEndGame();
         else if (currentAppState == APP_STATE_DOMINATION_MODE && domMode) domMode->forceEndGame();
     } 
+    if (cmdStr == "FORCE_END_GAME") {
+        if (currentAppState == APP_STATE_SEARCH_DESTROY_MODE && sdMode) sdMode->forceEndGame();
+        else if (currentAppState == APP_STATE_DOMINATION_MODE && domMode) domMode->forceEndGame();
+    } 
     else if (cmdStr == "FORCE_WIN") {
         String winner = doc["winner"] | "";
-        if (currentAppState == APP_STATE_SEARCH_DESTROY_MODE && sdMode) sdMode->forceWin(winner);
-        else if (currentAppState == APP_STATE_DOMINATION_MODE && domMode) domMode->forceWin(winner);
-    } 
+        String reason = doc["reason"] | ""; // Estrae la motivazione dal server
+        
+        // Passa la ragione del game over alla modalità attiva
+        if (currentAppState == APP_STATE_SEARCH_DESTROY_MODE && sdMode) {
+            sdMode->forceWin(winner, reason);
+        } else if (currentAppState == APP_STATE_DOMINATION_MODE && domMode) {
+            // Nota: Se la tua domMode non supporta ancora reason, omettila o aggiungila dopo
+            domMode->forceWin(winner); 
+        }
+    }
     else if (cmdStr == "RETURN_TO_MENU") {
         Serial.println("Comando remoto ricevuto: Ritorno forzato al menu principale.");
         if (currentAppState == APP_STATE_SEARCH_DESTROY_MODE && sdMode) sdMode->exit();

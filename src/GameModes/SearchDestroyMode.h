@@ -41,7 +41,7 @@ public:
     void sendSettingsStatus();
     void enterInGame();
     void forceEndGame();
-    void forceWin(String winnerTeam);
+    void forceWin(String winnerTeam, String reason = "");
 
     void sendTelemetry();
 
@@ -85,7 +85,8 @@ private:
         IN_GAME_IS_DEFUSING,        // Un giocatore sta tenendo premuto il pulsante per disinnescare
         IN_GAME_ENTER_DEFUSE_PIN,   // Schermata di inserimento del PIN di disinnesco
         IN_GAME_DEFUSED,            // La partita è finita perché la bomba è stata disinnescata
-        IN_GAME_ENDED               // La partita è finita perché il tempo è scaduto (bomba esplosa)
+        IN_GAME_ENDED,              // La partita è finita perché il timer della bomba è scaduto
+        IN_GAME_WAITING_SERVER      // La valigetta aspetta il verdetto del server
     };
     ModeState _currentState;
 
@@ -139,6 +140,8 @@ private:
     
     // Funzione di utilità per aggiornare le schermate di modifica
     void updateDisplayForCurrentState();
+
+    void triggerDefuse();
 
     unsigned long _lastTelemetryTime;
     

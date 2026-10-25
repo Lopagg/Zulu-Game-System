@@ -160,16 +160,31 @@ def on_mqtt_message(client, userdata, msg):
                 if mission_control.is_authorized_node(device_id):
                     mission_control.end_mission()
 
-            # AGGIORNA LA WEB UI (Filtro Server-Authoritative)
-            if msg_type not in ['TAG_SCANNED', 'TAG_ASSIGN', 'TERMINAL_INPUT']:
+            # --- NUOVO: INTERCETTAZIONE EVENTI NEUTRALI DAL RAT ---
+            if msg_type == 'MATCH_EVENT':
+                if mission_control.is_authorized_node(device_id):
+                    event_name = payload.get('event')
+                    cmd_to_send = None
+                    if event_name == 'BOMB_EXPLODED':
+                        # La bomba è esplosa. Il Server decreta la vittoria (Attualmente fissa su Alpha/T)
+                        cmd_to_send = {"cmd": "FORCE_WIN", "winner": "ALPHA", "reason": "BOMBA ESPLOSA!"}
+                    elif event_name == 'BOMB_DEFUSED':
+                        # La bomba è disinnescata. Il Server decreta la vittoria (Attualmente fissa su Bravo/CT)
+                        cmd_to_send = {"cmd": "FORCE_WIN", "winner": "BRAVO", "reason": "BOMBA DISINNESCATA!"}
+                    
+                    if cmd_to_send:
+                        try: mqtt_client.publish(f"zulu/cmd/{mission_control.target_id}", json.dumps(cmd_to_send))
+                        except Exception as e: logger.error(f"[MQTT ERROR] Impossibile inviare verdetto: {e}")
+
+            # AGGIORNA LA WEB UI
+            if msg_type not in ['TAG_SCANNED', 'TAG_ASSIGN', 'TERMINAL_INPUT', 'MATCH_EVENT']:
                 if msg_type in ['SD_UPDATE', 'DOM_UPDATE', 'COUNTDOWN_UPDATE', 'TIME_UPDATE', 'MODE_ENTER', 'MODE_EXIT', 'SETTINGS_UPDATE', 'TDM_UPDATE']:
                      if mission_control.is_authorized_node(device_id):
-                          # Sovrascrive il tempo globale con il calcolo puro del server
                           if msg_type == 'SD_UPDATE' and mission_control.state not in ['T WINS', 'CT WINS', 'DRAW', 'STOPPED']:
                               parsed['payload']['game_time'] = mission_control.global_time_left
                           socketio.emit('esp_event', {"parsed_data": parsed})
 
-            # --- ARBITRO DEL GAME OVER ---
+            # --- ARBITRO DEL GAME OVER (Statistiche e Suoni) ---
             if msg_type in ['SD_UPDATE', 'DOM_UPDATE']:
                 if mission_control.is_authorized_node(device_id):
                     new_state = payload.get('state')
@@ -228,7 +243,7 @@ def background_cleanup(fetch_weather_callback):
         with mission_control.lock:
             if mission_control.active_mission:
                 
-                # --- ARBITRO DEL TEMPO GLOBALE (Vale sia per TDM che per S&D) ---
+                # --- ARBITRO ELIMINAZIONI E TEMPO GLOBALE ---
                 if mission_control.state == "ACTIVE":
                     if mission_control.global_time_left > 0:
                         mission_control.global_time_left -= 1
@@ -267,9 +282,11 @@ def background_cleanup(fetch_weather_callback):
                         elif mission_control.mode == 'sd':
                             cmd_to_send = None
                             if "BRAVO WINS" in end_state_str or "CT WINS" in end_state_str:
-                                cmd_to_send = {"cmd": "FORCE_WIN", "winner": "BRAVO"}
+                                # Inviamo la reason esplicita alla valigetta
+                                reason_str = "SQUADRA ELIMINATA!" if "BRAVO WINS" in end_state_str else "TEMPO SCADUTO!"
+                                cmd_to_send = {"cmd": "FORCE_WIN", "winner": "BRAVO", "reason": reason_str}
                             elif "ALPHA WINS" in end_state_str:
-                                cmd_to_send = {"cmd": "FORCE_WIN", "winner": "ALPHA"}
+                                cmd_to_send = {"cmd": "FORCE_WIN", "winner": "ALPHA", "reason": "SQUADRA ELIMINATA!"}
                             else:
                                 cmd_to_send = {"cmd": "FORCE_END_GAME"}
                             

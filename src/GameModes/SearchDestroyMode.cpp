@@ -307,23 +307,19 @@ void SearchDestroyMode::handleBooleanEditInput(char key, bool btn1, bool btn2) {
  * del giocatore (innesco, disinnesco, inserimento PIN, ecc.).
  */
 void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_was_pressed, bool btn2_is_pressed, bool btn2_was_pressed) {
+    
+    // Lo stato di attesa server ignora l'input finché non arriva FORCE_WIN
+    if (_currentState == ModeState::IN_GAME_WAITING_SERVER) return;
 
     // GESTIONE TIMER GLOBALE PARTITA ---
-    if (_gameIsActive && !_isServerAuthoritative) { 
+    if (_gameIsActive && !_isServerAuthoritative) {
         long totalMatchSeconds = _settings->getGameDuration() * 60;
         TimeSpan matchElapsed = _hardware->getRTCTime() - _gameMatchStartTime;
         long remainingMatchSeconds = totalMatchSeconds - matchElapsed.totalseconds();
 
         if (remainingMatchSeconds <= 0 && _currentState != ModeState::IN_GAME_ENDED && _currentState != ModeState::IN_GAME_DEFUSED) {
-            
-            // Forza fine partita
-            JsonDocument doc;
-            doc["winner"] = "COUNTER_TERRORISTS";
-            doc["reason"] = "MATCH_TIME_EXPIRED";
-            _network->sendEvent("GAME_END", doc);
-
             _endGameStatus = "CT WINS";
-            _currentState = ModeState::IN_GAME_ENDED; // O uno stato specifico "TIME_OVER"
+            _currentState = ModeState::IN_GAME_ENDED;
             _gameIsActive = false;
             
             _hardware->noTone();
@@ -331,32 +327,26 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
             _hardware->printLcd(1, 1, "TEMPO SCADUTO!");
             _hardware->printLcd(0, 2, "Vince la squadra CT!");
             _hardware->playToneAsync(1000, 1000);
-            
             sendTelemetry();
-            return; // Esci per non processare altro
+            return;
         }
     }
 
     // Prima parte: gestione del timer principale della bomba (se attivo)
     if (_bombIsActive) {
-        //Calcola il tempo rimanente, aggiorna il display e gestisce gli eventi sonori/visivi del timer
         long totalSeconds = _settings->getBombTime() * 60;
         TimeSpan elapsed = _hardware->getRTCTime() - _roundStartTime;
         long remainingSeconds = totalSeconds - elapsed.totalseconds();
         if (remainingSeconds < 0) remainingSeconds = 0;
 
+        // Gestione aggiornamento display ...
         if (remainingSeconds != _lastDisplayedSeconds) {
-
             JsonDocument doc;
             doc["time"] = remainingSeconds;
-            // doc["time_left"] è quello che il monitor si aspetta per il timer globale,
-            // ma qui stiamo mandando TIME_UPDATE. Per S&D usiamo SD_UPDATE nella funzione sendTelemetry.
-            // Lasciamo questo evento per compatibilità generica se necessario.
             _network->sendEvent("TIME_UPDATE", doc);
 
-            if (_currentState == ModeState::IN_GAME_COUNTDOWN) {
-                updateCountdownDisplay(remainingSeconds);
-            } else {
+            if (_currentState == ModeState::IN_GAME_COUNTDOWN) updateCountdownDisplay(remainingSeconds);
+            else {
                 char timeBuffer[10];
                 sprintf(timeBuffer, "%02d : %02d", (int)(remainingSeconds/60), (int)(remainingSeconds%60));
                 _hardware->printLcd(6, 3, timeBuffer);
@@ -364,7 +354,7 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
             if (remainingSeconds > 60 && remainingSeconds % 60 == 0) {
                 _hardware->playTone(1500, 150);
                 _hardware->setBrightness(255); _hardware->setStripColor(255, 0, 0); delay(400);
-                _hardware->turnOffStrip(); delay(500); // Pausa
+                _hardware->turnOffStrip(); delay(500); 
                 _hardware->setStripColor(255, 0, 0); delay(400);
             } else if (remainingSeconds == 60 || remainingSeconds == 30) {
                 _hardware->playTone(1600, 80); delay(100); _hardware->playTone(1600, 80);
@@ -381,41 +371,62 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
             if(millis() % interval < (interval / 2)) {
                 _hardware->setBrightness(255); _hardware->setStripColor(255, 0, 0);
                 _hardware->updateTone(frequency);
-            } else {
-                _hardware->turnOffStrip(); _hardware->noTone();
-            }
+            } else _hardware->turnOffStrip(); _hardware->noTone();
         } else if (remainingSeconds > 0 && _currentState == ModeState::IN_GAME_COUNTDOWN) {
             _hardware->updateBreathingEffect(255, 0, 0);
         }
 
+        // SCADENZA TEMPO BOMBA
         if (remainingSeconds <= 0) {
-            _endGameStatus = "T WINS";
-            _currentState = ModeState::IN_GAME_ENDED;
+            _bombIsActive = false;
+            _gameIsActive = false; 
 
-            _gameIsActive = false; // Ferma timer partita
-            _bombIsActive = false; // Ferma timer bomba
-            
-            JsonDocument doc;
-            doc["winner"] = "TERRORISTS";
-            doc["reason"] = "TIME_EXPIRED";
-            _network->sendEvent("GAME_END", doc);
+            if (_isServerAuthoritative) {
+                // COMUNICAZIONE DELEGATA AL SERVER
+                JsonDocument doc;
+                doc["event"] = "BOMB_EXPLODED";
+                _network->sendEvent("MATCH_EVENT", doc);
+                
+                _hardware->noTone();
+                _hardware->clearLcd();
+                _hardware->printLcd(3, 1, "BOMBA ESPLOSA!");
+                _hardware->printLcd(0, 2, "Attesa Arbitro...");
+                
+                // Effetto base
+                for(int i=0; i<3; i++) {
+                    _hardware->setBrightness(255);
+                    _hardware->setStripColor(255, 255, 255); _hardware->playTone(2000, 50);
+                    _hardware->setStripColor(255, 100, 0); _hardware->playTone(1000, 80);
+                    _hardware->setStripColor(255, 0, 0); _hardware->playTone(400, 100);
+                }
+                _hardware->playToneAsync(150, 3000);
+                
+                _currentState = ModeState::IN_GAME_WAITING_SERVER;
+            } else {
+                // LOGICA OFFLINE (Vince Subito T)
+                _endGameStatus = "T WINS";
+                _currentState = ModeState::IN_GAME_ENDED;
+                
+                JsonDocument doc;
+                doc["winner"] = "TERRORISTS";
+                doc["reason"] = "TIME_EXPIRED";
+                _network->sendEvent("GAME_END", doc);
 
-            _hardware->noTone();
-            _hardware->clearLcd();
-            _hardware->printLcd(3, 1, "BOMBA ESPLOSA!");
-            _hardware->printLcd(0, 2, "Vince la squadra T!");
-            _hardware->printOled1("ESCI", 2, 35, 25);
-            _hardware->printOled2("ESCI", 2, 35, 25);
+                _hardware->noTone();
+                _hardware->clearLcd();
+                _hardware->printLcd(3, 1, "BOMBA ESPLOSA!");
+                _hardware->printLcd(0, 2, "Vince la squadra T!");
+                _hardware->printOled1("ESCI", 2, 35, 25);
+                _hardware->printOled2("ESCI", 2, 35, 25);
 
-            // Animazione esplosione
-            for(int i=0; i<3; i++) {
-                _hardware->setBrightness(255);
-                _hardware->setStripColor(255, 255, 255); _hardware->playTone(2000, 50);
-                _hardware->setStripColor(255, 100, 0); _hardware->playTone(1000, 80);
-                _hardware->setStripColor(255, 0, 0); _hardware->playTone(400, 100);
+                for(int i=0; i<3; i++) {
+                    _hardware->setBrightness(255);
+                    _hardware->setStripColor(255, 255, 255); _hardware->playTone(2000, 50);
+                    _hardware->setStripColor(255, 100, 0); _hardware->playTone(1000, 80);
+                    _hardware->setStripColor(255, 0, 0); _hardware->playTone(400, 100);
+                }
+                _hardware->playToneAsync(150, 3000);
             }
-            _hardware->playToneAsync(150, 3000);
-            
             sendTelemetry();
             return;
         }
@@ -571,24 +582,8 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
                     _currentInputBuffer = "";
                     displayEnterPinScreen("INSERIRE PIN");
                 } else {
-                    // Game End: CT Win
-                    JsonDocument doc;
-                    doc["winner"] = "COUNTER_TERRORISTS";
-                    doc["reason"] = "BOMB_DEFUSED";
-                    _network->sendEvent("GAME_END", doc);
-
-                    _endGameStatus = "CT WINS";
-                    _currentState = ModeState::IN_GAME_DEFUSED; // case IN_GAME_DEFUSED: la partita è finita, i CT hanno vinto.
-                    _gameIsActive = false; // Ferma timer partita
-                    _bombIsActive = false; // Ferma timer bomba 
-                    _hardware->clearLcd();
-                    _hardware->printLcd(1, 1, "BOMBA DISINNESCATA"); 
-                    _hardware->printLcd(0, 2, "Vince la squadra CT!");
-                    _hardware->playTone(1500, 80); 
-                    _hardware->playTone(1800, 80); 
-                    _hardware->playTone(2200, 100);
-
-                    sendTelemetry();
+                    // Sostituita vecchia logica hardcoded con la chiamata all'helper
+                    triggerDefuse(); 
                 }
                 return;
             }
@@ -627,24 +622,8 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
                 _hardware->turnOffStrip();
             if (_currentInputBuffer.length() >= _settings->getDisarmingPin().length()) {
                 if (_currentInputBuffer == _settings->getDisarmingPin()) {
-                    // Game End: CT Win
-                    JsonDocument doc;
-                    doc["winner"] = "COUNTER_TERRORISTS";
-                    doc["reason"] = "BOMB_DEFUSED";
-                    _network->sendEvent("GAME_END", doc);
-
-                    _endGameStatus = "CT WINS";
-                    _currentState = ModeState::IN_GAME_DEFUSED; 
-                    _gameIsActive = false; // Ferma timer partita
-                    _bombIsActive = false; // Ferma timer bomba
-                    _hardware->clearLcd(); 
-                    _hardware->printLcd(1, 1, "BOMBA DISINNESCATA");
-                    _hardware->printLcd(0, 2, "Vince la squadra CT!");
-                    _hardware->playTone(1500, 80); 
-                    _hardware->playTone(1800, 80); 
-                    _hardware->playTone(2200, 100);
-
-                    sendTelemetry();
+                    // Sostituita vecchia logica hardcoded con la chiamata all'helper
+                    triggerDefuse();
                 } else {
                     _network->sendEvent("DEFUSE_PIN_WRONG");
                     _hardware->clearLcd(); 
@@ -676,6 +655,91 @@ void SearchDestroyMode::handleInGame(char key, bool btn1_is_pressed, bool btn1_w
             }
             break;
     }
+}
+
+void SearchDestroyMode::triggerDefuse() {
+    _bombIsActive = false;
+    _gameIsActive = false; 
+
+    if (_isServerAuthoritative) {
+        JsonDocument doc;
+        doc["event"] = "BOMB_DEFUSED";
+        _network->sendEvent("MATCH_EVENT", doc);
+        
+        _hardware->clearLcd();
+        _hardware->printLcd(1, 1, "BOMBA DISINNESCATA");
+        _hardware->printLcd(0, 2, "Attesa Arbitro...");
+        _hardware->playToneAsync(1500, 80);
+        
+        _currentState = ModeState::IN_GAME_WAITING_SERVER;
+    } else {
+        JsonDocument doc;
+        doc["winner"] = "COUNTER_TERRORISTS";
+        doc["reason"] = "BOMB_DEFUSED";
+        _network->sendEvent("GAME_END", doc);
+
+        _endGameStatus = "CT WINS";
+        _currentState = ModeState::IN_GAME_DEFUSED; 
+        
+        _hardware->clearLcd(); 
+        _hardware->printLcd(1, 1, "BOMBA DISINNESCATA");
+        _hardware->printLcd(0, 2, "Vince la squadra CT!");
+        _hardware->playTone(1500, 80); 
+        _hardware->playTone(1800, 80); 
+        _hardware->playTone(2200, 100);
+    }
+    sendTelemetry();
+}
+
+void SearchDestroyMode::forceWin(String winnerTeam, String reason) {
+    Serial.println("!!! COMANDO RICEVUTO: forceWin in Cerca & Distruggi !!!");
+    
+    if (_currentState == ModeState::IN_GAME_DEFUSED || _currentState == ModeState::IN_GAME_ENDED) {
+        return;
+    }
+
+    JsonDocument doc;
+    if (winnerTeam == "ALPHA") {
+        doc["winner"] = "TERRORISTS";
+        _endGameStatus = "T WINS"; 
+        _currentState = ModeState::IN_GAME_ENDED; 
+    } else {
+        doc["winner"] = "COUNTER_TERRORISTS";
+        _endGameStatus = "CT WINS"; 
+        _currentState = ModeState::IN_GAME_DEFUSED; 
+    }
+    
+    doc["reason"] = "TEAM_ELIMINATED";
+    _network->sendEvent("GAME_END", doc);
+    
+    _gameIsActive = false; 
+    _bombIsActive = false; 
+    _hardware->noTone();
+
+    _hardware->clearLcd();
+    
+    // Stampa la ragione fornita dal Server (es. "BOMBA ESPLOSA!", "TEMPO SCADUTO!")
+    if (reason.length() > 0) {
+        _hardware->printLcd(0, 1, reason);
+    } else {
+        _hardware->printLcd(1, 1, "SQUADRA ELIMINATA!"); 
+    }
+    
+    if (winnerTeam == "ALPHA") {
+        _hardware->printLcd(0, 2, "Vince la squadra T!");
+        if (reason != "BOMBA ESPLOSA!") { 
+            // Se non è già esplosa, simula lo scoppio visivo
+            _hardware->playToneAsync(150, 3000);
+            _hardware->setStripColor(255, 0, 0);
+        }
+    } else {
+        _hardware->printLcd(0, 2, "Vince la squadra CT!");
+        if (reason != "BOMBA DISINNESCATA!") {
+            _hardware->playToneAsync(1500, 80); 
+        }
+    }
+
+    sendTelemetry();
 }
 
 
@@ -882,70 +946,16 @@ void SearchDestroyMode::forceEndGame() {
     sendTelemetry();
 }
 
-// --- NUOVO: LOGICA FINE PARTITA PER ELIMINAZIONE SQUADRA ---
-void SearchDestroyMode::forceWin(String winnerTeam) {
-    Serial.println("!!! COMANDO RICEVUTO: forceWin in Cerca & Distruggi !!!");
-    
-    if (_currentState == ModeState::IN_GAME_DEFUSED || _currentState == ModeState::IN_GAME_ENDED) {
-        return;
-    }
-
-    JsonDocument doc;
-    if (winnerTeam == "ALPHA") {
-        doc["winner"] = "TERRORISTS";
-        _endGameStatus = "T WINS"; 
-        _currentState = ModeState::IN_GAME_ENDED; // Imposta lo stato per i Terroristi
-    } else {
-        doc["winner"] = "COUNTER_TERRORISTS";
-        _endGameStatus = "CT WINS"; 
-        _currentState = ModeState::IN_GAME_DEFUSED; // Questo attiva in automatico il respiro verde continuo nel loop
-    }
-    
-    doc["reason"] = "TEAM_ELIMINATED";
-    _network->sendEvent("GAME_END", doc);
-    
-    _gameIsActive = false; 
-    _bombIsActive = false; 
-    _hardware->noTone();
-
-    _hardware->clearLcd();
-    _hardware->printLcd(1, 1, "SQUADRA ELIMINATA!"); 
-    
-    if (winnerTeam == "ALPHA") {
-        _hardware->printLcd(0, 2, "Vince la squadra T!");
-        
-        // --- ANIMAZIONE VITTORIA ALPHA (ESPLOSIONE STANDARD) ---
-        for(int i=0; i<3; i++) {
-            _hardware->setBrightness(255);
-            _hardware->setStripColor(255, 255, 255); _hardware->playTone(2000, 50);
-            _hardware->setStripColor(255, 100, 0); _hardware->playTone(1000, 80);
-            _hardware->setStripColor(255, 0, 0); _hardware->playTone(400, 100);
-        }
-        _hardware->playToneAsync(150, 3000);
-        _hardware->setStripColor(255, 0, 0); // Lascia la valigetta rossa fuoco
-        // --------------------------------------------------------
-        
-    } else {
-        _hardware->printLcd(0, 2, "Vince la squadra CT!");
-        
-        // --- ANIMAZIONE VITTORIA BRAVO (DISINNESCO STANDARD) ---
-        _hardware->playToneAsync(1500, 80); 
-        // -------------------------------------------------------
-    }
-
-    sendTelemetry();
-}
-
 void SearchDestroyMode::sendTelemetry() {
     JsonDocument doc;
     
-    // 1. STATO TESTUALE (INVARIATO)
-    
-    // A. Partita Finita -> Mostra Vincitore
+    // 1. STATO TESTUALE 
     if (_currentState == ModeState::IN_GAME_ENDED || _currentState == ModeState::IN_GAME_DEFUSED) {
         doc["state"] = (_endGameStatus.length() > 0) ? _endGameStatus : "GAME OVER";
     }
-    // B. Azioni in corso (Alta priorità)
+    else if (_currentState == ModeState::IN_GAME_WAITING_SERVER) {
+        doc["state"] = "AWAITING ARBITER";
+    }
     else if (_currentState == ModeState::IN_GAME_IS_ARMING || _currentState == ModeState::IN_GAME_ENTER_ARM_PIN) {
         doc["state"] = "ARMING...";
     }
@@ -955,11 +965,9 @@ void SearchDestroyMode::sendTelemetry() {
     else if (_currentState == ModeState::IN_GAME_COUNTDOWN || _currentState == ModeState::IN_GAME_ARMED) {
         doc["state"] = "ARMED";
     }
-    // C. Partita non ancora iniziata
     else if (!_gameIsActive && !_bombIsActive) {
         doc["state"] = "STANDBY";
     }
-    // D. Partita in corso (Bomba non armata)
     else {
         doc["state"] = "SAFE";
     }
