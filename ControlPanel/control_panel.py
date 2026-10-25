@@ -249,9 +249,17 @@ def handle_socket_command(data):
         
         if isinstance(cmd_obj, dict):
             c = cmd_obj.get("cmd", "")
-            if c == "SET_READY": game_engine.mission_ready_flag = True; return
-            elif c == "SET_SD_SETTINGS": game_engine.mission_control.sd_settings = cmd_obj; return
-            elif c == "SET_TDM_SETTINGS": return
+            if c == "SET_READY": 
+                game_engine.mission_ready_flag = True
+                game_engine.mission_control.mode = cmd_obj.get("mode")
+                game_engine.mission_control.target_id = cmd_obj.get("target_id")
+                game_engine.mission_control.global_duration = cmd_obj.get("duration", 15) * 60
+                return
+            elif c == "SET_SD_SETTINGS": 
+                game_engine.mission_control.sd_settings = cmd_obj
+                return
+            elif c == "SET_TDM_SETTINGS": 
+                return
 
         if target_id == "BROADCAST_ENV":
             game_engine.mqtt_client.publish("zulu/cmd/broadcast", cmd_str)

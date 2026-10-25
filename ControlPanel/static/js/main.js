@@ -216,26 +216,31 @@ document.getElementById('btn-transmit-setup').addEventListener('click', () => {
     const mode = document.getElementById('setup-mode-select').value;
     let targetId = document.getElementById('setup-target-select').value;
     let commandData = {};
+    let dur = 15;
 
     if (mode === 'sd') {
+        dur = parseInt(document.getElementById('sd-game-dur').value) || 20;
         commandData = {
             cmd: "SET_SD_SETTINGS", attacker: document.getElementById('sd-attacker-team').value,
-            game_duration: parseInt(document.getElementById('sd-game-dur').value), bomb_time: parseInt(document.getElementById('sd-bomb-time').value),
+            game_duration: dur, bomb_time: parseInt(document.getElementById('sd-bomb-time').value),
             arm_time: parseInt(document.getElementById('sd-arm-time').value), defuse_time: parseInt(document.getElementById('sd-defuse-time').value),
             use_arm_pin: document.getElementById('sd-use-arm-pin').value === 'true', use_defuse_pin: document.getElementById('sd-use-defuse-pin').value === 'true',
             arm_pin: document.getElementById('sd-arm-pin').value, defuse_pin: document.getElementById('sd-defuse-pin').value
         };
     } else if (mode === 'dom') {
+        dur = parseInt(document.getElementById('dom-game-dur').value) || 15;
         commandData = {
-            cmd: "SET_DOM_SETTINGS", duration: parseInt(document.getElementById('dom-game-dur').value),
+            cmd: "SET_DOM_SETTINGS", duration: dur,
             capture_time: parseInt(document.getElementById('dom-capture-time').value), countdown: parseInt(document.getElementById('dom-countdown').value)
         };
     } else if (mode === 'tdm') {
-        commandData = { cmd: "SET_TDM_SETTINGS", duration: parseInt(document.getElementById('tdm-game-dur').value) || 15 };
+        dur = parseInt(document.getElementById('tdm-game-dur').value) || 15;
+        commandData = { cmd: "SET_TDM_SETTINGS", duration: dur };
         targetId = "SERVER-TDM";
     }
+    
     socket.emit('send_command', { target_id: targetId, command: commandData });
-    socket.emit('send_command', { target_id: "broadcast", command: { cmd: "SET_READY" } });
+    socket.emit('send_command', { target_id: "broadcast", command: { cmd: "SET_READY", mode: mode, target_id: targetId, duration: dur } });
     
     document.getElementById('btn-start-mission').disabled = false;
     document.getElementById('btn-start-mission').classList.remove('disabled');

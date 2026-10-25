@@ -10,7 +10,6 @@
 #include "nvs_flash.h"
 #include <ArduinoJson.h>
 
-// Inclusione di tutti i file di intestazione necessari
 #include "app_common.h"
 #include "HardwareManager.h"
 #include "NetworkManager.h"
@@ -23,7 +22,7 @@
 #include "GameModes/DominationMode.h"
 #include "GameModes/DominationSettings.h"
 #include "GameModes/Foxhuntmode.h"
-#include "GameModes/TerminalMode.h" // Aggiunta per il Thin Client
+#include "GameModes/TerminalMode.h" 
 
 HardwareManager hardware;
 NetworkManager networkManager;
@@ -35,14 +34,12 @@ DominationMode* domMode = nullptr;
 FoxhuntMode* foxhuntMode = nullptr;
 MusicRoomMode* musicRoomMode = nullptr;
 
-// Variabile globale per il nuovo Terminal Mode (Thin Client)
 TerminalMode* terminalMode = nullptr;
 
-// --- VARIABILI GLOBALI FAZIONI ---
 String team1_name = "ALPHA";
 String team2_name = "BRAVO";
-uint8_t team1_color[3] = {255, 0, 0}; // Default Red
-uint8_t team2_color[3] = {0, 255, 0}; // Default Green
+uint8_t team1_color[3] = {255, 0, 0}; 
+uint8_t team2_color[3] = {0, 255, 0}; 
 
 void displayMainMenu();
 void handleNetworkCommands();
@@ -52,7 +49,6 @@ AppState* appState = &currentAppState;
 
 int mainMenuIndex = 0;
 
-// Reintrodotto "Terminale" nel menu per i test. Potrai rimuoverlo in futuro.
 String mainMenuOptions[] = { "Cerca & Distruggi", "Dominio", "Stanza dei Suoni", "Test Hardware", "Terminale" };
 int numMainMenuOptions = sizeof(mainMenuOptions) / sizeof(mainMenuOptions[0]);
 
@@ -103,7 +99,6 @@ void setup() {
     musicRoomMode = new MusicRoomMode(&hardware, &currentAppState, displayMainMenu);
     foxhuntMode = new FoxhuntMode(&hardware, &networkManager, &currentAppState, displayMainMenu);
     
-    // Inizializzazione della nuova modalità Terminale (Thin Client V2)
     terminalMode = new TerminalMode(&hardware, &networkManager, &currentAppState, displayMainMenu);
 
     hardware.initialize();
@@ -162,7 +157,6 @@ void loop() {
         case APP_STATE_TEST_HARDWARE:
             handleTestHardwareState();
             break;
-        // Chiamata al loop del Thin Client quando è attivo
         case APP_STATE_TERMINAL_MODE:
             terminalMode->loop();
             break;
@@ -293,7 +287,7 @@ void handleMainMenuState() {
                 currentTestSubState = TEST_MAIN; 
                 displayTestHardwareMainMenu(); 
                 break;
-            case 4: // Nuova opzione per testare il Terminale
+            case 4: 
                 Serial.println("TRANSIZIONE: Main Menu -> Terminale");
                 currentAppState = APP_STATE_TERMINAL_MODE;
                 terminalMode->enter();
@@ -421,7 +415,6 @@ void handleNetworkCommands() {
     Serial.print("Comando GLOBALE ricevuto: ");
     Serial.println(cmdStr);
     
-    // --- 1. GESTIONE TERMINAL MODE (Thin Client V2) ---
     if (cmdStr == "ENTER_TERMINAL_MODE") {
         Serial.println("Comando remoto: Forza ingresso in Terminal Mode");
         if (currentAppState != APP_STATE_TERMINAL_MODE) {
@@ -431,9 +424,28 @@ void handleNetworkCommands() {
         return;
     }
     
+    if (cmdStr == "SET_FACTIONS") {
+        if (doc["t1"].is<const char*>()) team1_name = doc["t1"].as<String>();
+        if (doc["t2"].is<const char*>()) team2_name = doc["t2"].as<String>();
+
+        JsonArray t1_c = doc["t1_c"];
+        JsonArray t2_c = doc["t2_c"];
+        if (t1_c.size() == 3) { 
+            team1_color[0] = t1_c[0]; team1_color[1] = t1_c[1]; team1_color[2] = t1_c[2]; 
+            if (team1_color[0] == 255 && team1_color[1] == 51 && team1_color[2] == 51) {
+                team1_color[1] = 0; team1_color[2] = 0;
+            }
+        }
+        if (t2_c.size() == 3) { 
+            team2_color[0] = t2_c[0]; team2_color[1] = t2_c[1]; team2_color[2] = t2_c[2]; 
+            if (team2_color[0] == 85 && team2_color[1] == 255 && team2_color[2] == 85) {
+                team2_color[0] = 0; team2_color[2] = 0;
+            }
+        }
+    }
+    
     if (currentAppState == APP_STATE_TERMINAL_MODE) {
         if (cmdStr == "UPDATE_UI") {
-            // Instrada l'aggiornamento UI al terminale
             if (terminalMode) terminalMode->parseCommand(doc);
             return;
         }
@@ -443,30 +455,22 @@ void handleNetworkCommands() {
             displayMainMenu();
             return;
         }
-        // Ignora totalmente comandi di configurazione e avvio del vecchio motore V1
         if (cmdStr == "START_SD_GAME" || cmdStr == "START_DOM_GAME" || cmdStr == "SET_SD_SETTINGS" || cmdStr == "SET_DOM_SETTINGS") {
             return; 
         }
     }
 
-    // --- 2. GESTIONE MOTORE LOCALE V1 (Offline/Standalone) ---
-    if (cmdStr == "FORCE_END_GAME") {
-        if (currentAppState == APP_STATE_SEARCH_DESTROY_MODE && sdMode) sdMode->forceEndGame();
-        else if (currentAppState == APP_STATE_DOMINATION_MODE && domMode) domMode->forceEndGame();
-    } 
     if (cmdStr == "FORCE_END_GAME") {
         if (currentAppState == APP_STATE_SEARCH_DESTROY_MODE && sdMode) sdMode->forceEndGame();
         else if (currentAppState == APP_STATE_DOMINATION_MODE && domMode) domMode->forceEndGame();
     } 
     else if (cmdStr == "FORCE_WIN") {
         String winner = doc["winner"] | "";
-        String reason = doc["reason"] | ""; // Estrae la motivazione dal server
+        String reason = doc["reason"] | ""; 
         
-        // Passa la ragione del game over alla modalità attiva
         if (currentAppState == APP_STATE_SEARCH_DESTROY_MODE && sdMode) {
             sdMode->forceWin(winner, reason);
         } else if (currentAppState == APP_STATE_DOMINATION_MODE && domMode) {
-            // Nota: Se la tua domMode non supporta ancora reason, omettila o aggiungila dopo
             domMode->forceWin(winner); 
         }
     }
@@ -507,17 +511,6 @@ void handleNetworkCommands() {
         if (currentAppState == APP_STATE_DOMINATION_MODE && domMode) domMode->sendSettingsStatus();
         Serial.println("Impostazioni Dominio aggiornate da remoto.");
     }
-    // --- 3. RICEZIONE IMPOSTAZIONI FAZIONI (NOMI E COLORI) ---
-    else if (cmdStr == "SET_FACTIONS") {
-        Serial.println("Ricevuta nuova configurazione Fazioni!");
-        if (doc["t1"].is<const char*>()) team1_name = doc["t1"].as<String>();
-        if (doc["t2"].is<const char*>()) team2_name = doc["t2"].as<String>();
-
-        JsonArray t1_c = doc["t1_c"];
-        JsonArray t2_c = doc["t2_c"];
-        if (t1_c.size() == 3) { team1_color[0] = t1_c[0]; team1_color[1] = t1_c[1]; team1_color[2] = t1_c[2]; }
-        if (t2_c.size() == 3) { team2_color[0] = t2_c[0]; team2_color[1] = t2_c[1]; team2_color[2] = t2_c[2]; }
-    }
     else if (cmdStr == "START_SD_GAME") {
         Serial.println("Avvio partita C&D da remoto (V1)");
         JsonDocument resp;
@@ -534,34 +527,27 @@ void handleNetworkCommands() {
         currentAppState = APP_STATE_DOMINATION_MODE;
         if (domMode) domMode->enterInGame();
     }
-    // --- RICEZIONE DISASTER RECOVERY ---
     else if (cmdStr == "RESUME_MISSION") {
         Serial.println("Ricevuto RESUME_MISSION dal server!");
         String modeStr = doc["mode"] | "";
         if (modeStr == "sd" && sdMode) {
             
-            // 1. Prima facciamo un ingresso pulito (notifica rete e setup base) come se venisse avviata da remoto
             JsonDocument resp;
             resp["target_mode"] = "SEARCH_AND_DESTROY";
             networkManager.sendEvent("REMOTE_START_ACK", resp);
             currentAppState = APP_STATE_SEARCH_DESTROY_MODE;
             
-            // IMPORTANTE: Entra in game pulito (manda impostazioni e suona beep iniziale)
             sdMode->enterInGame(); 
             
-            // 2. ORA applichiamo la "macchina del tempo" sovrascrivendo i timer appena creati
             sdMode->resumeGame(doc); 
         }
     }
-
-    // --- SINCRONIZZAZIONE TEMPORALE ---
     else if (cmdStr == "SYNC_TIME") {
         long g_time = doc["global_time_left"] | -1;
         if (g_time >= 0) {
             if (currentAppState == APP_STATE_SEARCH_DESTROY_MODE && sdMode) {
                 sdMode->syncTime(g_time);
             }
-            // (Predisposto per il futuro: if (APP_STATE_DOMINATION_MODE) domMode->syncTime... )
         }
     }
 }
