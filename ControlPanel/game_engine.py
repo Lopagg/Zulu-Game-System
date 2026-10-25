@@ -311,7 +311,13 @@ def background_cleanup(fetch_weather_callback):
             mission_ready_flag = False
 
         try:
-            mqtt_client.publish("zulu/cmd/NODE-KIOSK-1", json.dumps({"cmd": "KIOSK_LED_SYNC", "all_players_in": (players_out == 0) and (len(players) > 0), "game_running": game_is_running, "game_ready": mission_ready_flag}))
+            mqtt_client.publish("zulu/cmd/NODE-KIOSK-1", json.dumps({
+                "cmd": "KIOSK_LED_SYNC", 
+                "all_players_in": (players_out == 0) and (len(players) > 0), 
+                "game_running": game_is_running, 
+                "game_ready": mission_ready_flag,
+                "mission_state": mission_control.state  # <-- NUOVO: Passiamo lo stato ufficiale!
+            }))
         except: pass
 
         with mission_control.lock:
