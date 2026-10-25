@@ -32,7 +32,6 @@ function applyFactionStyles(factions) {
             text-shadow: 0 0 15px ${factions.ALPHA.color}66 !important;
             border-left-color: var(--team-a-color) !important;
         }
-        .fill-red { background-color: var(--team-a-color) !important; box-shadow: 0 0 15px var(--team-a-color) !important; }
         
         .team-bravo-box .arena-header, #header-bravo-track-in { background: ${factions.BRAVO.color}33 !important; color: var(--team-b-color) !important; }
         .setup-roster-bravo, .count-bravo, .score.bravo, .bravo-list li, .d-val-green, .faction-b .faction-score, #dom-lbl-bravo { 
@@ -40,7 +39,6 @@ function applyFactionStyles(factions) {
             text-shadow: 0 0 15px ${factions.BRAVO.color}66 !important;
             border-left-color: var(--team-b-color) !important;
         }
-        .fill-green { background-color: var(--team-b-color) !important; box-shadow: 0 0 15px var(--team-b-color) !important; }
     `;
 }
 

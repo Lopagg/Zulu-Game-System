@@ -35,25 +35,37 @@ export function updateUniversalFeed(payload, mode, msgType) {
         document.getElementById('widget-sd-rules').classList.remove('hidden');
         document.getElementById('widget-generic-map').classList.add('hidden');
         document.getElementById('monitor-mode-title').textContent = `OPERATION: ${mode.replace(/_/g, ' ').toUpperCase()}`;
+        
+        // Imposta le barre a rosso/verde fisso!
+        const armBar = document.getElementById('sd-arm-bar');
+        const defuseBar = document.getElementById('sd-defuse-bar');
+        if (armBar) armBar.className = "progress-fill fill-red";
+        if (defuseBar) defuseBar.className = "progress-fill fill-green";
     }
 
     if (payload.state) {
         let s = payload.state;
-        // Traduce ALPHA e BRAVO coi nomi reali
         s = s.replace('ALPHA', currentFactions.ALPHA.name).replace('BRAVO', currentFactions.BRAVO.name);
-        
         const statusEl = document.getElementById('sd-bomb-status');
         statusEl.textContent = s;
         
-        // Applica i colori dinamici scelti per la fazione
-        if (s.includes('DEFUS') || s.includes('CT WINS') || s.includes('CAPTURING B') || s.includes('OWNED BRAVO') || s.includes('BRAVO WINS') || s.includes(currentFactions.BRAVO.name)) {
-            statusEl.style.color = currentFactions.BRAVO.color; 
-        } else if (s.includes('ARM') || s.includes('EXPLODED') || s.includes('T WINS') || s.includes('CAPTURING A') || s.includes('OWNED ALPHA') || s.includes('ALPHA WINS') || s.includes(currentFactions.ALPHA.name)) {
-            statusEl.style.color = currentFactions.ALPHA.color; 
-        } else if (s === 'STANDBY' || s === 'PREPARING' || s === 'DRAW') {
-            statusEl.style.color = '#ff9900'; 
+        // Fazioni (Fine Partita) vs Rosso/Verde (Durante il gioco)
+        if (s.includes('WINS') || s.includes('OWNED')) {
+            if (s.includes('CT WINS') || s.includes('BRAVO WINS') || s.includes('OWNED BRAVO') || s.includes(currentFactions.BRAVO.name)) {
+                statusEl.style.color = currentFactions.BRAVO.color; 
+            } else if (s.includes('T WINS') || s.includes('ALPHA WINS') || s.includes('OWNED ALPHA') || s.includes(currentFactions.ALPHA.name)) {
+                statusEl.style.color = currentFactions.ALPHA.color; 
+            }
         } else {
-            statusEl.style.color = 'var(--sop-primary)';
+            if (s.includes('DEFUS') || s.includes('CAPTURING B')) {
+                statusEl.style.color = '#55ff55'; // VERDE 
+            } else if (s.includes('ARM') || s.includes('EXPLODED') || s.includes('CAPTURING A')) {
+                statusEl.style.color = '#ff3333'; // ROSSO
+            } else if (s === 'STANDBY' || s === 'PREPARING' || s === 'DRAW') {
+                statusEl.style.color = '#ff9900'; 
+            } else {
+                statusEl.style.color = 'var(--sop-primary)';
+            }
         }
         updateForceEndButton(payload.state); 
     }
