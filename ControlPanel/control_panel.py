@@ -288,40 +288,46 @@ def handle_socket_command(data):
             elif cmd_val == "SET_TDM_SETTINGS":
                 return
 
-        # LOGICA TEAM DEATHMATCH
-        if target_id == "SERVER-TDM":
-            if "FORCE_END_GAME" in cmd_str or "FORCE_WIN" in cmd_str:
-                state_str = "STOPPED"
-                if "FORCE_WIN" in cmd_str:
-                    if "ALPHA" in cmd_str: state_str = "ALPHA WINS"
-                    elif "BRAVO" in cmd_str: state_str = "BRAVO WINS"
-                
-                game_engine.mission_control.state = state_str
-                doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": state_str, "game_time": game_engine.mission_control.tdm_time_left } }
-                socketio.emit('esp_event', {"parsed_data": doc})
-                game_engine.trigger_siren("SIREN_LONG")
-                db_manager.process_match_stats(state_str) 
-            elif "CLOSE_MISSION" in cmd_str:
-                game_engine.mission_control.end_mission()
-                socketio.emit('esp_event', {"parsed_data": {"id": "SERVER-TDM", "type": "MODE_EXIT"}})
-            return
-        
         # COMANDI AMBIENTALI BROADCAST
         if target_id == "BROADCAST_ENV":
             game_engine.mqtt_client.publish("zulu/cmd/broadcast", cmd_str)
             return
 
-        # LOGICA NODI HARDWARE (RAT)
-        if "CLOSE_MISSION" in cmd_str:
-             # Chiude formalmente la sessione sul server
-             game_engine.mission_control.end_mission()
-             # Invia il comando nativo sviluppato sul C++ del RAT per farlo uscire al menu
-             game_engine.mqtt_client.publish(f"zulu/cmd/{target_id}", json.dumps({"cmd": "RETURN_TO_MENU"}))
-             # Finta un MODE_EXIT locale di sicurezza (nel caso il RAT sia spento o non risponda)
-             socketio.emit('esp_event', {"parsed_data": {"id": target_id, "type": "MODE_EXIT"}})
-        else:
-             # Trasmette i comandi standard in gioco (es. FORCE_END_GAME)
-             game_engine.mqtt_client.publish(f"zulu/cmd/{target_id}", cmd_str)
+        # --- SERVER ROUTER: Smistamento intelligente dei comandi UI ---
+        if target_id == "SERVER-ROUTER":
+            # Recuperiamo il target reale dal MissionController
+            real_target = game_engine.mission_control.target_id
+            
+            if not game_engine.mission_control.active_mission or not real_target:
+                logger.warning("[ROUTER] Nessuna missione globale attiva da terminare.")
+                return
+
+            # Se è una partita TDM interna
+            if real_target == "SERVER-TDM":
+                if "FORCE_END_GAME" in cmd_str:
+                    game_engine.mission_control.state = "STOPPED"
+                    doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": "STOPPED", "game_time": game_engine.mission_control.tdm_time_left } }
+                    socketio.emit('esp_event', {"parsed_data": doc})
+                    game_engine.trigger_siren("SIREN_LONG")
+                    db_manager.process_match_stats("STOPPED") 
+                elif "CLOSE_MISSION" in cmd_str:
+                    game_engine.mission_control.end_mission()
+                    socketio.emit('esp_event', {"parsed_data": {"id": "SERVER-TDM", "type": "MODE_EXIT"}})
+                return
+
+            # Se è una partita su nodo Hardware (RAT)
+            else:
+                if "CLOSE_MISSION" in cmd_str:
+                    game_engine.mission_control.end_mission()
+                    game_engine.mqtt_client.publish(f"zulu/cmd/{real_target}", json.dumps({"cmd": "RETURN_TO_MENU"}))
+                    socketio.emit('esp_event', {"parsed_data": {"id": real_target, "type": "MODE_EXIT"}})
+                else:
+                    # Invia comandi normali (FORCE_END_GAME) al RAT
+                    game_engine.mqtt_client.publish(f"zulu/cmd/{real_target}", cmd_str)
+            return
+
+        # COMANDI DIRETTI (es. Setup e Parametri iniziali inviati dalla UI)
+        game_engine.mqtt_client.publish(f"zulu/cmd/{target_id}", cmd_str)
              
     except Exception as e:
         logger.error(f"[ERROR SOCKET CMD] {e}")

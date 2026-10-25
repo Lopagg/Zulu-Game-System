@@ -4,7 +4,6 @@ import { renderArenaRoster, renderDatabase, populateProfileModal, getCurrentProf
 
 const socket = io();
 let currentDevices = [];
-let monitoredDeviceId = null; 
 let arenaRoster = {}; 
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -112,15 +111,10 @@ socket.on('kiosk_hardware_cmd', (data) => {
 
 // --- CORE ENGINE (MQTT BRIDGE) ---
 socket.on('esp_event', (msg) => {
+    // Ora la UI è "stupida". Se riceve un evento, significa che il Server lo ha autorizzato.
     const raw = msg.parsed_data || {};
-    const senderId = raw.id || 'UNK';
     const type = raw.type || 'UNKNOWN';
     const payload = raw.payload || {};
-
-    if (type === 'TAG_ASSIGN') {
-        socket.emit('register_operator', { uid: payload.uid, team: payload.team });
-        return; 
-    }
 
     let mode = payload.mode || raw.mode;
     if(!mode) {
@@ -129,14 +123,7 @@ socket.on('esp_event', (msg) => {
          else if (type === 'TDM_UPDATE') mode = 'TEAM_DEATHMATCH';
     }
 
-    if (type === 'MODE_ENTER' || type === 'COUNTDOWN_UPDATE' || (type === 'TDM_UPDATE' && !monitoredDeviceId)) {
-        monitoredDeviceId = senderId;
-    }
-
-    if (monitoredDeviceId && senderId !== monitoredDeviceId) return;
-
     if (type === 'MODE_EXIT') {
-        monitoredDeviceId = null; 
         resetMonitorLayout();
         logSystem(`MODE EXIT DETECTED.`);
         return;
@@ -216,7 +203,6 @@ document.getElementById('btn-start-mission').addEventListener('click', () => {
     
     socket.emit('request_mission_start', { mode: mode, target_id: targetId, duration: dur, force: false });
     
-    // Disabilita tasto in attesa del 'mission_start_success' dal server
     document.getElementById('btn-start-mission').disabled = true;
     document.getElementById('btn-start-mission').classList.add('disabled');
 });
@@ -240,62 +226,16 @@ document.getElementById('setup-mode-select').addEventListener('change', (e) => {
 });
 
 window.uiForceEndMission = function() {
-    const mode = document.getElementById('setup-mode-select').value;
-    if(confirm("ATTENZIONE: Terminare forzatamente la partita selezionata?")) {
-        if (mode === 'tdm' || monitoredDeviceId === 'SERVER-TDM') {
-            socket.emit('send_command', { target_id: "SERVER-TDM", command: { cmd: "FORCE_END_GAME" } });
-        } else if (monitoredDeviceId) {
-            socket.emit('send_command', { target_id: monitoredDeviceId, command: { cmd: "FORCE_END_GAME" } });
-        } else {
-             alert("Nessuna partita attiva individuata in rete.");
-        }
-    }
-};
-
-window.saveOperatorNotes = () => {
-    const uid = getCurrentProfileUid();
-    const notesEl = document.getElementById('modal-op-notes');
-    if(uid && notesEl) {
-        socket.emit('save_notes', {uid: uid, notes: notesEl.value});
-        logSystem(`NOTE SALVATE PER [${uid}]`);
-        window.closeModal();
-    }
-};
-
-window.handlePhotoUpload = (input) => {
-    const uid = getCurrentProfileUid();
-    if(!input.files || !input.files[0] || !uid) return;
-    const file = input.files[0];
-    const formData = new FormData();
-    formData.append('photo', file);
-    formData.append('uid', uid);
-    
-    fetch('/upload_photo', { method: 'POST', body: formData })
-    .then(res => res.json())
-    .then(data => {
-        if(data.status === 'ok') {
-            const photoEl = document.getElementById('modal-op-photo');
-            if(photoEl) photoEl.src = `/static/uploads/${data.filename}?t=${new Date().getTime()}`;
-        } else alert('Errore caricamento foto.');
-    })
-    .catch(err => { console.error(err); });
-};
-
-window.uiForceEndMission = function() {
-    const mode = document.getElementById('setup-mode-select').value;
     const btn = document.getElementById('btn-force-end');
     const action = btn.dataset.action || "FORCE_END_GAME"; 
     
     const msg = (action === "FORCE_END_GAME") 
-        ? "ATTENZIONE: Terminare forzatamente la partita selezionata?" 
+        ? "ATTENZIONE: Terminare forzatamente la partita in corso?" 
         : "Chiudere definitivamente la partita e riportare il sistema in STANDBY?";
         
     if(confirm(msg)) {
-        let target = (mode === 'tdm' || monitoredDeviceId === 'SERVER-TDM') ? "SERVER-TDM" : monitoredDeviceId;
-        if(target) {
-            socket.emit('send_command', { target_id: target, command: { cmd: action } });
-        } else {
-            alert("Nessuna partita attiva individuata in rete.");
-        }
+        // La UI non deve più sapere a quale nodo inviare il comando. Lo dice al server.
+        // Il target "SERVER-ROUTER" indicherà al backend di instradare il comando alla missione attiva.
+        socket.emit('send_command', { target_id: "SERVER-ROUTER", command: { cmd: action } });
     }
 };

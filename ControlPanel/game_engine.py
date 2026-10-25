@@ -162,13 +162,12 @@ def on_mqtt_message(client, userdata, msg):
                 if mission_control.is_authorized_node(device_id):
                     mission_control.end_mission()
 
-            # INVIO DATI ALLA UI (Solo se la missione è stata autorizzata/avviata dal server)
-            if msg_type not in ['TAG_SCANNED', 'TAG_ASSIGN']:
-                if msg_type in ['SD_UPDATE', 'DOM_UPDATE', 'COUNTDOWN_UPDATE', 'TIME_UPDATE', 'MODE_ENTER', 'MODE_EXIT', 'SETTINGS_UPDATE']:
-                     if mission_control.is_authorized_node(device_id):
-                          socketio.emit('esp_event', {"parsed_data": parsed})
-                else:
-                     socketio.emit('esp_event', {"parsed_data": parsed})
+            # --- IL FIREWALL DEL SERVER ---
+            # I messaggi vengono inviati al Monitor Web (esp_event) SOLO se provengono 
+            # dal nodo autorizzato dalla Missione Globale in corso.
+            if msg_type in ['SD_UPDATE', 'DOM_UPDATE', 'COUNTDOWN_UPDATE', 'TIME_UPDATE', 'MODE_ENTER', 'MODE_EXIT', 'SETTINGS_UPDATE', 'TDM_UPDATE']:
+                 if mission_control.is_authorized_node(device_id):
+                      socketio.emit('esp_event', {"parsed_data": parsed})
 
             # --- ARBITRO LOCALE (Registra il Game Over senza distruggere la sessione) ---
             if msg_type in ['SD_UPDATE', 'DOM_UPDATE']:
