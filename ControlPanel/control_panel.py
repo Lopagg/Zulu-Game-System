@@ -253,7 +253,7 @@ def handle_request_mission_start(data):
         cmd_str = "START_SD_GAME" if mode == 'sd' else "START_DOM_GAME"
         cmd_payload = {"cmd": cmd_str}
         try:
-            game_engine.mqtt_client.publish(f"zulu/cmd/{target_id}", json.dumps(cmd_payload), qos=1)
+            game_engine.mqtt_client.publish(f"zulu/cmd/{target_id}", json.dumps(cmd_payload))
             logger.info(f"[MQTT TX] Comando Start Mission inviato a {target_id} -> {cmd_payload}")
         except Exception as e:
             logger.error(f"[ERROR MQTT START] {e}")
@@ -324,18 +324,32 @@ def handle_socket_command(data):
             else:
                 if "CLOSE_MISSION" in cmd_str:
                     game_engine.mission_control.end_mission()
-                    game_engine.mqtt_client.publish(f"zulu/cmd/{real_target}", json.dumps({"cmd": "RETURN_TO_MENU"}), qos=1)
+                    game_engine.mqtt_client.publish(f"zulu/cmd/{real_target}", json.dumps({"cmd": "RETURN_TO_MENU"}))
                     socketio.emit('esp_event', {"parsed_data": {"id": real_target, "type": "MODE_EXIT"}})
                 else:
                     # Invia comandi normali (FORCE_END_GAME) al RAT
-                    game_engine.mqtt_client.publish(f"zulu/cmd/{real_target}", cmd_str, qos=1)
+                    game_engine.mqtt_client.publish(f"zulu/cmd/{real_target}", cmd_str)
             return
 
         # COMANDI DIRETTI (es. Setup e Parametri iniziali inviati dalla UI)
-        game_engine.mqtt_client.publish(f"zulu/cmd/{target_id}", cmd_str, qos=1)
+        game_engine.mqtt_client.publish(f"zulu/cmd/{target_id}", cmd_str)
              
     except Exception as e:
         logger.error(f"[ERROR SOCKET CMD] {e}")
+
+# --- NUOVO: RIAVVIO SERVER FORZATO ---
+@socketio.on('server_reset_request')
+@login_required
+def handle_server_reset():
+    logger.warning("[SYSTEM] Ricevuto comando di riavvio forzato del server dall'operatore!")
+    socketio.emit('server_restarting') # Avvisa il client che il server sta morendo
+    time.sleep(1)
+    
+    # Esegue un riavvio "in-place" del processo Python corrente
+    import sys
+    import os
+    os.execv(sys.executable, [sys.executable] + sys.argv)
+
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000, debug=False, allow_unsafe_werkzeug=True)

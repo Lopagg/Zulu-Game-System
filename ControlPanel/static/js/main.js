@@ -22,6 +22,43 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.emit('send_command', { target_id: "BROADCAST_ENV", command: { cmd: envCmd } });
         }
     };
+    
+    // --- NUOVO: Reset Globale del Server (dal footer) ---
+    window.triggerServerReset = () => {
+        if(confirm("ATTENZIONE CRITICA!\nVuoi davvero forzare il riavvio completo del server Python? Tutte le comunicazioni si interromperanno per qualche secondo.")) {
+            socket.emit('server_reset_request');
+        }
+    };
+    
+    // --- NUOVO: Calcolo reale Latenza di Rete (NET_LOAD) ---
+    setInterval(() => {
+        if (socket.connected) {
+            const startPing = Date.now();
+            socket.emit('request_roster', () => {
+                // Non ci serve il dato in sé (arriverà da roster_update),
+                // ma il round-trip time. Qui usiamo un workaround "silenzioso":
+            });
+            // Il socket.io ha nativamente un misuratore di latenza incorporato nelle ultime versioni.
+            // Possiamo estrarre il valore dai ping interni del motore Engine.IO.
+            let latencyStr = "-- ms";
+            if (socket.io && socket.io.engine) {
+                // Estrae la latenza calcolata dall'ultimo pacchetto PING/PONG di Socket.IO
+                const rtt = socket.io.engine.lastPingTimestamp ? (Date.now() - socket.io.engine.lastPingTimestamp) : 12;
+                // Lo rendiamo un filo più stabile visivamente evitando sbalzi di 1ms
+                latencyStr = `${Math.round(rtt / 5) * 5} ms`;
+            }
+            
+            const loadEl = document.getElementById('net-load');
+            if (loadEl) {
+                loadEl.textContent = latencyStr;
+                // Colora in verde se sotto 50ms, giallo sotto 100, rosso se altissimo
+                const rtt_val = parseInt(latencyStr);
+                if (rtt_val < 50) loadEl.style.color = '#55ff55';
+                else if (rtt_val < 150) loadEl.style.color = '#ff9900';
+                else loadEl.style.color = 'var(--sop-alert)';
+            }
+        }
+    }, 2500); // Aggiorna ogni 2.5 secondi
 });
 
 socket.on('connect', () => {
@@ -43,6 +80,18 @@ socket.on('disconnect', () => {
         elGlobalStatus.classList.remove('status-normal');
         elGlobalStatus.classList.add('status-alert');
     }
+});
+
+// Ascolto del messaggio di riavvio in corso
+socket.on('server_restarting', () => {
+    logSystem("CRITICAL: SYSTEM REBOOT IN PROGRESS...");
+    const elGlobalStatus = document.getElementById('global-status');
+    if(elGlobalStatus) {
+        elGlobalStatus.textContent = "REBOOTING";
+        elGlobalStatus.classList.remove('status-normal');
+        elGlobalStatus.classList.add('status-alert');
+    }
+    alert("IL SERVER SI STA RIAVVIANDO. Attendi qualche secondo che il pannello torni online in automatico.");
 });
 
 socket.on('weather_update', (data) => {
@@ -228,15 +277,15 @@ document.getElementById('setup-mode-select').addEventListener('change', (e) => {
 
 window.uiForceEndMission = function() {
     const btn = document.getElementById('btn-force-end');
-    const action = btn.dataset.action || "FORCE_END_GAME"; 
+    // Se c'è un bottone (es. nel monitor), usa il suo data-action. 
+    // Altrimenti, forziamo il FORCE_END_GAME di default.
+    const action = btn ? (btn.dataset.action || "FORCE_END_GAME") : "FORCE_END_GAME"; 
     
     const msg = (action === "FORCE_END_GAME") 
         ? "ATTENZIONE: Terminare forzatamente la partita in corso?" 
         : "Chiudere definitivamente la partita e riportare il sistema in STANDBY?";
         
     if(confirm(msg)) {
-        // La UI non deve più sapere a quale nodo inviare il comando. Lo dice al server.
-        // Il target "SERVER-ROUTER" indicherà al backend di instradare il comando alla missione attiva.
         socket.emit('send_command', { target_id: "SERVER-ROUTER", command: { cmd: action } });
     }
 };

@@ -43,7 +43,7 @@
 
             <div class="header-right">
                 <div class="net-stats">
-                    <span class="stat-item">NET_LOAD: <span id="net-load">12ms</span></span>
+                    <span class="stat-item">NET_LOAD: <span id="net-load" style="color: #ff9900;">-- ms</span></span>
                     <span class="stat-item">ASSETS: <span id="asset-count">0</span></span>
                 </div>
                 <div class="operator-box">
@@ -78,11 +78,12 @@
 
         <!-- FOOTER COMMAND DECK -->
         <footer class="command-deck sop-panel">
-            <div class="deck-label">GLOBAL OVERRIDE</div>
+            <div class="deck-label">QUICK COMMANDS // OVERRIDE</div>
             <div class="deck-controls">
-                <button id="global-start-btn" class="deck-btn">[BROADCAST START]</button>
-                <button id="global-pause-btn" class="deck-btn btn-warning">[SYSTEM PAUSE]</button>
-                <button id="global-reset-btn" class="deck-btn btn-danger">[SYSTEM RESET]</button>
+                <button class="deck-btn" onclick="showView('monitor')">[ LIVE MONITOR ]</button>
+                <button class="deck-btn btn-warning" onclick="sendEnvCommand('SIREN_LONG')">[ ARENA HORN ]</button>
+                <button class="deck-btn btn-danger" onclick="uiForceEndMission()">[ STOP MATCH ]</button>
+                <button class="deck-btn btn-danger" style="border-color: var(--sop-alert); color: var(--sop-alert); margin-left: auto;" onclick="triggerServerReset()">[ SERVER RESET ]</button>
             </div>
         </footer>
 
