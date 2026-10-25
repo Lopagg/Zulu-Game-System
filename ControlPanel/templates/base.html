@@ -9,7 +9,7 @@
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=13">
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-    <script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/main.js') }}?v=999"></script>
 </head>
 <body class="sop-theme">
 
@@ -84,9 +84,10 @@
 
     </div>
 
+    <!-- MODALE 1: PROFILO OPERATORE -->
     <div id="operator-modal" class="modal-overlay hidden">
         <div class="sop-card profile-modal">
-            <div class="panel-header" style="justify-content: space-between; border-bottom: 2px solid var(--sop-primary);">
+            <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--sop-primary);">
                 <h2 id="modal-op-name" style="margin: 0; padding: 10px; color: var(--sop-primary); letter-spacing: 2px;">OPERATOR PROFILE</h2>
                 <button class="close-modal-btn" onclick="closeModal()">[X]</button>
             </div>
@@ -112,9 +113,10 @@
         </div>
     </div>
 
+    <!-- MODALE 2: AGGIUNGI DAL DB -->
     <div id="add-player-modal" class="modal-overlay hidden">
         <div class="sop-card profile-modal" style="width: 500px;">
-            <div class="panel-header" style="justify-content: space-between; border-bottom: 2px solid var(--sop-primary);">
+            <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--sop-primary);">
                 <h2 style="margin: 0; padding: 10px; color: var(--sop-primary); letter-spacing: 2px;">ADD FROM DATABASE</h2>
                 <button class="close-modal-btn" onclick="closeAddPlayerModal()">[X]</button>
             </div>
@@ -125,9 +127,10 @@
         </div>
     </div>
 
+    <!-- MODALE 3: MODIFICA FAZIONE -->
     <div id="faction-edit-modal" class="modal-overlay hidden">
         <div class="sop-card profile-modal" style="width: 400px;">
-            <div class="panel-header" style="justify-content: space-between; border-bottom: 2px solid var(--sop-primary);">
+            <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--sop-primary);">
                 <h2 id="modal-faction-title" style="margin: 0; padding: 10px; color: var(--sop-primary); letter-spacing: 2px;">EDIT FACTION</h2>
                 <button class="close-modal-btn" onclick="closeFactionModal()">[X]</button>
             </div>
@@ -139,7 +142,10 @@
                 </div>
                 <div class="input-group-tactical" style="margin-bottom: 25px;">
                     <label class="setup-label">FACTION COLOR</label>
-                    <input type="color" id="edit-faction-color" style="width: 100%; height: 50px; background: transparent; border: 1px solid var(--sop-dim); cursor: pointer;">
+                    <div style="display: flex; gap: 10px;">
+                        <input type="color" id="edit-faction-color" style="flex: 1; height: 50px; background: transparent; border: 1px solid var(--sop-dim); cursor: pointer;">
+                        <button class="deck-btn" style="margin: 0; height: 50px; padding: 0 20px;" onclick="resetFactionColor()">[ DEFAULT ]</button>
+                    </div>
                 </div>
                 <button class="deck-btn full-width" style="border-color: var(--sop-primary); color: var(--sop-primary);" onclick="saveFactionConfig()">[ SAVE CONFIG ]</button>
             </div>

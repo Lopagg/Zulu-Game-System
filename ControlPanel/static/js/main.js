@@ -71,6 +71,13 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('faction-edit-modal').classList.add('hidden');
     };
 
+    window.resetFactionColor = function() {
+        const teamId = document.getElementById('edit-faction-id').value;
+        const colorInput = document.getElementById('edit-faction-color');
+        if (teamId === 'ALPHA') colorInput.value = '#ff3333';
+        if (teamId === 'BRAVO') colorInput.value = '#55ff55';
+    };
+
     window.saveFactionConfig = function() {
         const teamId = document.getElementById('edit-faction-id').value;
         const newName = document.getElementById('edit-faction-name').value.trim().toUpperCase();
