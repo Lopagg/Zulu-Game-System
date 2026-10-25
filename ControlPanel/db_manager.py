@@ -9,7 +9,6 @@ def get_current_time():
     return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 def init_db():
-    """Inizializza il database e crea le tabelle se non esistono."""
     with sqlite3.connect(DB_PATH) as conn:
         c = conn.cursor()
         c.execute('''CREATE TABLE IF NOT EXISTS players
@@ -28,38 +27,42 @@ def init_db():
         c.execute('''CREATE TABLE IF NOT EXISTS device_aliases
                      (device_id TEXT PRIMARY KEY, alias TEXT)''')
         
-        # --- NUOVO: Tabella configurazione Fazioni ---
         c.execute('''CREATE TABLE IF NOT EXISTS factions_config
                      (team_id TEXT PRIMARY KEY, display_name TEXT)''')
-        
-        # Inserisci i valori di default se la tabella è appena stata creata
-        c.execute("INSERT OR IGNORE INTO factions_config (team_id, display_name) VALUES ('ALPHA', 'ALPHA')")
-        c.execute("INSERT OR IGNORE INTO factions_config (team_id, display_name) VALUES ('BRAVO', 'BRAVO')")
                      
+        # --- NUOVO: Aggiunta colonna colore ---
+        try: c.execute("ALTER TABLE factions_config ADD COLUMN hex_color TEXT")
+        except sqlite3.OperationalError: pass
+        
+        c.execute("INSERT OR IGNORE INTO factions_config (team_id, display_name, hex_color) VALUES ('ALPHA', 'ALPHA', '#ff3333')")
+        c.execute("INSERT OR IGNORE INTO factions_config (team_id, display_name, hex_color) VALUES ('BRAVO', 'BRAVO', '#55ff55')")
+        
+        # Retrocompatibilità se c'erano già record senza colore
+        c.execute("UPDATE factions_config SET hex_color = '#ff3333' WHERE team_id = 'ALPHA' AND hex_color IS NULL")
+        c.execute("UPDATE factions_config SET hex_color = '#55ff55' WHERE team_id = 'BRAVO' AND hex_color IS NULL")
         conn.commit()
 
-# --- NUOVE FUNZIONI PER GESTIRE I NOMI DELLE FAZIONI ---
 def get_factions_config():
-    """Restituisce il nome attuale delle due fazioni."""
     with sqlite3.connect(DB_PATH) as conn:
         c = conn.cursor()
-        c.execute("SELECT team_id, display_name FROM factions_config")
+        c.execute("SELECT team_id, display_name, hex_color FROM factions_config")
         rows = c.fetchall()
-        config = {'ALPHA': 'ALPHA', 'BRAVO': 'BRAVO'} # Default
+        config = {
+            'ALPHA': {'name': 'ALPHA', 'color': '#ff3333'},
+            'BRAVO': {'name': 'BRAVO', 'color': '#55ff55'}
+        }
         for row in rows:
-            config[row[0]] = row[1]
+            config[row[0]] = {'name': row[1], 'color': row[2] if row[2] else config[row[0]]['color']}
         return config
 
-def set_faction_name(team_id, new_name):
-    """Aggiorna il nome di una specifica fazione."""
+def set_faction_config(team_id, new_name, hex_color):
     if team_id not in ['ALPHA', 'BRAVO']: return False
     with sqlite3.connect(DB_PATH) as conn:
-        conn.execute("UPDATE factions_config SET display_name = ? WHERE team_id = ?", (new_name, team_id))
+        conn.execute("UPDATE factions_config SET display_name = ?, hex_color = ? WHERE team_id = ?", (new_name, hex_color, team_id))
         conn.commit()
     return True
-# ------------------------------------------------------
 
-# --- NUOVE FUNZIONI PER ALIAS DISPOSITIVI ---
+# --- REPERTORIO FUNZIONI ESISTENTI ---
 def get_device_alias(device_id):
     with sqlite3.connect(DB_PATH) as conn:
         c = conn.cursor()
@@ -71,10 +74,8 @@ def set_device_alias(device_id, alias):
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute("INSERT OR REPLACE INTO device_aliases (device_id, alias) VALUES (?, ?)", (device_id, alias))
         conn.commit()
-# --------------------------------------------
 
 def get_full_roster():
-    """Restituisce il dizionario del roster attivo combinato con i nomi dei giocatori."""
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
         c = conn.cursor()
@@ -84,33 +85,24 @@ def get_full_roster():
             JOIN players p ON a.uid = p.uid
         ''')
         rows = c.fetchall()
-        
         roster = {}
         for r in rows:
-            roster[r['uid']] = {
-                'uid': r['uid'],
-                'name': r['name'],
-                'team': r['team'],
-                'status': r['status']
-            }
+            roster[r['uid']] = { 'uid': r['uid'], 'name': r['name'], 'team': r['team'], 'status': r['status'] }
         return roster
 
 def get_active_roster_status():
-    """Recupera la lista cruda dei giocatori attualmente nel roster."""
     with sqlite3.connect(DB_PATH) as conn:
         c = conn.cursor()
         c.execute("SELECT uid, team, status FROM active_roster")
         return c.fetchall()
 
 def get_player_status(uid):
-    """Restituisce lo stato (IN/FUORI) e il team di un operatore specifico."""
     with sqlite3.connect(DB_PATH) as conn:
         c = conn.cursor()
         c.execute("SELECT status, team FROM active_roster WHERE uid = ?", (uid,))
         return c.fetchone()
 
 def get_all_players():
-    """Recupera l'elenco completo dei giocatori per il pannello Database."""
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
         c = conn.cursor()
@@ -118,7 +110,6 @@ def get_all_players():
         return [dict(r) for r in c.fetchall()]
 
 def get_player_profile(uid):
-    """Recupera tutti i dati di un singolo profilo."""
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
         c = conn.cursor()
@@ -127,7 +118,6 @@ def get_player_profile(uid):
         return dict(row) if row else None
 
 def register_player(uid, team):
-    """Registra un nuovo giocatore e lo inserisce nel roster attivo."""
     with sqlite3.connect(DB_PATH) as conn:
         c = conn.cursor()
         c.execute("INSERT OR IGNORE INTO players (uid, alias, registered_at) VALUES (?, ?, ?)", 
@@ -137,7 +127,6 @@ def register_player(uid, team):
         conn.commit()
 
 def toggle_player_status(uid, current_status):
-    """Inverte lo stato IN/FUORI del giocatore nel roster."""
     new_status = 'FUORI' if current_status == 'IN' else 'IN'
     with sqlite3.connect(DB_PATH) as conn:
         c = conn.cursor()
@@ -182,12 +171,9 @@ def update_player_photo(uid, filename):
         conn.commit()
 
 def process_match_stats(winner_state):
-    """Assegna vittorie e partite giocate agli operatori IN CAMPO al termine di un match."""
     winning_team = None
-    if winner_state in ['ALPHA WINS', 'OWNED ALPHA', 'T WINS']:
-        winning_team = 'ALPHA'
-    elif winner_state in ['BRAVO WINS', 'OWNED BRAVO', 'CT WINS']:
-        winning_team = 'BRAVO'
+    if winner_state in ['ALPHA WINS', 'OWNED ALPHA', 'T WINS']: winning_team = 'ALPHA'
+    elif winner_state in ['BRAVO WINS', 'OWNED BRAVO', 'CT WINS']: winning_team = 'BRAVO'
         
     try:
         with sqlite3.connect(DB_PATH) as conn:
@@ -199,6 +185,6 @@ def process_match_stats(winner_state):
                 if winning_team and team == winning_team:
                     c.execute("UPDATE players SET wins = wins + 1 WHERE uid = ?", (uid,))
             conn.commit()
-            logger.info(f"[STATS] Aggiornate statistiche per {len(players)} operatori. Team Vittorioso: {winning_team or 'NESSUNO'}")
+            logger.info(f"[STATS] Aggiornate statistiche. Team Vittorioso: {winning_team or 'NESSUNO'}")
     except Exception as e:
         logger.error(f"[ERROR STATS] {e}")

@@ -1,4 +1,3 @@
-// roster_manager.js
 import { currentFactions } from './main.js';
 
 let currentProfileUid = null;
@@ -35,18 +34,12 @@ export function renderArenaRoster(arenaRoster, socket) {
         
         if(isInField) {
             inFieldCount++;
-            if(isAlpha) {
-                alphaInCount++;
-                addToList(listMonitorAlpha, player, socket);
-            } else {
-                bravoInCount++;
-                addToList(listMonitorBravo, player, socket);
-            }
+            if(isAlpha) { alphaInCount++; addToList(listMonitorAlpha, player, socket); } 
+            else { bravoInCount++; addToList(listMonitorBravo, player, socket); }
         }
 
         const liManage = createManageItem(player, socket);
-        if(isAlpha) listAlphaManage.appendChild(liManage);
-        else listBravoManage.appendChild(liManage);
+        if(isAlpha) listAlphaManage.appendChild(liManage); else listBravoManage.appendChild(liManage);
 
         const liTrack = createTrackItem(player, socket, isInField);
         if(isAlpha && isInField) listAlphaIn.appendChild(liTrack);
@@ -58,46 +51,33 @@ export function renderArenaRoster(arenaRoster, socket) {
     if(alphaCount === 0) listAlphaManage.innerHTML = '<li class="placeholder-text" style="color:var(--sop-dim); text-align:center; margin-top:20px;">NESSUN OPERATORE</li>';
     if(bravoCount === 0) listBravoManage.innerHTML = '<li class="placeholder-text" style="color:var(--sop-dim); text-align:center; margin-top:20px;">NESSUN OPERATORE</li>';
     
-    // --- NUOVO: Applicazione Nomi Dinamici con Tasto Edit ---
-    document.getElementById('header-alpha-manage').innerHTML = `${currentFactions.ALPHA} (${alphaCount}) <span class="action-btn" onclick="renameFaction('ALPHA')" style="font-size:14px; float:right;">[EDIT]</span>`;
-    document.getElementById('header-bravo-manage').innerHTML = `${currentFactions.BRAVO} (${bravoCount}) <span class="action-btn" onclick="renameFaction('BRAVO')" style="font-size:14px; float:right;">[EDIT]</span>`;
+    document.getElementById('header-alpha-manage').innerHTML = `${currentFactions.ALPHA.name} (${alphaCount}) <span class="action-btn" onclick="editFaction('ALPHA')" style="font-size:14px; float:right;">[EDIT]</span>`;
+    document.getElementById('header-bravo-manage').innerHTML = `${currentFactions.BRAVO.name} (${bravoCount}) <span class="action-btn" onclick="editFaction('BRAVO')" style="font-size:14px; float:right;">[EDIT]</span>`;
     
-    const trackAlphaIn = document.getElementById('header-alpha-track-in');
-    if(trackAlphaIn) trackAlphaIn.textContent = `${currentFactions.ALPHA} IN CAMPO (${alphaInCount})`;
-    
-    const trackAlphaOut = document.getElementById('header-alpha-track-out');
-    if(trackAlphaOut) trackAlphaOut.textContent = `${currentFactions.ALPHA} FUORI (${alphaCount - alphaInCount})`;
-    
-    const trackBravoIn = document.getElementById('header-bravo-track-in');
-    if(trackBravoIn) trackBravoIn.textContent = `${currentFactions.BRAVO} IN CAMPO (${bravoInCount})`;
-    
-    const trackBravoOut = document.getElementById('header-bravo-track-out');
-    if(trackBravoOut) trackBravoOut.textContent = `${currentFactions.BRAVO} FUORI (${bravoCount - bravoInCount})`;
+    const setEl = (id, txt) => { const el = document.getElementById(id); if(el) el.textContent = txt; };
+    setEl('header-alpha-track-in', `${currentFactions.ALPHA.name} IN CAMPO (${alphaInCount})`);
+    setEl('header-alpha-track-out', `${currentFactions.ALPHA.name} FUORI (${alphaCount - alphaInCount})`);
+    setEl('header-bravo-track-in', `${currentFactions.BRAVO.name} IN CAMPO (${bravoInCount})`);
+    setEl('header-bravo-track-out', `${currentFactions.BRAVO.name} FUORI (${bravoCount - bravoInCount})`);
 
-    document.getElementById('total-op-count').textContent = (alphaCount + bravoCount);
-    document.getElementById('track-in-count').textContent = inFieldCount;
-
-    document.getElementById('score-a').textContent = alphaInCount;
-    document.getElementById('score-b').textContent = bravoInCount;
-
-    document.getElementById('setup-alpha-count').textContent = `${alphaInCount}/${alphaCount}`;
-    document.getElementById('setup-bravo-count').textContent = `${bravoInCount}/${bravoCount}`;
+    setEl('total-op-count', alphaCount + bravoCount);
+    setEl('track-in-count', inFieldCount);
+    setEl('score-a', alphaInCount);
+    setEl('score-b', bravoInCount);
+    setEl('setup-alpha-count', `${alphaInCount}/${alphaCount}`);
+    setEl('setup-bravo-count', `${bravoInCount}/${bravoCount}`);
 }
 
 export function renderDatabase(players, socket, arenaRoster) {
     globalPlayersDB = players;
-
     const modal = document.getElementById('add-player-modal');
-    if (modal && !modal.classList.contains('hidden')) {
-        renderAddPlayerList(socket, arenaRoster);
-    }
+    if (modal && !modal.classList.contains('hidden')) renderAddPlayerList(socket, arenaRoster);
 
     const dbList = document.getElementById('db-list');
-    const dbCount = document.getElementById('db-total-count');
     if(!dbList) return;
 
     dbList.innerHTML = '';
-    if(dbCount) dbCount.textContent = players.length;
+    document.getElementById('db-total-count').textContent = players.length;
 
     if(players.length === 0) {
         dbList.innerHTML = '<li class="placeholder-text" style="color:var(--sop-dim); text-align:center; margin-top:20px;">NESSUN OPERATORE IN ARCHIVIO</li>';
@@ -110,40 +90,29 @@ export function renderDatabase(players, socket, arenaRoster) {
 
         const nameSpan = document.createElement('span');
         nameSpan.textContent = `${player.alias} (UID: ${player.uid})`;
-        nameSpan.style.fontWeight = 'bold';
-        nameSpan.style.fontSize = '20px';
-        nameSpan.className = 'clickable-name';
+        nameSpan.style.fontWeight = 'bold'; nameSpan.style.fontSize = '20px'; nameSpan.className = 'clickable-name';
         nameSpan.onclick = () => openOperatorProfile(player.uid, socket);
 
         const controlsDiv = document.createElement('div');
-        controlsDiv.style.fontSize = '18px';
-        controlsDiv.style.fontFamily = 'monospace';
+        controlsDiv.style.fontSize = '18px'; controlsDiv.style.fontFamily = 'monospace';
 
         const btnRename = document.createElement('span');
-        btnRename.textContent = '[REN]';
-        btnRename.className = 'action-btn';
-        btnRename.style.color = 'var(--sop-primary)';
+        btnRename.textContent = '[REN]'; btnRename.className = 'action-btn'; btnRename.style.color = 'var(--sop-primary)';
         btnRename.onclick = () => {
             const newName = prompt("Inserisci nuovo nome operatore:", player.alias);
-            if (newName && newName.trim() !== '') {
-                socket.emit('update_db_player', { uid: player.uid, action: 'rename', value: newName.trim().toUpperCase() });
-            }
+            if (newName && newName.trim() !== '') socket.emit('update_db_player', { uid: player.uid, action: 'rename', value: newName.trim().toUpperCase() });
         };
 
         const btnDel = document.createElement('span');
-        btnDel.textContent = '[DEL]';
-        btnDel.className = 'action-btn';
-        btnDel.style.color = 'var(--sop-alert)';
+        btnDel.textContent = '[DEL]'; btnDel.className = 'action-btn'; btnDel.style.color = 'var(--sop-alert)';
         btnDel.onclick = () => {
             if(confirm(`ELIMINARE PERMANENTEMENTE ${player.alias} DAL DATABASE? L'azione è irreversibile.`)) {
                 socket.emit('update_db_player', { uid: player.uid, action: 'delete' });
             }
         };
 
-        controlsDiv.appendChild(btnRename);
-        controlsDiv.appendChild(btnDel);
-        li.appendChild(nameSpan);
-        li.appendChild(controlsDiv);
+        controlsDiv.appendChild(btnRename); controlsDiv.appendChild(btnDel);
+        li.appendChild(nameSpan); li.appendChild(controlsDiv);
         dbList.appendChild(li);
     });
 }
@@ -154,66 +123,49 @@ export function renderAddPlayerList(socket, arenaRoster) {
     list.innerHTML = '';
 
     const availablePlayers = globalPlayersDB.filter(p => !arenaRoster[p.uid]);
-
     if (availablePlayers.length === 0) {
-        list.innerHTML = '<li class="placeholder-text" style="color:var(--sop-dim); text-align:center; margin-top:20px;">TUTTI I GIOCATORI SONO GIA\' IN CAMPO OPPURE DB VUOTO</li>';
+        list.innerHTML = '<li class="placeholder-text" style="color:var(--sop-dim); text-align:center; margin-top:20px;">NESSUN GIOCATORE DISPONIBILE</li>';
         return;
     }
 
     availablePlayers.forEach(player => {
         const li = document.createElement('li');
-        li.className = 'roster-item';
-        li.style.justifyContent = 'space-between';
+        li.className = 'roster-item'; li.style.justifyContent = 'space-between';
 
         const nameSpan = document.createElement('span');
         nameSpan.textContent = `${player.alias}`;
-        nameSpan.style.fontWeight = 'bold';
-        nameSpan.style.fontSize = '18px';
+        nameSpan.style.fontWeight = 'bold'; nameSpan.style.fontSize = '18px';
 
         const controlsDiv = document.createElement('div');
 
         const btnAlpha = document.createElement('button');
-        // --- NUOVO: Usa il nome Fazione dinamico per il pulsante ---
-        btnAlpha.textContent = `[ + ${currentFactions.ALPHA} ]`;
-        btnAlpha.className = 'deck-btn';
-        btnAlpha.style.color = 'var(--sop-alert)';
-        btnAlpha.style.borderColor = 'var(--sop-alert)';
-        btnAlpha.style.marginRight = '10px';
+        btnAlpha.textContent = `[ + ${currentFactions.ALPHA.name} ]`;
+        btnAlpha.className = 'deck-btn'; btnAlpha.style.color = 'var(--team-a-color)'; btnAlpha.style.borderColor = 'var(--team-a-color)'; btnAlpha.style.marginRight = '10px';
         btnAlpha.onclick = () => { socket.emit('register_operator', { uid: player.uid, team: 'ALPHA' }); };
 
         const btnBravo = document.createElement('button');
-        // --- NUOVO: Usa il nome Fazione dinamico per il pulsante ---
-        btnBravo.textContent = `[ + ${currentFactions.BRAVO} ]`;
-        btnBravo.className = 'deck-btn';
-        btnBravo.style.color = '#55ff55';
-        btnBravo.style.borderColor = '#55ff55';
+        btnBravo.textContent = `[ + ${currentFactions.BRAVO.name} ]`;
+        btnBravo.className = 'deck-btn'; btnBravo.style.color = 'var(--team-b-color)'; btnBravo.style.borderColor = 'var(--team-b-color)';
         btnBravo.onclick = () => { socket.emit('register_operator', { uid: player.uid, team: 'BRAVO' }); };
 
-        controlsDiv.appendChild(btnAlpha);
-        controlsDiv.appendChild(btnBravo);
-        li.appendChild(nameSpan);
-        li.appendChild(controlsDiv);
+        controlsDiv.appendChild(btnAlpha); controlsDiv.appendChild(btnBravo);
+        li.appendChild(nameSpan); li.appendChild(controlsDiv);
         list.appendChild(li);
     });
 }
 
 export function populateProfileModal(data) {
-    const nameEl = document.getElementById('modal-op-name');
-    if(nameEl) nameEl.textContent = `PROFILE // ${data.alias}`;
-    const uidEl = document.getElementById('modal-op-uid');
-    if(uidEl) uidEl.textContent = data.uid;
-    const dateEl = document.getElementById('modal-op-date');
-    if(dateEl) dateEl.textContent = data.registered_at || 'Sconosciuta';
-    const gamesEl = document.getElementById('modal-op-games');
-    if(gamesEl) gamesEl.textContent = data.games_played || 0;
+    const setEl = (id, txt) => { const el = document.getElementById(id); if(el) el.textContent = txt; };
+    setEl('modal-op-name', `PROFILE // ${data.alias}`);
+    setEl('modal-op-uid', data.uid);
+    setEl('modal-op-date', data.registered_at || 'Sconosciuta');
+    setEl('modal-op-games', data.games_played || 0);
+    
     const notesEl = document.getElementById('modal-op-notes');
     if(notesEl) notesEl.value = data.notes || '';
     
     const photoEl = document.getElementById('modal-op-photo');
-    if(photoEl) {
-        if(data.photo) photoEl.src = `/static/uploads/${data.photo}?t=${new Date().getTime()}`;
-        else photoEl.src = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIiBmaWxsPSIjMzMzIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjM1IiByPSIyMCIvPjxwYXRoIGQ9Ik0yMCA5MCBRMjAgNjAgNTAgNjAgUTgwIDYwIDgwIDkwIFoiLz48L3N2Zz4=";
-    }
+    if(photoEl) photoEl.src = data.photo ? `/static/uploads/${data.photo}?t=${new Date().getTime()}` : "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIiBmaWxsPSIjMzMzIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjM1IiByPSIyMCIvPjxwYXRoIGQ9Ik0yMCA5MCBRMjAgNjAgNTAgNjAgUTgwIDYwIDgwIDkwIFoiLz48L3N2Zz4=";
     
     document.getElementById('operator-modal').classList.remove('hidden');
 }
@@ -221,8 +173,7 @@ export function populateProfileModal(data) {
 function addToList(list, player, socket) {
     if(!list) return;
     const li = document.createElement('li');
-    li.textContent = player.name;
-    li.className = 'clickable-name';
+    li.textContent = player.name; li.className = 'clickable-name';
     li.onclick = () => openOperatorProfile(player.uid, socket);
     list.appendChild(li);
 }
@@ -244,9 +195,7 @@ function createManageItem(player, socket) {
         if (newName && newName.trim() !== '') socket.emit('update_operator', { uid: player.uid, action: 'rename', value: newName.trim().toUpperCase() });
     };
     btns[1].onclick = () => socket.emit('update_operator', { uid: player.uid, action: 'swap' });
-    btns[2].onclick = () => {
-        if(confirm(`Rimuovere ${player.name} dal roster attivo?`)) socket.emit('update_operator', { uid: player.uid, action: 'delete' });
-    };
+    btns[2].onclick = () => { if(confirm(`Rimuovere ${player.name} dal roster attivo?`)) socket.emit('update_operator', { uid: player.uid, action: 'delete' }); };
     return li;
 }
 
@@ -255,24 +204,14 @@ function createTrackItem(player, socket, isInField) {
     li.className = `roster-item ${isInField ? 'in-field' : 'eliminated'}`;
     li.innerHTML = `<span class="clickable-name" style="font-weight:bold; font-size:20px;">${player.name}</span>
                     <div style="font-size:18px; font-family:monospace;">
-                        <span class="action-btn" style="color:${isInField ? 'var(--sop-alert)' : '#55ff55'}">${isInField ? '[RECALL]' : '[DEPLOY]'}</span>
+                        <span class="action-btn" style="color:${isInField ? 'var(--team-a-color)' : 'var(--team-b-color)'}">${isInField ? '[RECALL]' : '[DEPLOY]'}</span>
                     </div>`;
     li.querySelector('span.clickable-name').onclick = () => openOperatorProfile(player.uid, socket);
     li.querySelector('.action-btn').onclick = () => socket.emit('update_operator', { uid: player.uid, action: 'status_toggle' });
     return li;
 }
 
-export function openOperatorProfile(uid, socket) {
-    currentProfileUid = uid;
-    socket.emit('request_profile', {uid: uid});
-}
-
-window.openAddPlayerModal = function() {
-    document.getElementById('add-player-modal').classList.remove('hidden');
-};
-window.closeAddPlayerModal = function() {
-    document.getElementById('add-player-modal').classList.add('hidden');
-};
-window.closeModal = function() {
-    document.getElementById('operator-modal').classList.add('hidden');
-};
+export function openOperatorProfile(uid, socket) { currentProfileUid = uid; socket.emit('request_profile', {uid: uid}); }
+window.openAddPlayerModal = function() { document.getElementById('add-player-modal').classList.remove('hidden'); };
+window.closeAddPlayerModal = function() { document.getElementById('add-player-modal').classList.add('hidden'); };
+window.closeModal = function() { document.getElementById('operator-modal').classList.add('hidden'); };

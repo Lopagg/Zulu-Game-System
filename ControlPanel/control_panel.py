@@ -9,11 +9,9 @@ import time
 import os
 import urllib.request
 
-# --- IMPORTA I MODULI CUSTOM ---
 import db_manager 
 import game_engine
 
-# --- CONFIGURAZIONE GLOBALE ---
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -30,16 +28,9 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-# --- GESTIONE UTENTI CON HASH ---
 USERS = { 
-    "admin": {
-        "password_hash": "scrypt:32768:8:1$UudpiqxEpDnMIMyI$d1c51523f034965a99cb569f943943399dc8722d382fec63de356a4f4b74fdebe269ff61c287b4784886553adb74086a2dac9cc570a13caa7434f3218dd2ca13", 
-        "name": "Admin"
-    },
-    "topgun": {
-        "password_hash": "scrypt:32768:8:1$7OpLxyv7XJkDXsrf$f1b769dd4f3496651e6c3a17cc56b4aa0469985e8a1ae0655eec9a93456e04cb501259345d00607e534a7822dbac4e4394a0b6f09315b5deeae29930b43eee67", 
-        "name": "TopGun"
-    }
+    "admin": { "password_hash": "scrypt:32768:8:1$UudpiqxEpDnMIMyI$d1c51523f034965a99cb569f943943399dc8722d382fec63de356a4f4b74fdebe269ff61c287b4784886553adb74086a2dac9cc570a13caa7434f3218dd2ca13", "name": "Admin" },
+    "topgun": { "password_hash": "scrypt:32768:8:1$7OpLxyv7XJkDXsrf$f1b769dd4f3496651e6c3a17cc56b4aa0469985e8a1ae0655eec9a93456e04cb501259345d00607e534a7822dbac4e4394a0b6f09315b5deeae29930b43eee67", "name": "TopGun" }
 }
 
 class User(UserMixin):
@@ -53,13 +44,10 @@ class User(UserMixin):
         return None
 
 @login_manager.user_loader
-def load_user(user_id):
-    return User.get(user_id)
+def load_user(user_id): return User.get(user_id)
 
-# --- METEO GLOBALE ---
 last_weather_update = 0
 cached_weather = "--°C // SCANNING..."
-
 def fetch_weather():
     global last_weather_update, cached_weather
     now = time.time()
@@ -80,40 +68,32 @@ def fetch_weather():
                 elif code >= 95: condition = "STORM"
                 cached_weather = f"{temp}°C // {condition}"
                 last_weather_update = now
-        except Exception as e:
-            logger.error(f"[ERROR METEO] {e}")
+        except: pass
     return cached_weather
 
-# --- ROUTES E AUTENTICAZIONE FLASK ---
 @app.before_request
 def setup_database():
-    """Inizializza il DB al primo avvio."""
     if not hasattr(app, 'db_initialized'):
         db_manager.init_db()
-        game_engine.start_mqtt(socketio)  # Passiamo socketio al motore MQTT
+        game_engine.start_mqtt(socketio)  
         app.db_initialized = True
 
 @app.route('/')
 @login_required
-def index():
-    return render_template('index.html', username=current_user.name)
+def index(): return render_template('index.html', username=current_user.name)
 
 @app.route('/tv')
-def tv_dashboard():
-    return render_template('tv.html')
+def tv_dashboard(): return render_template('tv.html')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
-        
         if username in USERS and check_password_hash(USERS[username]['password_hash'], password):
-            user = User.get(username)
-            login_user(user)
+            login_user(User.get(username))
             return redirect(url_for('index'))
-        else:
-            flash('ACCESSO NEGATO', 'error')
+        flash('ACCESSO NEGATO', 'error')
     return render_template('login.html')
 
 @app.route('/logout')
@@ -125,19 +105,16 @@ def logout():
 @app.route('/upload_photo', methods=['POST'])
 @login_required
 def upload_photo():
-    if 'photo' not in request.files or 'uid' not in request.form:
-        return jsonify({"status": "error"}), 400
+    if 'photo' not in request.files or 'uid' not in request.form: return jsonify({"status": "error"}), 400
     file = request.files['photo']
     uid = request.form['uid']
     if file.filename != '':
         filename = secure_filename(f"op_{uid}.jpg")
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
+        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
         db_manager.update_player_photo(uid, filename)
         return jsonify({"status": "ok", "filename": filename})
     return jsonify({"status": "error"}), 400
 
-# --- WEBSOCKETS E INTERFACCIA TATTICA ---
 @socketio.on('connect')
 def handle_connect():
     if not game_engine.background_thread_started:
@@ -147,63 +124,53 @@ def handle_connect():
     active_devs, _ = game_engine.registry.get_active_devices()
     emit('devices_update', active_devs)
     emit('weather_update', {'weather': fetch_weather()})
-    
-    # Invia la configurazione fazioni corrente ai client appena si collegano
     emit('factions_update', db_manager.get_factions_config())
-    
     socketio.emit('roster_update', db_manager.get_full_roster())
 
-# --- NUOVO: ROTTA PER AGGIORNARE I NOMI DELLE FAZIONI ---
 @socketio.on('update_factions')
 @login_required
 def handle_update_factions(data):
-    if 'alpha_name' in data:
-        db_manager.set_faction_name('ALPHA', data['alpha_name'])
-    if 'bravo_name' in data:
-        db_manager.set_faction_name('BRAVO', data['bravo_name'])
+    if 'alpha_name' in data and 'alpha_color' in data:
+        db_manager.set_faction_config('ALPHA', data['alpha_name'], data['alpha_color'])
+    if 'bravo_name' in data and 'bravo_color' in data:
+        db_manager.set_faction_config('BRAVO', data['bravo_name'], data['bravo_color'])
     
-    # Avvisa tutti i client collegati (Arbitro e TV) del cambio nome
     new_config = db_manager.get_factions_config()
     socketio.emit('factions_update', new_config)
     
-    # Invia il cambio nome anche in broadcast ai dispositivi hardware (Kiosk e RAT)
-    # Lo inviamo in un formato compatto.
+    def hex_to_rgb(hex_code):
+        hex_code = hex_code.lstrip('#')
+        return tuple(int(hex_code[i:i+2], 16) for i in (0, 2, 4))
+        
+    a_rgb = hex_to_rgb(new_config['ALPHA']['color'])
+    b_rgb = hex_to_rgb(new_config['BRAVO']['color'])
+    
     game_engine.mqtt_client.publish("zulu/cmd/broadcast", json.dumps({
-        "cmd": "SET_FACTION_NAMES",
-        "t1": new_config['ALPHA'],
-        "t2": new_config['BRAVO']
+        "cmd": "SET_FACTIONS",
+        "t1": new_config['ALPHA']['name'], "t1_c": a_rgb,
+        "t2": new_config['BRAVO']['name'], "t2_c": b_rgb
     }))
-    logger.info(f"[SYSTEM] Nomi fazioni aggiornati: {new_config}")
+    logger.info(f"[SYSTEM] Nuove Fazioni Trasmesse: {new_config}")
 
 @socketio.on('request_roster')
-def handle_request_roster():
-    socketio.emit('roster_update', db_manager.get_full_roster())
+def handle_request_roster(): socketio.emit('roster_update', db_manager.get_full_roster())
 
 @socketio.on('register_operator')
 def handle_register_operator(data):
-    uid = data.get('uid')
-    team = data.get('team')
+    uid, team = data.get('uid'), data.get('team')
     if uid and team:
         db_manager.register_player(uid, team)
         socketio.emit('roster_update', db_manager.get_full_roster())
 
 @socketio.on('update_operator')
 def handle_update_operator(data):
-    uid = data.get('uid')
-    action = data.get('action')
-    value = data.get('value')
-    
-    if action == 'rename':
-        db_manager.rename_player(uid, value)
-    elif action == 'swap':
-        db_manager.swap_player_team(uid)
+    uid, action, value = data.get('uid'), data.get('action'), data.get('value')
+    if action == 'rename': db_manager.rename_player(uid, value)
+    elif action == 'swap': db_manager.swap_player_team(uid)
     elif action == 'status_toggle':
         row = db_manager.get_player_status(uid)
-        if row:
-            db_manager.toggle_player_status(uid, row[0])
-    elif action == 'delete':
-        db_manager.remove_from_roster(uid)
-        
+        if row: db_manager.toggle_player_status(uid, row[0])
+    elif action == 'delete': db_manager.remove_from_roster(uid)
     socketio.emit('roster_update', db_manager.get_full_roster())
 
 @socketio.on('clear_roster')
@@ -212,89 +179,59 @@ def handle_clear_roster():
     socketio.emit('roster_update', db_manager.get_full_roster())
 
 @socketio.on('request_database')
-def handle_request_database():
-    socketio.emit('database_update', db_manager.get_all_players())
+def handle_request_database(): socketio.emit('database_update', db_manager.get_all_players())
 
 @socketio.on('update_db_player')
 def handle_update_db_player(data):
-    uid = data.get('uid')
-    action = data.get('action')
-    value = data.get('value')
-    
-    if action == 'rename':
-        db_manager.rename_player(uid, value)
-    elif action == 'delete':
-        db_manager.delete_player_permanently(uid)
-        
+    uid, action, value = data.get('uid'), data.get('action'), data.get('value')
+    if action == 'rename': db_manager.rename_player(uid, value)
+    elif action == 'delete': db_manager.delete_player_permanently(uid)
     socketio.emit('roster_update', db_manager.get_full_roster())
     socketio.emit('database_update', db_manager.get_all_players())
 
 @socketio.on('request_profile')
 def handle_request_profile(data):
-    uid = data.get('uid')
-    profile = db_manager.get_player_profile(uid)
-    if profile:
-        emit('profile_data', profile)
+    profile = db_manager.get_player_profile(data.get('uid'))
+    if profile: emit('profile_data', profile)
 
 @socketio.on('save_notes')
-def handle_save_notes(data):
-    uid = data.get('uid')
-    notes = data.get('notes')
-    db_manager.update_player_notes(uid, notes)
+def handle_save_notes(data): db_manager.update_player_notes(data.get('uid'), data.get('notes'))
 
 @socketio.on('request_mission_start')
 def handle_request_mission_start(data):
-    mode = data.get('mode')
-    target_id = data.get('target_id')
-    dur = data.get('duration', 15)
-    force = data.get('force', False)
-    
+    mode, target_id, dur, force = data.get('mode'), data.get('target_id'), data.get('duration', 15), data.get('force', False)
     players = db_manager.get_active_roster_status()
-    total_players = len(players)
     players_out = sum(1 for p in players if p[2] != 'IN')
     alpha_in = sum(1 for p in players if p[1] == 'ALPHA' and p[2] == 'IN')
     bravo_in = sum(1 for p in players if p[1] == 'BRAVO' and p[2] == 'IN')
     
     if not force:
-        if total_players == 0:
-            emit('mission_start_warning', {'msg': "ATTENZIONE: Il Roster è completamente vuoto. Vuoi avviare la missione comunque?", 'original_request': data})
+        if len(players) == 0:
+            emit('mission_start_warning', {'msg': "Il Roster è vuoto. Vuoi avviare la missione comunque?", 'original_request': data})
             return
         if players_out > 0:
-            emit('mission_start_error', {'msg': f"OPERAZIONE INTERROTTA:\nCi sono {players_out} operatori fuori dal campo.\nTutti i giocatori registrati devono risultare 'IN CAMPO' per poter avviare la missione."})
+            emit('mission_start_error', {'msg': f"Ci sono {players_out} operatori fuori dal campo. Tutti devono risultare 'IN CAMPO'."})
             return
         if alpha_in == 0 or bravo_in == 0:
-            emit('mission_start_warning', {'msg': f"ATTENZIONE: Una delle due squadre non ha operatori in campo (Alpha: {alpha_in} | Bravo: {bravo_in}).\nSicuro di voler avviare una partita sbilanciata?", 'original_request': data})
+            emit('mission_start_warning', {'msg': f"Squadre sbilanciate (A:{alpha_in} B:{bravo_in}). Avviare comunque?", 'original_request': data})
             return
             
-    # Il Server prende il controllo della Sessione
     game_engine.mission_control.start_mission(mode, target_id, duration=dur)
             
     if mode == 'tdm':
-        doc = { "id": "SERVER-TDM", "type": "MODE_ENTER", "payload": {"mode": "TEAM_DEATHMATCH"} }
-        socketio.emit('esp_event', {"parsed_data": doc})
-        
-        rules_doc = { "id": "SERVER-TDM", "type": "SETTINGS_UPDATE", "payload": {"mode": "TEAM_DEATHMATCH", "game_duration": dur} }
-        socketio.emit('esp_event', {"parsed_data": rules_doc})
-        logger.info(f"START MISSION: TEAM DEATHMATCH ({dur} min).")
+        socketio.emit('esp_event', {"parsed_data": { "id": "SERVER-TDM", "type": "MODE_ENTER", "payload": {"mode": "TEAM_DEATHMATCH"} }})
+        socketio.emit('esp_event', {"parsed_data": { "id": "SERVER-TDM", "type": "SETTINGS_UPDATE", "payload": {"mode": "TEAM_DEATHMATCH", "game_duration": dur} }})
         game_engine.trigger_siren("SIREN_LONG")
     else:
-        # V1/V2 Ibrida: Avvia il motore nativo C++ sul nodo (S&D o Domination)
         cmd_str = "START_SD_GAME" if mode == 'sd' else "START_DOM_GAME"
-        cmd_payload = {"cmd": cmd_str}
-        try:
-            game_engine.mqtt_client.publish(f"zulu/cmd/{target_id}", json.dumps(cmd_payload))
-            logger.info(f"[MQTT TX] Comando Start Mission inviato a {target_id} -> {cmd_payload}")
-        except Exception as e:
-            logger.error(f"[ERROR MQTT START] {e}")
-            
+        try: game_engine.mqtt_client.publish(f"zulu/cmd/{target_id}", json.dumps({"cmd": cmd_str}))
+        except: pass
     emit('mission_start_success')
 
 @socketio.on('rename_device')
 def handle_rename(data):
-    device_id = data.get('id')
-    new_name = data.get('name')
-    if device_id and new_name:
-        game_engine.registry.rename_device(device_id, new_name)
+    if data.get('id') and data.get('name'):
+        game_engine.registry.rename_device(data['id'], data['name'])
         active_devs, _ = game_engine.registry.get_active_devices()
         socketio.emit('devices_update', active_devs)
 
@@ -307,78 +244,53 @@ def handle_manual_scan():
 def handle_socket_command(data):
     try:
         target_id = data.get('target_id')
-        command_obj = data.get('command')
-        cmd_str = json.dumps(command_obj) if isinstance(command_obj, dict) else command_obj
+        cmd_obj = data.get('command')
+        cmd_str = json.dumps(cmd_obj) if isinstance(cmd_obj, dict) else cmd_obj
         
-        if isinstance(command_obj, dict):
-            cmd_val = command_obj.get("cmd", "")
-            if cmd_val == "SET_READY":
-                game_engine.mission_ready_flag = True
-                return
-            elif cmd_val == "SET_SD_SETTINGS":
-                # Salva i parametri nel server prima che inizi la partita
-                game_engine.mission_control.sd_settings = command_obj
-                return
-            elif cmd_val == "SET_TDM_SETTINGS":
-                return
+        if isinstance(cmd_obj, dict):
+            c = cmd_obj.get("cmd", "")
+            if c == "SET_READY": game_engine.mission_ready_flag = True; return
+            elif c == "SET_SD_SETTINGS": game_engine.mission_control.sd_settings = cmd_obj; return
+            elif c == "SET_TDM_SETTINGS": return
 
-        # COMANDI AMBIENTALI BROADCAST
         if target_id == "BROADCAST_ENV":
             game_engine.mqtt_client.publish("zulu/cmd/broadcast", cmd_str)
             return
 
-        # --- SERVER ROUTER: Smistamento intelligente dei comandi UI ---
         if target_id == "SERVER-ROUTER":
-            # Recuperiamo il target reale dal MissionController
-            real_target = game_engine.mission_control.target_id
-            
-            if not game_engine.mission_control.active_mission or not real_target:
-                logger.warning("[ROUTER] Nessuna missione globale attiva da terminare.")
-                return
-
-            # Se è una partita TDM interna
-            if real_target == "SERVER-TDM":
+            rt = game_engine.mission_control.target_id
+            if not game_engine.mission_control.active_mission or not rt: return
+            if rt == "SERVER-TDM":
                 if "FORCE_END_GAME" in cmd_str:
                     game_engine.mission_control.state = "STOPPED"
-                    doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": "STOPPED", "game_time": game_engine.mission_control.tdm_time_left } }
-                    socketio.emit('esp_event', {"parsed_data": doc})
+                    socketio.emit('esp_event', {"parsed_data": { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": "STOPPED", "game_time": game_engine.mission_control.tdm_time_left } }})
                     game_engine.trigger_siren("SIREN_LONG")
                     db_manager.process_match_stats("STOPPED") 
                 elif "CLOSE_MISSION" in cmd_str:
                     game_engine.mission_control.end_mission()
                     socketio.emit('esp_event', {"parsed_data": {"id": "SERVER-TDM", "type": "MODE_EXIT"}})
                 return
-
-            # Se è una partita su nodo Hardware (RAT)
             else:
                 if "CLOSE_MISSION" in cmd_str:
                     game_engine.mission_control.end_mission()
-                    game_engine.mqtt_client.publish(f"zulu/cmd/{real_target}", json.dumps({"cmd": "RETURN_TO_MENU"}))
-                    socketio.emit('esp_event', {"parsed_data": {"id": real_target, "type": "MODE_EXIT"}})
+                    game_engine.mqtt_client.publish(f"zulu/cmd/{rt}", json.dumps({"cmd": "RETURN_TO_MENU"}))
+                    socketio.emit('esp_event', {"parsed_data": {"id": rt, "type": "MODE_EXIT"}})
                 else:
-                    # Invia comandi normali (FORCE_END_GAME) al RAT
-                    game_engine.mqtt_client.publish(f"zulu/cmd/{real_target}", cmd_str)
+                    game_engine.mqtt_client.publish(f"zulu/cmd/{rt}", cmd_str)
             return
 
-        # COMANDI DIRETTI (es. Setup e Parametri iniziali inviati dalla UI)
         game_engine.mqtt_client.publish(f"zulu/cmd/{target_id}", cmd_str)
              
     except Exception as e:
         logger.error(f"[ERROR SOCKET CMD] {e}")
 
-# --- NUOVO: RIAVVIO SERVER FORZATO ---
 @socketio.on('server_reset_request')
 @login_required
 def handle_server_reset():
-    logger.warning("[SYSTEM] Ricevuto comando di riavvio forzato del server dall'operatore!")
-    socketio.emit('server_restarting') # Avvisa il client che il server sta morendo
+    socketio.emit('server_restarting')
     time.sleep(1)
-    
-    # Esegue un riavvio "in-place" del processo Python corrente
-    import sys
-    import os
+    import sys, os
     os.execv(sys.executable, [sys.executable] + sys.argv)
-
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000, debug=False, allow_unsafe_werkzeug=True)
