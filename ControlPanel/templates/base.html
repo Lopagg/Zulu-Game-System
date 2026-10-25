@@ -9,11 +9,10 @@
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=13">
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-    <script type="module" src="{{ url_for('static', filename='js/main.js') }}?v=10"></script>
+    <script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
 </head>
 <body class="sop-theme">
 
-    <!-- SFONDO GLOBALE -->
     <div class="tactical-background">
         <div class="grid-overlay"></div>
         <div class="scan-line"></div>
@@ -21,7 +20,6 @@
 
     <div class="app-container">
 
-        <!-- HEADER COMUNE -->
         <header class="system-header sop-panel">
             <div class="header-left">
                 <div class="logo-box">
@@ -53,7 +51,6 @@
             </div>
         </header>
 
-        <!-- SIDEBAR HARDWARE -->
         <aside class="asset-sidebar sop-panel">
             <div class="sidebar-header">
                 <h3>ASSET LIST</h3> 
@@ -71,12 +68,10 @@
             </div>
         </aside>
 
-        <!-- AREA PRINCIPALE (Dove vengono iniettate le altre viste) -->
         <main class="main-stage">
             {% block content %}{% endblock %}
         </main>
 
-        <!-- FOOTER COMMAND DECK -->
         <footer class="command-deck sop-panel">
             <div class="deck-label">QUICK COMMANDS // OVERRIDE</div>
             <div class="deck-controls">
@@ -89,7 +84,6 @@
 
     </div>
 
-    <!-- MODALS GLOBALI (Operatore e Add Player) -->
     <div id="operator-modal" class="modal-overlay hidden">
         <div class="sop-card profile-modal">
             <div class="panel-header" style="justify-content: space-between; border-bottom: 2px solid var(--sop-primary);">
@@ -127,6 +121,27 @@
             <div class="panel-body" style="padding: 20px;">
                 <ul id="add-player-list" class="roster-list" style="max-height: 400px; overflow-y: auto; padding: 0;">
                 </ul>
+            </div>
+        </div>
+    </div>
+
+    <div id="faction-edit-modal" class="modal-overlay hidden">
+        <div class="sop-card profile-modal" style="width: 400px;">
+            <div class="panel-header" style="justify-content: space-between; border-bottom: 2px solid var(--sop-primary);">
+                <h2 id="modal-faction-title" style="margin: 0; padding: 10px; color: var(--sop-primary); letter-spacing: 2px;">EDIT FACTION</h2>
+                <button class="close-modal-btn" onclick="closeFactionModal()">[X]</button>
+            </div>
+            <div class="panel-body" style="padding: 20px;">
+                <input type="hidden" id="edit-faction-id">
+                <div class="input-group-tactical" style="margin-bottom: 15px;">
+                    <label class="setup-label">FACTION NAME</label>
+                    <input type="text" id="edit-faction-name" class="setup-input">
+                </div>
+                <div class="input-group-tactical" style="margin-bottom: 25px;">
+                    <label class="setup-label">FACTION COLOR</label>
+                    <input type="color" id="edit-faction-color" style="width: 100%; height: 50px; background: transparent; border: 1px solid var(--sop-dim); cursor: pointer;">
+                </div>
+                <button class="deck-btn full-width" style="border-color: var(--sop-primary); color: var(--sop-primary);" onclick="saveFactionConfig()">[ SAVE CONFIG ]</button>
             </div>
         </div>
     </div>

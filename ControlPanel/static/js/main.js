@@ -7,13 +7,11 @@ let currentDevices = [];
 let arenaRoster = {}; 
 let monitoredDeviceId = null;
 
-// --- MODIFICA STRUTTURALE: Le fazioni ora sono oggetti con nome e colore ---
 export let currentFactions = { 
     ALPHA: { name: 'ALPHA', color: '#ff3333' }, 
     BRAVO: { name: 'BRAVO', color: '#55ff55' } 
 };
 
-// Funzione magica: inietta regole CSS dinamicamente per ricolorare il sito!
 function applyFactionStyles(factions) {
     let styleTag = document.getElementById('dynamic-faction-styles');
     if (!styleTag) {
@@ -22,14 +20,12 @@ function applyFactionStyles(factions) {
         document.head.appendChild(styleTag);
     }
     
-    // Generiamo le tinte CSS. Aggiungendo "33" al fondo dell'hex diamo il 20% di trasparenza, "66" il 40%
     styleTag.innerHTML = `
         :root {
             --team-a-color: ${factions.ALPHA.color};
             --team-b-color: ${factions.BRAVO.color};
         }
         
-        /* Overrides dinamici per Alpha/T */
         .team-alpha-box .arena-header, #header-alpha-track-in { background: ${factions.ALPHA.color}33 !important; color: var(--team-a-color) !important; }
         .setup-roster-alpha, .count-alpha, .score.alpha, .alpha-list li, .d-val-red, .faction-a .faction-score, #dom-lbl-alpha { 
             color: var(--team-a-color) !important; 
@@ -38,7 +34,6 @@ function applyFactionStyles(factions) {
         }
         .fill-red { background-color: var(--team-a-color) !important; box-shadow: 0 0 15px var(--team-a-color) !important; }
         
-        /* Overrides dinamici per Bravo/CT */
         .team-bravo-box .arena-header, #header-bravo-track-in { background: ${factions.BRAVO.color}33 !important; color: var(--team-b-color) !important; }
         .setup-roster-bravo, .count-bravo, .score.bravo, .bravo-list li, .d-val-green, .faction-b .faction-score, #dom-lbl-bravo { 
             color: var(--team-b-color) !important; 
@@ -63,26 +58,36 @@ document.addEventListener('DOMContentLoaded', () => {
         if(confirm("ATTENZIONE CRITICA!\nVuoi forzare il riavvio del server Python?")) socket.emit('server_reset_request');
     };
     
-    // --- IL NUOVO FLOW A DUE STEP PER NOME + COLORE ---
-    window.editFaction = (teamId) => {
+    window.openFactionModal = function(teamId) {
         const f = currentFactions[teamId];
-        const newName = prompt(`STEP 1/2\nInserisci il nuovo NOME per la squadra ${teamId}:`, f.name);
-        if (newName === null || newName.trim() === '') return;
-        
-        const colorPicker = document.createElement('input');
-        colorPicker.type = 'color';
-        colorPicker.value = f.color;
-        
-        colorPicker.addEventListener('change', (e) => {
-            const newColor = e.target.value;
+        document.getElementById('edit-faction-id').value = teamId;
+        document.getElementById('edit-faction-name').value = f.name;
+        document.getElementById('edit-faction-color').value = f.color;
+        document.getElementById('modal-faction-title').textContent = `EDIT ${teamId} SETTINGS`;
+        document.getElementById('faction-edit-modal').classList.remove('hidden');
+    };
+
+    window.closeFactionModal = function() {
+        document.getElementById('faction-edit-modal').classList.add('hidden');
+    };
+
+    window.saveFactionConfig = function() {
+        const teamId = document.getElementById('edit-faction-id').value;
+        const newName = document.getElementById('edit-faction-name').value.trim().toUpperCase();
+        const newColor = document.getElementById('edit-faction-color').value;
+
+        if (newName !== '') {
             const data = {};
-            if (teamId === 'ALPHA') { data.alpha_name = newName.trim().toUpperCase(); data.alpha_color = newColor; }
-            if (teamId === 'BRAVO') { data.bravo_name = newName.trim().toUpperCase(); data.bravo_color = newColor; }
+            if (teamId === 'ALPHA') {
+                data.alpha_name = newName;
+                data.alpha_color = newColor;
+            } else if (teamId === 'BRAVO') {
+                data.bravo_name = newName;
+                data.bravo_color = newColor;
+            }
             socket.emit('update_factions', data);
-        });
-        
-        alert(`STEP 2/2\nHai scelto il nome "${newName.trim().toUpperCase()}".\nPremi OK per aprire il selettore del COLORE della fazione.`);
-        colorPicker.click();
+            closeFactionModal();
+        }
     };
 
     const btnSaveAlias = document.getElementById('save-alias-btn');
@@ -139,7 +144,6 @@ socket.on('server_restarting', () => {
     alert("IL SERVER SI STA RIAVVIANDO. Attendi qualche secondo che il pannello torni online.");
 });
 
-// --- RICEZIONE AGGIORNAMENTO FAZIONI (NOME E COLORE) ---
 socket.on('factions_update', (factions) => {
     currentFactions = factions;
     applyFactionStyles(factions);

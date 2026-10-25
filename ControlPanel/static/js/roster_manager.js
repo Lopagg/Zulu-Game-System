@@ -51,8 +51,8 @@ export function renderArenaRoster(arenaRoster, socket) {
     if(alphaCount === 0) listAlphaManage.innerHTML = '<li class="placeholder-text" style="color:var(--sop-dim); text-align:center; margin-top:20px;">NESSUN OPERATORE</li>';
     if(bravoCount === 0) listBravoManage.innerHTML = '<li class="placeholder-text" style="color:var(--sop-dim); text-align:center; margin-top:20px;">NESSUN OPERATORE</li>';
     
-    document.getElementById('header-alpha-manage').innerHTML = `${currentFactions.ALPHA.name} (${alphaCount}) <span class="action-btn" onclick="editFaction('ALPHA')" style="font-size:14px; float:right;">[EDIT]</span>`;
-    document.getElementById('header-bravo-manage').innerHTML = `${currentFactions.BRAVO.name} (${bravoCount}) <span class="action-btn" onclick="editFaction('BRAVO')" style="font-size:14px; float:right;">[EDIT]</span>`;
+    document.getElementById('header-alpha-manage').innerHTML = `${currentFactions.ALPHA.name} (${alphaCount}) <span class="action-btn" onclick="openFactionModal('ALPHA')" style="font-size:14px; float:right;">[EDIT]</span>`;
+    document.getElementById('header-bravo-manage').innerHTML = `${currentFactions.BRAVO.name} (${bravoCount}) <span class="action-btn" onclick="openFactionModal('BRAVO')" style="font-size:14px; float:right;">[EDIT]</span>`;
     
     const setEl = (id, txt) => { const el = document.getElementById(id); if(el) el.textContent = txt; };
     setEl('header-alpha-track-in', `${currentFactions.ALPHA.name} IN CAMPO (${alphaInCount})`);
