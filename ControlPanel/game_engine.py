@@ -150,20 +150,25 @@ class MissionController:
                 
             logger.info(f"[MISSION CONTROL] Missione Globale Avviata: {mode.upper()} su {target_id}")
 
-        # --- MODIFICA CRITICA: Invia sempre le fazioni aggiornate all'inizio della partita ---
+        # --- FIX: Invio sicuro delle fazioni (Blocca crash del tasto Start) ---
         if target_id and target_id != "SERVER-TDM":
-            config = db_manager.get_factions_config()
-            def hex_to_rgb(hex_code):
-                hex_code = hex_code.lstrip('#')
-                return tuple(int(hex_code[i:i+2], 16) for i in (0, 2, 4))
-            
-            payload = {
-                "cmd": "SET_FACTIONS",
-                "t1": config['ALPHA']['name'], "t1_c": hex_to_rgb(config['ALPHA']['color']),
-                "t2": config['BRAVO']['name'], "t2_c": hex_to_rgb(config['BRAVO']['color'])
-            }
-            try: mqtt_client.publish(f"zulu/cmd/{target_id}", json.dumps(payload))
-            except: pass
+            try:
+                config = db_manager.get_factions_config()
+                def hex_to_rgb(hex_code):
+                    if not hex_code: return (255, 255, 255)
+                    hex_code = str(hex_code).lstrip('#')
+                    return tuple(int(hex_code[i:i+2], 16) for i in (0, 2, 4))
+                
+                payload = {
+                    "cmd": "SET_FACTIONS",
+                    "t1": config.get('ALPHA', {}).get('name', 'ALPHA'), 
+                    "t1_c": hex_to_rgb(config.get('ALPHA', {}).get('color', '#ff3333')),
+                    "t2": config.get('BRAVO', {}).get('name', 'BRAVO'), 
+                    "t2_c": hex_to_rgb(config.get('BRAVO', {}).get('color', '#55ff55'))
+                }
+                mqtt_client.publish(f"zulu/cmd/{target_id}", json.dumps(payload))
+            except Exception as e:
+                logger.error(f"[START MISSION FACTION SYNC ERROR] {e}")
 
     def end_mission(self):
         with self.lock:
@@ -282,7 +287,6 @@ def on_mqtt_message(client, userdata, msg):
                 cmd_str = payload.get('cmd')
                 if cmd_str: 
                     if cmd_str == "GAME_START":
-                        # --- MODIFICA CRITICA: Usa la funzione start_mission per avviare i motori correttamente! ---
                         if mission_ready_flag and not mission_control.active_mission:
                             target = mission_control.target_id
                             mode = mission_control.mode
@@ -342,7 +346,6 @@ def on_mqtt_message(client, userdata, msg):
             version = payload.get('version') or parsed.get('version')
             has_changed = registry.update_device(device_id, msg_type, mode, version)
 
-            # --- DISASTER RECOVERY (LAZY RECOVERY) ---
             if msg_type == 'MODE_CHANGE' and parsed.get('payload', {}).get('new_mode') == 'MAIN_MENU':
                 if mission_control.active_mission and device_id == mission_control.target_id:
                     logger.info(f"[DISASTER RECOVERY] Il nodo {device_id} è nel Main Menu. Forzo il ripristino...")
@@ -363,7 +366,6 @@ def on_mqtt_message(client, userdata, msg):
                     }
                     try:
                         mqtt_client.publish(f"zulu/cmd/{device_id}", json.dumps(resume_payload), qos=1)
-                        logger.info(f"[DISASTER RECOVERY] Inviato RESUME_MISSION a {device_id}")
                     except Exception as e:
                         logger.error(f"[DISASTER RECOVERY ERROR] {e}")
             
@@ -375,12 +377,10 @@ def on_mqtt_message(client, userdata, msg):
                     else:
                         mission_control.end_mission()
 
-            # --- DELEGA EVENTI AL MOTORE DI GIOCO MODULARE ---
             if msg_type == 'MATCH_EVENT':
                 if mission_control.is_authorized_node(device_id) and mission_control.active_engine:
                     mission_control.active_engine.handle_event(device_id, payload)
 
-            # AGGIORNA LA WEB UI
             if msg_type not in ['TAG_SCANNED', 'TAG_ASSIGN', 'TERMINAL_INPUT', 'MATCH_EVENT']:
                 if msg_type in ['SD_UPDATE', 'DOM_UPDATE', 'COUNTDOWN_UPDATE', 'TIME_UPDATE', 'MODE_ENTER', 'MODE_EXIT', 'SETTINGS_UPDATE', 'TDM_UPDATE']:
                      if mission_control.is_authorized_node(device_id):
@@ -394,7 +394,6 @@ def on_mqtt_message(client, userdata, msg):
                                   
                           socketio.emit('esp_event', {"parsed_data": parsed})
 
-            # --- ARBITRO DEL GAME OVER (Statistiche e Suoni) ---
             if msg_type in ['SD_UPDATE', 'DOM_UPDATE']:
                 if mission_control.is_authorized_node(device_id):
                     new_state = payload.get('state')
@@ -461,7 +460,6 @@ def background_cleanup(fetch_weather_callback):
             }))
         except: pass
 
-        # DELEGA TICK TEMPO/ELIMINAZIONI AL MOTORE DI GIOCO ATTIVO
         with mission_control.lock:
             if mission_control.active_mission and mission_control.state == "ACTIVE":
                 if mission_control.active_engine:
@@ -475,7 +473,6 @@ def background_cleanup(fetch_weather_callback):
             weather_data = fetch_weather_callback()
             if socketio: socketio.emit('weather_update', {'weather': weather_data})
             
-            # --- SINCRONIZZAZIONE TEMPORALE (Time Drift) ---
             with mission_control.lock:
                 if mission_control.active_mission and mission_control.state == "ACTIVE" and mission_control.target_id:
                     if mission_control.mode in ['sd', 'dom']:
