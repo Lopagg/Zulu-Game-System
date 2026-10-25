@@ -14,8 +14,6 @@ class MissionController:
         self.mode = None
         self.target_id = None
         self.state = "STANDBY"
-        
-        # Variabili di timer globale, valide ora sia per TDM che per S&D (e in futuro per DOM)
         self.global_duration = 0
         self.global_time_left = 0
         self.sd_settings = {}
@@ -26,11 +24,8 @@ class MissionController:
             self.mode = mode
             self.target_id = target_id
             self.state = "ACTIVE" if mode == 'tdm' else "PREPARING"
-            
-            # Imposta il timer globale di partita
             self.global_duration = duration * 60
             self.global_time_left = duration * 60
-                
             logger.info(f"[MISSION CONTROL] Missione Globale Avviata: {mode.upper()} su {target_id}")
 
     def end_mission(self):
@@ -161,7 +156,6 @@ def on_mqtt_message(client, userdata, msg):
             version = payload.get('version') or parsed.get('version')
             has_changed = registry.update_device(device_id, msg_type, mode, version)
             
-            # Rilascio sessione al MODE_EXIT
             if msg_type == 'MODE_EXIT':
                 if mission_control.is_authorized_node(device_id):
                     mission_control.end_mission()
@@ -170,11 +164,9 @@ def on_mqtt_message(client, userdata, msg):
             if msg_type not in ['TAG_SCANNED', 'TAG_ASSIGN', 'TERMINAL_INPUT']:
                 if msg_type in ['SD_UPDATE', 'DOM_UPDATE', 'COUNTDOWN_UPDATE', 'TIME_UPDATE', 'MODE_ENTER', 'MODE_EXIT', 'SETTINGS_UPDATE', 'TDM_UPDATE']:
                      if mission_control.is_authorized_node(device_id):
-                          # Se è un SD_UPDATE e la partita è attiva, sovrascriviamo il tempo 
-                          # globale col calcolo puro del server per evitare discrepanze.
+                          # Sovrascrive il tempo globale con il calcolo puro del server
                           if msg_type == 'SD_UPDATE' and mission_control.state not in ['T WINS', 'CT WINS', 'DRAW', 'STOPPED']:
                               parsed['payload']['game_time'] = mission_control.global_time_left
-                              
                           socketio.emit('esp_event', {"parsed_data": parsed})
 
             # --- ARBITRO DEL GAME OVER ---
@@ -186,9 +178,8 @@ def on_mqtt_message(client, userdata, msg):
                         if new_state in ['T WINS', 'CT WINS', 'ALPHA WINS', 'BRAVO WINS', 'DRAW', 'STOPPED'] and old_state not in ['T WINS', 'CT WINS', 'ALPHA WINS', 'BRAVO WINS', 'DRAW', 'STOPPED']:
                             trigger_siren("SIREN_LONG")
                             db_manager.process_match_stats(new_state)
-                            mission_control.state = new_state # Passiamo in stato di review
+                            mission_control.state = new_state
                         if old_state == 'PREPARING' and new_state in ['ACTIVE', 'SAFE', 'NEUTRAL']:
-                            # La partita S&D è ufficialmente entrata nella fase attiva, passiamo a ACTIVE per avviare il timer
                             mission_control.state = "ACTIVE"
                             trigger_siren("SIREN_LONG")
                             
@@ -245,7 +236,6 @@ def background_cleanup(fetch_weather_callback):
                     match_ends = False
                     end_state_str = "ACTIVE"
                     
-                    # 1. Regola: Tempo Scaduto
                     if mission_control.global_time_left <= 0:
                         match_ends = True
                         if mission_control.mode == 'tdm':
@@ -253,9 +243,8 @@ def background_cleanup(fetch_weather_callback):
                             elif bravo_in > alpha_in: end_state_str = "BRAVO WINS"
                             else: end_state_str = "DRAW"
                         elif mission_control.mode == 'sd':
-                            end_state_str = "CT WINS" # I CT vincono per scadenza tempo
+                            end_state_str = "CT WINS"
                             
-                    # 2. Regola: Eliminazione totale squadra
                     if alpha_in == 0 and bravo_in > 0:
                         match_ends = True
                         end_state_str = "BRAVO WINS"
@@ -276,17 +265,11 @@ def background_cleanup(fetch_weather_callback):
                             if socketio: socketio.emit('esp_event', {"parsed_data": doc})
                             mqtt_client.publish("zulu/telemetry/SERVER-TDM", json.dumps(doc))
                         elif mission_control.mode == 'sd':
-                            # Se scade il tempo del S&D, il server costringe la valigetta a chiudere il round
-                            # La valigetta mostrerà l'animazione corretta e poi trasmetterà a sua volta la conferma 
-                            # (che farà triggerare le sirene e processare le statistiche nel blocco 'SD_UPDATE' sopra).
                             cmd_to_send = None
-                            if "BRAVO WINS" in end_state_str:
+                            if "BRAVO WINS" in end_state_str or "CT WINS" in end_state_str:
                                 cmd_to_send = {"cmd": "FORCE_WIN", "winner": "BRAVO"}
                             elif "ALPHA WINS" in end_state_str:
                                 cmd_to_send = {"cmd": "FORCE_WIN", "winner": "ALPHA"}
-                            elif "CT WINS" in end_state_str:
-                                # Qui forziamo la vittoria CT passando BRAVO (che è hardcoded come CT nella V1)
-                                cmd_to_send = {"cmd": "FORCE_WIN", "winner": "BRAVO"}
                             else:
                                 cmd_to_send = {"cmd": "FORCE_END_GAME"}
                             
@@ -294,7 +277,6 @@ def background_cleanup(fetch_weather_callback):
                                 try: mqtt_client.publish(f"zulu/cmd/{mission_control.target_id}", json.dumps(cmd_to_send))
                                 except: pass
                                 
-                # Continua a inviare TDM update finché siamo nello stato "review" a fine round (per tenere l'UI informata)
                 elif mission_control.mode == 'tdm' and mission_control.state != "STANDBY":
                      doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": mission_control.state, "game_time": 0 } }
                      if socketio: socketio.emit('esp_event', {"parsed_data": doc})
