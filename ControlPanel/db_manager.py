@@ -30,14 +30,12 @@ def init_db():
         c.execute('''CREATE TABLE IF NOT EXISTS factions_config
                      (team_id TEXT PRIMARY KEY, display_name TEXT)''')
                      
-        # --- NUOVO: Aggiunta colonna colore ---
         try: c.execute("ALTER TABLE factions_config ADD COLUMN hex_color TEXT")
         except sqlite3.OperationalError: pass
         
         c.execute("INSERT OR IGNORE INTO factions_config (team_id, display_name, hex_color) VALUES ('ALPHA', 'ALPHA', '#ff3333')")
         c.execute("INSERT OR IGNORE INTO factions_config (team_id, display_name, hex_color) VALUES ('BRAVO', 'BRAVO', '#55ff55')")
         
-        # Retrocompatibilità se c'erano già record senza colore
         c.execute("UPDATE factions_config SET hex_color = '#ff3333' WHERE team_id = 'ALPHA' AND hex_color IS NULL")
         c.execute("UPDATE factions_config SET hex_color = '#55ff55' WHERE team_id = 'BRAVO' AND hex_color IS NULL")
         conn.commit()
@@ -62,7 +60,6 @@ def set_faction_config(team_id, new_name, hex_color):
         conn.commit()
     return True
 
-# --- REPERTORIO FUNZIONI ESISTENTI ---
 def get_device_alias(device_id):
     with sqlite3.connect(DB_PATH) as conn:
         c = conn.cursor()
@@ -171,33 +168,25 @@ def update_player_photo(uid, filename):
         conn.commit()
 
 def process_match_stats(winner_state):
-    """
-    Assegna vittorie e partite giocate agli operatori IN CAMPO al termine di un match.
-    Supporta nomi dinamici delle fazioni.
-    """
     winning_team = None
-    config = get_factions_config()
-    alpha_name = config['ALPHA']['name']
-    bravo_name = config['BRAVO']['name']
     
-    # Controlla se la stringa di vittoria contiene il nome della fazione 1 o fazione 2
-    if winner_state in ['T WINS', f"{alpha_name} WINS", f"OWNED {alpha_name}"]:
+    # Il backend ragiona solo sulle keyword standard.
+    if winner_state in ['ALPHA WINS', 'OWNED ALPHA', 'T WINS']:
         winning_team = 'ALPHA'
-    elif winner_state in ['CT WINS', f"{bravo_name} WINS", f"OWNED {bravo_name}"]:
+    elif winner_state in ['BRAVO WINS', 'OWNED BRAVO', 'CT WINS']:
         winning_team = 'BRAVO'
         
     try:
         with sqlite3.connect(DB_PATH) as conn:
             c = conn.cursor()
-            c.execute("SELECT uid, team FROM active_roster WHERE status='IN'")
+            # Rimosso il filtro status='IN', ora processiamo chiunque sia nel roster attivo
+            c.execute("SELECT uid, team FROM active_roster")
             players = c.fetchall()
             for uid, team in players:
-                # Tutti quelli in campo prendono +1 giocata
                 c.execute("UPDATE players SET games_played = games_played + 1 WHERE uid = ?", (uid,))
-                # Se la tua squadra ha vinto, prendi +1 vittoria
                 if winning_team and team == winning_team:
                     c.execute("UPDATE players SET wins = wins + 1 WHERE uid = ?", (uid,))
             conn.commit()
-            logger.info(f"[STATS] Aggiornate statistiche per {len(players)} operatori. Team Vittorioso: {winning_team or 'NESSUNO'}")
+            logger.info(f"[STATS] Aggiornate statistiche per {len(players)} operatori nel roster. Team Vittorioso: {winning_team or 'NESSUNO'}")
     except Exception as e:
         logger.error(f"[ERROR STATS] {e}")
