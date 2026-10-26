@@ -31,11 +31,18 @@ def init_db():
         except sqlite3.OperationalError: pass
         try: c.execute("ALTER TABLE players ADD COLUMN tag_info TEXT DEFAULT 'NTAG215'")
         except sqlite3.OperationalError: pass
+        
+        # --- NUOVA COLONNA: MEMORIA DEL NOME ORIGINALE (Per il reset dei Guest) ---
+        try: c.execute("ALTER TABLE players ADD COLUMN original_alias TEXT")
+        except sqlite3.OperationalError: pass
 
         c.execute("UPDATE players SET games_played = 0 WHERE games_played IS NULL")
         c.execute("UPDATE players SET wins = 0 WHERE wins IS NULL")
         c.execute("UPDATE players SET karma = 0 WHERE karma IS NULL")
         c.execute("UPDATE players SET is_pro = 0 WHERE is_pro IS NULL")
+        
+        # Copia il nome attuale nell'archivio storico per i vecchi giocatori
+        c.execute("UPDATE players SET original_alias = alias WHERE original_alias IS NULL")
 
         c.execute('''CREATE TABLE IF NOT EXISTS active_roster
                      (uid TEXT PRIMARY KEY, team TEXT, status TEXT)''')
@@ -56,15 +63,16 @@ def init_db():
         c.execute("UPDATE factions_config SET hex_color = '#55ff55' WHERE team_id = 'BRAVO' AND hex_color IS NULL")
         conn.commit()
 
+# --- AGGIORNATA PER SALVARE ANCHE L'ORIGINAL ALIAS ---
 def register_player_manual(uid, alias, is_pro, tag_info):
     with sqlite3.connect(DB_PATH) as conn:
         c = conn.cursor()
         c.execute("SELECT uid FROM players WHERE uid = ?", (uid,))
         if c.fetchone():
-            c.execute("UPDATE players SET alias = ?, is_pro = ?, tag_info = ? WHERE uid = ?", (alias, is_pro, tag_info, uid))
+            c.execute("UPDATE players SET alias = ?, original_alias = ?, is_pro = ?, tag_info = ? WHERE uid = ?", (alias, alias, is_pro, tag_info, uid))
         else:
-            c.execute("INSERT INTO players (uid, alias, registered_at, games_played, wins, karma, is_pro, tag_info) VALUES (?, ?, ?, 0, 0, 0, ?, ?)", 
-                      (uid, alias, get_current_time(), is_pro, tag_info))
+            c.execute("INSERT INTO players (uid, alias, original_alias, registered_at, games_played, wins, karma, is_pro, tag_info) VALUES (?, ?, ?, ?, 0, 0, 0, ?, ?)", 
+                      (uid, alias, alias, get_current_time(), is_pro, tag_info))
         conn.commit()
 
 def get_factions_config():
@@ -144,8 +152,8 @@ def get_player_profile(uid):
 def register_player(uid, team):
     with sqlite3.connect(DB_PATH) as conn:
         c = conn.cursor()
-        c.execute("INSERT OR IGNORE INTO players (uid, alias, registered_at) VALUES (?, ?, ?)", 
-                  (uid, f"OP-{uid[:4]}", get_current_time()))
+        c.execute("INSERT OR IGNORE INTO players (uid, alias, original_alias, registered_at) VALUES (?, ?, ?, ?)", 
+                  (uid, f"OP-{uid[:4]}", f"OP-{uid[:4]}", get_current_time()))
         c.execute("INSERT OR REPLACE INTO active_roster (uid, team, status) VALUES (?, ?, 'FUORI')", 
                   (uid, team))
         conn.commit()
@@ -160,6 +168,7 @@ def toggle_player_status(uid, current_status):
 
 def rename_player(uid, new_name):
     with sqlite3.connect(DB_PATH) as conn:
+        # Nota: Qui aggiorniamo l'alias, ma l'original_alias RESTA INVARIATO
         conn.execute("UPDATE players SET alias = ? WHERE uid = ?", (new_name, uid))
         conn.commit()
 
@@ -210,11 +219,11 @@ def toggle_pro_status(uid):
         conn.commit()
 
 def purge_guest_data():
-    """Azzera le statistiche di tutte le tessere GUEST (is_pro = 0)"""
+    """Azzera le statistiche e RIPRISTINA il nome originale (es. OP-12) per tutte le tessere GUEST (is_pro = 0)"""
     with sqlite3.connect(DB_PATH) as conn:
-        conn.execute("UPDATE players SET games_played = 0, wins = 0, karma = 0, notes = '', photo = NULL WHERE is_pro = 0")
+        conn.execute("UPDATE players SET alias = original_alias, games_played = 0, wins = 0, karma = 0, notes = '', photo = NULL WHERE is_pro = 0")
         conn.commit()
-        logger.info("[DB] Eseguita pulizia massiva (Purge) dei dati GUEST.")
+        logger.info("[DB] Eseguita pulizia massiva (Purge) e ripristino nomi originali per tutti i GUEST.")
 
 def process_match_stats(winner_state):
     raw_state = str(winner_state).strip().upper()

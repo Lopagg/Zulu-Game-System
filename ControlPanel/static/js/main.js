@@ -301,113 +301,6 @@ window.modKarma = function(val) {
     socket.emit('update_karma', { uid: getCurrentProfileUid(), karma: currentKarma });
 };
 
-// --- GESTIONE RITAGLIO FOTO (CROPPER.JS) ---
-window.handlePhotoUpload = function(input) {
-    if (input.files && input.files[0]) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            const img = document.getElementById('image-to-crop');
-            img.src = e.target.result;
-            
-            // Chiudi momentaneamente il profilo e apri il calibratore
-            document.getElementById('operator-modal').classList.add('hidden');
-            document.getElementById('crop-modal').classList.remove('hidden');
-            
-            if (currentCropper) {
-                currentCropper.destroy();
-            }
-            
-            // Il nostro box è 280x300, quindi il rapporto (aspect ratio) è 280/300
-            currentCropper = new Cropper(img, {
-                aspectRatio: 280 / 300, 
-                viewMode: 1,
-                background: false,
-                zoomable: true,
-                autoCropArea: 1,
-            });
-        }
-        reader.readAsDataURL(input.files[0]);
-        input.value = ''; // Resetta l'input
-    }
-};
-
-window.closeCropModal = function() {
-    document.getElementById('crop-modal').classList.add('hidden');
-    // Riapri il profilo operatore per non far sparire tutto
-    document.getElementById('operator-modal').classList.remove('hidden');
-    if (currentCropper) {
-        currentCropper.destroy();
-        currentCropper = null;
-    }
-};
-
-window.confirmCrop = function() {
-    if (!currentCropper) return;
-    
-    // Genera l'immagine croppata (280x300 pixel esatti)
-    currentCropper.getCroppedCanvas({
-        width: 280,
-        height: 300,
-        imageSmoothingEnabled: true,
-        imageSmoothingQuality: 'high',
-    }).toBlob((blob) => {
-        const formData = new FormData();
-        formData.append('photo', blob, 'cropped.jpg');
-        formData.append('uid', getCurrentProfileUid());
-        
-        fetch('/upload_photo', { method: 'POST', body: formData })
-        .then(response => response.json())
-        .then(data => {
-            if(data.status === 'ok') {
-                document.getElementById('modal-op-photo').src = `/static/uploads/${data.filename}?t=${new Date().getTime()}`;
-            }
-            closeCropModal();
-        });
-    }, 'image/jpeg', 0.9);
-};
-
-socket.on('raw_tag_scanned', (data) => {
-    const modal = document.getElementById('registration-modal');
-    if (modal && !modal.classList.contains('hidden')) {
-        const uidInput = document.getElementById('reg-uid');
-        if (uidInput) {
-            uidInput.value = data.uid;
-            uidInput.style.color = 'var(--sop-success)'; 
-            logSystem(`KIOSK: Intercettato nuovo TAG [${data.uid}]`);
-        }
-    }
-});
-
-// --- FUNZIONI OPERATORE (NOTE E STATISTICHE) ---
-window.saveOperatorNotes = function() {
-    const uid = getCurrentProfileUid();
-    const notes = document.getElementById('modal-op-notes').value;
-    if(uid) socket.emit('save_notes', { uid: uid, notes: notes });
-    alert("Annotazioni tattiche registrate.");
-};
-
-window.resetOperatorStats = function() {
-    if(confirm("ATTENZIONE CRITICA: Vuoi azzerare definitivamente le partite e le vittorie di questo operatore?")) {
-        socket.emit('update_db_player', { uid: getCurrentProfileUid(), action: 'reset_stats' });
-        closeModal();
-    }
-};
-
-window.modKarma = function(val) {
-    const el = document.getElementById('modal-op-karma');
-    if(!el) return;
-    let currentKarma = parseInt(el.textContent) || 0;
-    currentKarma += val;
-    
-    el.textContent = currentKarma;
-    const badge = el.parentElement;
-    badge.classList.remove('positive', 'negative');
-    if (currentKarma < 0) badge.classList.add('negative');
-    else if (currentKarma > 0) badge.classList.add('positive');
-    
-    socket.emit('update_karma', { uid: getCurrentProfileUid(), karma: currentKarma });
-};
-
 // --- NUOVE FUNZIONI DI GESTIONE ACCOUNT & MANUTENZIONE ---
 window.renameFromProfile = function() {
     const uid = getCurrentProfileUid();
@@ -417,7 +310,6 @@ window.renameFromProfile = function() {
     
     if (newName && newName.trim() !== '') {
         socket.emit('update_db_player', { uid: uid, action: 'rename', value: newName.trim().toUpperCase() });
-        // Ricarichiamo il profilo per aggiornare immediatamente il testo nel popup
         setTimeout(() => { socket.emit('request_profile', {uid: uid}); }, 100); 
     }
 };
@@ -431,9 +323,9 @@ window.toggleProStatus = function() {
 };
 
 window.purgeGuests = function() {
-    if(confirm("ATTENZIONE: Verranno azzerate statistiche, note, karma e foto di TUTTE le tessere GUEST. Continuare?")) {
+    if(confirm("ATTENZIONE: Verranno azzerate statistiche, note, karma e foto di TUTTE le tessere GUEST. Il nome tornerà quello di default (OP-X). Continuare?")) {
         socket.emit('purge_guests');
-        alert("Operazione di pulizia completata. Le tessere GUEST sono nuovamente vergini.");
+        alert("Operazione di pulizia completata. Le tessere GUEST sono pronte per il prossimo evento.");
     }
 };
 
@@ -502,7 +394,23 @@ window.confirmCrop = function() {
 // --- FUNZIONI DI REGISTRAZIONE MANUALE TAG (KIOSK TO WEB) ---
 window.openRegistrationModal = function() {
     document.getElementById('reg-uid').value = '';
-    document.getElementById('reg-alias').value = '';
+    
+    // --- FIX: Calcola automaticamente il prossimo numero OP-X ---
+    let maxOp = 0;
+    if (globalPlayersDB) {
+        globalPlayersDB.forEach(p => {
+            // Cerca il numero più alto tra gli operatori chiamati OP-
+            const nameToCheck = p.alias;
+            if (nameToCheck && nameToCheck.startsWith('OP-')) {
+                const num = parseInt(nameToCheck.replace('OP-', ''));
+                if (!isNaN(num) && num > maxOp) {
+                    maxOp = num;
+                }
+            }
+        });
+    }
+    
+    document.getElementById('reg-alias').value = `OP-${maxOp + 1}`;
     document.getElementById('reg-pro').value = '0';
     document.getElementById('registration-modal').classList.remove('hidden');
 };
@@ -533,7 +441,7 @@ window.submitRegistration = function() {
 };
 
 window.openAddPlayerModal = function() { 
-    renderAddPlayerList(socket, arenaRoster); // Corretto riferimento al socket
+    renderAddPlayerList(socket, arenaRoster); 
     document.getElementById('add-player-modal').classList.remove('hidden'); 
 };
 window.closeAddPlayerModal = function() { document.getElementById('add-player-modal').classList.add('hidden'); };
