@@ -72,6 +72,7 @@ class SDEngine(BaseGameMode):
         
         if mc.global_time_left <= 0:
             match_ends = True
+            # FIX: Il difensore vince se scade il tempo
             end_state_str = f"{mc.sd_defender_team} WINS"
             
         if alpha_in == 0 and bravo_in > 0:
@@ -88,6 +89,7 @@ class SDEngine(BaseGameMode):
             mc.state = end_state_str
             cmd_to_send = None
             if end_state_str == f"{mc.sd_attacker_team} WINS":
+                # L'attaccante ha vinto eliminando i difensori (strano, di solito piantano la bomba, ma possibile)
                 cmd_to_send = {"cmd": "FORCE_WIN", "winner": mc.sd_attacker_team, "reason": "SQUADRA ELIMINATA!"}
             elif end_state_str == f"{mc.sd_defender_team} WINS":
                 reason_str = "SQUADRA ELIMINATA!" if (alpha_in == 0 or bravo_in == 0) else "TEMPO SCADUTO!"
@@ -103,6 +105,7 @@ class SDEngine(BaseGameMode):
         mc = self.mc
         event_name = payload.get('event')
         cmd_to_send = None
+        # FIX: Trasmettiamo l'esatto nome della fazione (ALPHA o BRAVO) all'hardware
         if event_name == 'BOMB_EXPLODED':
             cmd_to_send = {"cmd": "FORCE_WIN", "winner": mc.sd_attacker_team, "reason": "BOMBA ESPLOSA!"}
         elif event_name == 'BOMB_DEFUSED':
@@ -154,20 +157,13 @@ class MissionController:
                     hex_code = str(hex_code).lstrip('#')
                     return tuple(int(hex_code[i:i+2], 16) for i in (0, 2, 4))
                 
-                # FIX BOMB-WIN: Iniettiamo T1 = Attaccante e T2 = Difensore per S&D
-                if mode == 'sd':
-                    t1_id = self.sd_attacker_team
-                    t2_id = self.sd_defender_team
-                else:
-                    t1_id = 'ALPHA'
-                    t2_id = 'BRAVO'
-
+                # FIX COLORI PURI: Ripristinato l'invio hardcoded per il Kiosk e il RAT
                 payload = {
                     "cmd": "SET_FACTIONS",
-                    "t1": config.get(t1_id, {}).get('name', t1_id), 
-                    "t1_c": hex_to_rgb(config.get(t1_id, {}).get('color', '#ff3333')),
-                    "t2": config.get(t2_id, {}).get('name', t2_id), 
-                    "t2_c": hex_to_rgb(config.get(t2_id, {}).get('color', '#55ff55'))
+                    "t1": config.get('ALPHA', {}).get('name', 'ALPHA'), 
+                    "t1_c": hex_to_rgb(config.get('ALPHA', {}).get('color', '#ff3333')),
+                    "t2": config.get('BRAVO', {}).get('name', 'BRAVO'), 
+                    "t2_c": hex_to_rgb(config.get('BRAVO', {}).get('color', '#55ff55'))
                 }
                 mqtt_client.publish(f"zulu/cmd/{target_id}", json.dumps(payload))
             except Exception as e:
@@ -370,22 +366,28 @@ def on_mqtt_message(client, userdata, msg):
                 if mission_control.is_authorized_node(device_id) and mission_control.active_engine:
                     mission_control.active_engine.handle_event(device_id, payload)
 
-            # --- RICEZIONE DEL SETTINGS_UPDATE DAL RAT (Bug Timer/Pin Risolto) ---
             if msg_type == 'SETTINGS_UPDATE' and not mission_control.active_mission:
-                # Il terminale hardware ci sta comunicando quali regole ha in pancia
                 if payload.get("bomb_time") is not None:
-                    # Le salviamo nel server, così il pannello web si aggiornerà automaticamente!
-                    mission_control.sd_settings = payload
-                    socketio.emit('esp_event', {"parsed_data": parsed})
+                    # Rimuoviamo il salvataggio in locale: il web comanda!
+                    pass
+
+            # FIX: Invio continuo dei Settings Web (in modo che le regole non spariscano a inizio match)
+            if msg_type in ['MODE_ENTER', 'SD_UPDATE', 'DOM_UPDATE']:
+                if mission_control.is_authorized_node(device_id):
+                    if mission_control.mode == 'sd' and mission_control.sd_settings:
+                        # Iniettiamo i settaggi Web (inclusi Attaccante/Difensore) nel payload!
+                        for k, v in mission_control.sd_settings.items():
+                            if k not in ['cmd', 'target_id']:
+                                parsed['payload'][k] = v
 
             if msg_type not in ['TAG_SCANNED', 'TAG_ASSIGN', 'TERMINAL_INPUT', 'MATCH_EVENT']:
                 if msg_type in ['SD_UPDATE', 'DOM_UPDATE', 'COUNTDOWN_UPDATE', 'TIME_UPDATE', 'MODE_ENTER', 'MODE_EXIT', 'TDM_UPDATE']:
                      if mission_control.is_authorized_node(device_id):
-                          # FIX TRADUZIONE VINCITORE C++ -> VERO VINCITORE
                           if msg_type == 'SD_UPDATE':
                               state = parsed['payload'].get('state', '')
                               parsed['payload']['game_time'] = mission_control.global_time_left
-                              # Traduciamo l'hardcode C++ (T/CT) nei veri nomi delle squadre per il Web e TV
+                              
+                              # Traduciamo T WINS / CT WINS nei veri vincitori da inviare al web e alla TV
                               if state == 'T WINS': parsed['payload']['state'] = f"{mission_control.sd_attacker_team} WINS"
                               elif state == 'CT WINS': parsed['payload']['state'] = f"{mission_control.sd_defender_team} WINS"
                               
@@ -397,7 +399,7 @@ def on_mqtt_message(client, userdata, msg):
                     old_state = registry.devices[device_id].get("game_state", "STANDBY")
                     
                     if mission_control.mode == 'sd':
-                        # Interpretiamo il messaggio originario del C++
+                        # Interpretiamo la vincita per aggiornare il DB
                         if new_state == 'T WINS': new_state = f"{mission_control.sd_attacker_team} WINS"
                         elif new_state == 'CT WINS': new_state = f"{mission_control.sd_defender_team} WINS"
 

@@ -22,8 +22,6 @@ export function resetMonitorLayout() {
     document.getElementById('domination-scores').classList.add('hidden');
     document.querySelector('.progress-section').classList.add('hidden');
     
-    // --- FIX PULSANTE FANTASMA ---
-    // Avendo esposto la finestra delle regole, nascondiamo forzatamente il suo footer
     const btnForceEnd = document.getElementById('btn-force-end');
     if (btnForceEnd && btnForceEnd.parentElement) {
         btnForceEnd.parentElement.classList.add('hidden');
@@ -209,13 +207,29 @@ export function renderRules(payload) {
     if(!elSdRulesList) return;
     elSdRulesList.innerHTML = '';
     
-    const keysMap = { 'bomb_time': 'TIMER BOMBA (Min)', 'arm_time': 'TEMPO INNESCO (Sec)', 'defuse_time': 'TEMPO DISINNESCO (Sec)', 'game_duration': 'DURATA ROUND (Min)', 'capture_time': 'TEMPO CATTURA (Sec)', 'countdown': 'START DELAY (Sec)' };
+    // FIX: Renderizza chi è l'attaccante
+    if (payload.attacker) {
+        const isAlpha = payload.attacker === 'ALPHA';
+        const teamName = isAlpha ? currentFactions.ALPHA.name : currentFactions.BRAVO.name;
+        const teamColor = isAlpha ? currentFactions.ALPHA.color : currentFactions.BRAVO.color;
+        
+        const li = document.createElement('li');
+        li.innerHTML = `<span class="rule-key">ATTACCANTI (BOMBA)</span> <span class="rule-val" style="color:${teamColor}; text-shadow: 0 0 10px ${teamColor};">${teamName}</span>`;
+        elSdRulesList.appendChild(li);
+    }
+    
+    const keysMap = { 
+        'bomb_time': 'TIMER BOMBA (Min)', 'arm_time': 'TEMPO INNESCO (Sec)', 'defuse_time': 'TEMPO DISINNESCO (Sec)', 
+        'game_duration': 'DURATA ROUND (Min)', 'capture_time': 'TEMPO CATTURA (Sec)', 'countdown': 'START DELAY (Sec)' 
+    };
 
     for (const [key, val] of Object.entries(payload)) {
-        if (key === 'mode' || key === 'version' || key === 'type') continue; 
+        if (key === 'mode' || key === 'version' || key === 'type' || key === 'attacker') continue; 
+        
         let displayVal = val;
         if(val === true || val === 'YES') displayVal = 'SÌ';
         if(val === false || val === 'NO') displayVal = 'NO';
+        
         const label = keysMap[key] || key.toUpperCase().replace('_', ' ');
         const li = document.createElement('li');
         li.innerHTML = `<span class="rule-key">${label}</span> <span class="rule-val">${displayVal}</span>`;
