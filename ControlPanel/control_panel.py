@@ -76,6 +76,13 @@ def setup_database():
     if not hasattr(app, 'db_initialized'):
         db_manager.init_db()
         game_engine.start_mqtt(socketio)  
+        
+        # --- FIX BUG TIMER x2 ---
+        # L'orologio centrale si avvia una volta sola per tutto il server
+        if not game_engine.background_thread_started:
+            socketio.start_background_task(game_engine.background_cleanup, fetch_weather)
+            game_engine.background_thread_started = True
+            
         app.db_initialized = True
 
 @app.route('/')
@@ -117,10 +124,6 @@ def upload_photo():
 
 @socketio.on('connect')
 def handle_connect():
-    if not game_engine.background_thread_started:
-        socketio.start_background_task(game_engine.background_cleanup, fetch_weather)
-        game_engine.background_thread_started = True
-    
     active_devs, _ = game_engine.registry.get_active_devices()
     emit('devices_update', active_devs)
     emit('weather_update', {'weather': fetch_weather()})

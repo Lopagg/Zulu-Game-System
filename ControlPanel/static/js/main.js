@@ -122,7 +122,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    // --- FIX BUG SCHERMATA BLOCCATA SU START MISSION ---
     socket.on('mission_start_warning', (data) => {
         if(confirm(data.msg)) {
             data.original_request.force = true; 
@@ -197,7 +196,12 @@ socket.on('database_update', (players) => renderDatabase(players, socket, arenaR
 socket.on('profile_data', (data) => populateProfileModal(data));
 socket.on('devices_update', (devices) => { currentDevices = devices; updateDeviceList(devices, socket, (id) => monitoredDeviceId = id); updateSetupDropdown(); });
 
-socket.on('mission_start_success', () => { resetMonitorLayout(); window.showView('monitor'); });
+// --- FIX CAMBIO SCHERMATA SU START TDM ---
+socket.on('mission_start_success', () => { 
+    // Utilizziamo direttamente la funzione importata, omettendo resetMonitorLayout che cancellerebbe la grafica appena caricata dal server
+    showView('monitor', socket); 
+});
+
 socket.on('mission_start_error', (data) => { alert(data.msg); document.getElementById('btn-start-mission').classList.remove('disabled'); document.getElementById('btn-start-mission').disabled = false; });
 
 socket.on('esp_event', (msg) => {
@@ -470,6 +474,13 @@ window.submitRegistration = function() {
     
     closeRegistrationModal();
 };
+
+window.openAddPlayerModal = function() { 
+    renderAddPlayerList(socket, arenaRoster); 
+    document.getElementById('add-player-modal').classList.remove('hidden'); 
+};
+window.closeAddPlayerModal = function() { document.getElementById('add-player-modal').classList.add('hidden'); };
+window.closeModal = function() { document.getElementById('operator-modal').classList.add('hidden'); };
 
 socket.on('raw_tag_scanned', (data) => {
     const modal = document.getElementById('registration-modal');

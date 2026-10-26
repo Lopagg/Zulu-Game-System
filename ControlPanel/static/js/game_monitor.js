@@ -16,12 +16,18 @@ export function resetMonitorLayout() {
     document.getElementById('monitor-mode-title').textContent = "AWAITING MISSION DATA...";
 
     document.getElementById('widget-sd-tactical').classList.add('hidden');
-    // Rimossa nascondimento widget rules per farlo restare sempre visibile
     document.getElementById('widget-generic-map').classList.remove('hidden');
 
     document.querySelector('.bomb-timer-container').classList.add('hidden');
     document.getElementById('domination-scores').classList.add('hidden');
     document.querySelector('.progress-section').classList.add('hidden');
+    
+    // --- FIX PULSANTE FANTASMA ---
+    // Avendo esposto la finestra delle regole, nascondiamo forzatamente il suo footer
+    const btnForceEnd = document.getElementById('btn-force-end');
+    if (btnForceEnd && btnForceEnd.parentElement) {
+        btnForceEnd.parentElement.classList.add('hidden');
+    }
     
     lastConfiguredMode = null;
 }
@@ -150,6 +156,8 @@ export function updateUniversalFeed(payload, mode, msgType) {
 
     updateProgressBar(document.getElementById('sd-arm-bar'), width1, bar1Active, 1);
     updateProgressBar(document.getElementById('sd-defuse-bar'), width2, bar2Active, 2);
+    
+    updateMonitorDailyWins(currentFactions);
 }
 
 function updateProgressBar(barElem, width, isActive, timerRefName) {
