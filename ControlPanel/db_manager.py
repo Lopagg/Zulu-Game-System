@@ -15,8 +15,6 @@ def init_db():
                      (uid TEXT PRIMARY KEY, alias TEXT, games_played INTEGER DEFAULT 0, wins INTEGER DEFAULT 0)''')
         
         # --- FIX COLONNE MANCANTI ---
-        # Se la tabella players esisteva già, CREATE TABLE non aggiunge i nuovi campi.
-        # Forziamo l'inserimento con ALTER TABLE (se esistono già va in except e ignora)
         try: c.execute("ALTER TABLE players ADD COLUMN registered_at TEXT")
         except sqlite3.OperationalError: pass
         try: c.execute("ALTER TABLE players ADD COLUMN notes TEXT")
@@ -27,6 +25,11 @@ def init_db():
         except sqlite3.OperationalError: pass
         try: c.execute("ALTER TABLE players ADD COLUMN wins INTEGER DEFAULT 0")
         except sqlite3.OperationalError: pass
+
+        # --- FIX TRAPPOLA NULL ---
+        # Spazza via i valori vuoti (NULL) dei vecchi giocatori e li converte in veri zeri
+        c.execute("UPDATE players SET games_played = 0 WHERE games_played IS NULL")
+        c.execute("UPDATE players SET wins = 0 WHERE wins IS NULL")
 
         c.execute('''CREATE TABLE IF NOT EXISTS active_roster
                      (uid TEXT PRIMARY KEY, team TEXT, status TEXT)''')
@@ -175,7 +178,6 @@ def update_player_photo(uid, filename):
         conn.commit()
 
 def process_match_stats(winner_state):
-    # Ripuliamo qualsiasi artefatto
     raw_state = str(winner_state).strip().upper()
     logger.info(f"[DB] Analisi verdetto di fine partita per statistiche: '{raw_state}'")
     
@@ -188,25 +190,22 @@ def process_match_stats(winner_state):
     alpha_name = config.get('ALPHA', {}).get('name', 'ALPHA').upper()
     bravo_name = config.get('BRAVO', {}).get('name', 'BRAVO').upper()
     
-    # 1. Controlla prima le diciture standard del server interno (Infallibile)
     if "ALPHA" in raw_state or "T WINS" in raw_state:
         winning_team = 'ALPHA'
     elif "BRAVO" in raw_state or "CT WINS" in raw_state:
         winning_team = 'BRAVO'
-    # 2. Se non le trova, controlla i nomi custom (nel caso il RAT li mandi)
     elif alpha_name in raw_state:
         winning_team = 'ALPHA'
     elif bravo_name in raw_state:
         winning_team = 'BRAVO'
         
     if not winning_team:
-        logger.warning(f"[DB] ATTENZIONE: Impossibile determinare la squadra vincente da '{raw_state}'. Statistiche non aggiornate.")
+        logger.warning(f"[DB] ATTENZIONE: Impossibile determinare la squadra vincente da '{raw_state}'.")
         return
 
     try:
         with sqlite3.connect(DB_PATH) as conn:
             c = conn.cursor()
-            # Mantenuto il controllo totale: processiamo tutto il roster
             c.execute("SELECT uid, team FROM active_roster")
             players = c.fetchall()
             
@@ -214,10 +213,11 @@ def process_match_stats(winner_state):
             w_count = 0
             for uid, team in players:
                 p_count += 1
-                c.execute("UPDATE players SET games_played = games_played + 1 WHERE uid = ?", (uid,))
+                # COALESCE ripara la matematica se la cella è NULL
+                c.execute("UPDATE players SET games_played = COALESCE(games_played, 0) + 1 WHERE uid = ?", (uid,))
                 if team == winning_team:
                     w_count += 1
-                    c.execute("UPDATE players SET wins = wins + 1 WHERE uid = ?", (uid,))
+                    c.execute("UPDATE players SET wins = COALESCE(wins, 0) + 1 WHERE uid = ?", (uid,))
             
             conn.commit()
             logger.info(f"[STATS SALVATE] +1 Partita a {p_count} giocatori | +1 Vittoria a {w_count} giocatori del Team {winning_team}.")
