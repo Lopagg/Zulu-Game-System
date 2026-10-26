@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ZULU // MOBILE CMD</title>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <style>
+        :root {
+            --sop-bg: #050505; --sop-panel: #111; --sop-primary: #00ffcc;
+            --sop-alert: #ff3333; --sop-success: #55ff55; --sop-dim: #333;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Share Tech Mono', monospace; user-select: none; }
+        body { background: var(--sop-bg); color: #eee; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        
+        .header { background: #000; border-bottom: 2px solid var(--sop-primary); padding: 15px; display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { font-size: 1.2rem; margin: 0; color: var(--sop-primary); letter-spacing: 2px; }
+        .logout { color: var(--sop-alert); text-decoration: none; font-size: 0.9rem; border: 1px solid var(--sop-alert); padding: 5px 10px; }
+        
+        .content { flex: 1; padding: 20px; overflow-y: auto; }
+        .tab-view { display: none; height: 100%; flex-direction: column; }
+        .tab-view.active { display: flex; }
+        
+        /* NAVBAR INFERIORE */
+        .bottom-nav { display: flex; background: #000; border-top: 1px solid var(--sop-dim); }
+        .nav-btn { flex: 1; padding: 20px 0; text-align: center; color: #888; font-size: 0.9rem; font-weight: bold; background: transparent; border: none; outline: none; border-bottom: 3px solid transparent; }
+        .nav-btn.active { color: var(--sop-primary); border-bottom-color: var(--sop-primary); background: rgba(0,255,204,0.05); }
+
+        /* UI ELEMENTS */
+        .btn { width: 100%; padding: 20px; font-size: 1.2rem; font-weight: bold; background: transparent; color: var(--sop-primary); border: 2px solid var(--sop-primary); margin-bottom: 15px; border-radius: 4px; }
+        .btn:active { background: var(--sop-primary); color: #000; }
+        .btn.danger { color: var(--sop-alert); border-color: var(--sop-alert); }
+        .btn.danger:active { background: var(--sop-alert); color: #fff; }
+        
+        .timer-display { font-size: 5rem; text-align: center; color: var(--sop-primary); margin: 20px 0; text-shadow: 0 0 15px rgba(0,255,204,0.3); line-height: 1; }
+        .status-display { text-align: center; font-size: 1.5rem; margin-bottom: 20px; letter-spacing: 2px; }
+        
+        .input-group { margin-bottom: 20px; }
+        .input-group label { display: block; color: #888; margin-bottom: 8px; font-size: 0.9rem; }
+        .input-group select, .input-group input { width: 100%; padding: 15px; background: rgba(0,0,0,0.5); border: 1px solid var(--sop-dim); color: #fff; font-size: 1.1rem; }
+        
+        .nfc-log { flex: 1; background: rgba(0,0,0,0.5); border: 1px solid var(--sop-dim); padding: 10px; overflow-y: auto; margin-top: 20px; font-family: 'Courier New', monospace; font-size: 0.8rem; color: #aaa; }
+        .nfc-scan-indicator { text-align: center; margin-top: 20px; font-size: 1.2rem; color: #888; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>SOP // MOBILE</h1>
+        <a href="/logout" class="logout">LOGOUT</a>
+    </div>
+
+    <div class="content">
+        <!-- TAB 1: CONTROL (Timer e Stop) -->
+        <div id="tab-control" class="tab-view active">
+            <div class="status-display" id="mob-status">STANDBY</div>
+            <div class="timer-display" id="mob-timer">--:--</div>
+            
+            <div style="margin-top: auto;">
+                <button class="btn danger" onclick="forceEndMatch()">TERMINA PARTITA</button>
+                <button class="btn" style="color:var(--sop-secondary); border-color:var(--sop-secondary);" onclick="socket.emit('send_command', { target_id: 'BROADCAST_ENV', command: { cmd: 'SIREN_LONG' } })">SUONA SIRENA</button>
+            </div>
+        </div>
+
+        <!-- TAB 2: SETUP RAPIDO -->
+        <div id="tab-setup" class="tab-view">
+            <h2 style="color: #fff; font-size: 1.2rem; margin-bottom: 20px;">AVVIO RAPIDO MISSIONE</h2>
+            <div class="input-group">
+                <label>MODALITÀ DI GIOCO</label>
+                <select id="mob-mode">
+                    <option value="tdm">TEAM DEATHMATCH (SERVER)</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label>DURATA (Minuti)</label>
+                <input type="number" id="mob-dur" value="15" min="1">
+            </div>
+            <div style="margin-top: auto;">
+                <button class="btn" onclick="startQuickMatch()">[ LANCIA PARTITA ]</button>
+            </div>
+        </div>
+
+        <!-- TAB 3: KIOSK DIGITALE (NFC) -->
+        <div id="tab-nfc" class="tab-view">
+            <h2 style="color: #fff; font-size: 1.2rem; margin-bottom: 20px; text-align: center;">KIOSK NFC PORTATILE</h2>
+            <p style="color:#888; font-size:0.85rem; text-align:center; margin-bottom: 20px;">Richiede Google Chrome su Android e connessione HTTPS (o flag attivi su reti locali).</p>
+            
+            <button class="btn" id="btn-nfc" onclick="startNfcScanner()" style="border-width: 3px; font-size: 1.4rem;">ATTIVA SENSORE</button>
+            <div class="nfc-scan-indicator" id="nfc-status">Sensore Inattivo</div>
+            
+            <div class="nfc-log" id="nfc-log">
+                <div>> Pronto all'uso...</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="bottom-nav">
+        <button class="nav-btn active" onclick="switchTab('control', this)">CONTROL</button>
+        <button class="nav-btn" onclick="switchTab('setup', this)">SETUP</button>
+        <button class="nav-btn" onclick="switchTab('nfc', this)">NFC SCAN</button>
+    </div>
+
+    <script>
+        const socket = io();
+        let nfcActive = false;
+        let ndef = null;
+
+        function switchTab(tabId, btnElement) {
+            document.querySelectorAll('.tab-view').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('tab-' + tabId).classList.add('active');
+            btnElement.classList.add('active');
+        }
+
+        // --- GESTIONE TELEMETRIA (Control Tab) ---
+        const formatTime = (seconds) => {
+            if(seconds === undefined) return "00:00";
+            const m = Math.floor(seconds / 60); const s = seconds % 60;
+            return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        };
+
+        socket.on('esp_event', (msg) => {
+            const raw = msg.parsed_data || {};
+            const type = raw.type || 'UNKNOWN';
+            const payload = raw.payload || {};
+            
+            if (type === 'MODE_EXIT') {
+                document.getElementById('mob-status').textContent = "STANDBY";
+                document.getElementById('mob-status').style.color = "#eee";
+                document.getElementById('mob-timer').textContent = "--:--";
+                return;
+            }
+            
+            if (payload.state) {
+                let s = payload.state;
+                document.getElementById('mob-status').textContent = s;
+                if (s.includes('WINS')) document.getElementById('mob-status').style.color = "var(--sop-alert)";
+                else document.getElementById('mob-status').style.color = "var(--sop-primary)";
+            }
+
+            if (payload.game_time !== undefined) {
+                document.getElementById('mob-timer').textContent = formatTime(payload.game_time);
+            } else if (type === 'COUNTDOWN_UPDATE' && payload.time !== undefined) {
+                document.getElementById('mob-timer').textContent = `T-${payload.time}`;
+            }
+        });
+
+        // --- FUNZIONI DI CONTROLLO ---
+        function forceEndMatch() {
+            if(confirm("Terminare immediatamente la partita in corso?")) {
+                socket.emit('send_command', { target_id: "SERVER-ROUTER", command: { cmd: "FORCE_END_GAME" } });
+            }
+        }
+
+        function startQuickMatch() {
+            const dur = parseInt(document.getElementById('mob-dur').value) || 15;
+            // Per ora supportiamo TDM su server come avvio rapido. SD/DOM richiedono target_id hardware.
+            socket.emit('send_command', { target_id: 'SERVER-TDM', command: { cmd: "SET_TDM_SETTINGS", duration: dur } });
+            socket.emit('send_command', { target_id: 'broadcast', command: { cmd: "SET_READY", mode: 'tdm', target_id: 'SERVER-TDM', duration: dur } });
+            
+            // Bypassiamo il blocco delle squadre (force:true) per fare un avvio rapido brutale
+            socket.emit('request_mission_start', { mode: 'tdm', target_id: 'SERVER-TDM', duration: dur, force: true });
+            
+            switchTab('control', document.querySelectorAll('.nav-btn')[0]);
+        }
+
+        // --- GESTIONE SENSORE NFC (DIGITAL KIOSK) ---
+        function logNFC(msg) {
+            const logBox = document.getElementById('nfc-log');
+            const d = document.createElement('div');
+            const t = new Date().toLocaleTimeString('it-IT', { hour12: false });
+            d.textContent = `[${t}] ${msg}`;
+            logBox.prepend(d);
+        }
+
+        async function startNfcScanner() {
+            if (!("NDEFReader" in window)) {
+                alert("Web NFC non supportato! Assicurati di usare Chrome su Android e di aver abilitato le flag per connessioni non-HTTPS se in locale.");
+                return;
+            }
+            
+            try {
+                ndef = new NDEFReader();
+                await ndef.scan();
+                nfcActive = true;
+                
+                document.getElementById('btn-nfc').style.borderColor = "var(--sop-success)";
+                document.getElementById('btn-nfc').style.color = "var(--sop-success)";
+                document.getElementById('btn-nfc').textContent = "SENSORE ATTIVO";
+                document.getElementById('nfc-status').textContent = "Appoggia la tessera sul retro...";
+                document.getElementById('nfc-status').style.color = "var(--sop-success)";
+                
+                logNFC("Sensore NFC inizializzato con successo.");
+
+                ndef.onreading = event => {
+                    const serial = event.serialNumber;
+                    if(serial) {
+                        const rawUid = serial.replace(/:/g, '').toUpperCase();
+                        logNFC(`> SCANSIONE: ${rawUid}`);
+                        
+                        // Invia al server la scansione mobile (funziona sia per registrazione che per In/Out Roster)
+                        socket.emit('mobile_tag_scanned', { uid: rawUid });
+                        
+                        if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+                    }
+                };
+                
+                ndef.onreadingerror = () => {
+                    logNFC("! Errore di lettura. Riprova.");
+                    if (navigator.vibrate) navigator.vibrate(300);
+                };
+            } catch (error) {
+                logNFC(`Errore attivazione: ${error}`);
+            }
+        }
+
+        socket.on('mobile_scan_reply', (data) => {
+            if (data.success) {
+                logNFC(`✅ [${data.team}] Cambio stato in: ${data.status}`);
+            } else {
+                logNFC(`❌ TAG SCONOSCIUTO. Apri 'Registrazione' dal PC.`);
+            }
+        });
+    </script>
+</body>
+</html>

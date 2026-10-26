@@ -76,13 +76,9 @@ def setup_database():
     if not hasattr(app, 'db_initialized'):
         db_manager.init_db()
         game_engine.start_mqtt(socketio)  
-        
-        # --- FIX BUG TIMER x2 ---
-        # L'orologio centrale si avvia una volta sola per tutto il server
         if not game_engine.background_thread_started:
             socketio.start_background_task(game_engine.background_cleanup, fetch_weather)
             game_engine.background_thread_started = True
-            
         app.db_initialized = True
 
 @app.route('/')
@@ -92,6 +88,12 @@ def index(): return render_template('index.html', username=current_user.name)
 @app.route('/tv')
 def tv_dashboard(): return render_template('tv.html')
 
+# --- NUOVA ROTTA MOBILE TERMINAL ---
+@app.route('/mobile')
+@login_required
+def mobile_dashboard(): 
+    return render_template('mobile.html', username=current_user.name)
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -99,7 +101,9 @@ def login():
         password = request.form.get('password')
         if username in USERS and check_password_hash(USERS[username]['password_hash'], password):
             login_user(User.get(username))
-            return redirect(url_for('index'))
+            # FIX: Rispetta il redirect se l'utente proviene da /mobile
+            next_page = request.args.get('next')
+            return redirect(next_page or url_for('index'))
         flash('ACCESSO NEGATO', 'error')
     return render_template('login.html')
 
@@ -267,6 +271,23 @@ def handle_request_mission_start(data):
         try: game_engine.mqtt_client.publish(f"zulu/cmd/{target_id}", json.dumps({"cmd": cmd_str}))
         except: pass
     emit('mission_start_success')
+
+# --- INNESTO MOBILE: RICEZIONE LETTURA NFC DA SMARTPHONE ---
+@socketio.on('mobile_tag_scanned')
+def handle_mobile_scan(data):
+    uid = data.get('uid')
+    if uid:
+        # 1. Annuncia il tag per la schermata di registrazione (come se fosse il Kiosk fisico)
+        socketio.emit('raw_tag_scanned', {'uid': uid})
+        
+        # 2. Gestisci l'ingresso/uscita dal Roster
+        row = db_manager.get_player_status(uid)
+        if row:
+            new_status = db_manager.toggle_player_status(uid, row[0])
+            socketio.emit('roster_update', db_manager.get_full_roster())
+            emit('mobile_scan_reply', {'success': True, 'uid': uid, 'status': new_status, 'team': row[1]})
+        else:
+            emit('mobile_scan_reply', {'success': False, 'uid': uid, 'msg': 'Tag non assegnato al roster.'})
 
 @socketio.on('rename_device')
 def handle_rename(data):
