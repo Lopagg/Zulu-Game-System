@@ -308,6 +308,10 @@
             setEl('tv-dom-lbl-b', `${factions.BRAVO.name} SCORE`);
             setEl('tv-wins-lbl-a', factions.ALPHA.name);
             setEl('tv-wins-lbl-b', factions.BRAVO.name);
+            
+            // --- AGGIORNAMENTO DINAMICO VITTORIE ODIERNE TV ---
+            setEl('tv-wins-alpha', factions.ALPHA.daily_wins || 0);
+            setEl('tv-wins-bravo', factions.BRAVO.daily_wins || 0);
         });
 
         socket.on('roster_update', (roster) => {
@@ -407,7 +411,7 @@
                 document.getElementById('tv-lbl-prog-1').textContent = "ARMING PROGRESS";
                 document.getElementById('tv-lbl-prog-1').style.color = "var(--sop-alert)";
                 document.getElementById('tv-lbl-prog-2').textContent = "DEFUSING PROGRESS";
-                document.getElementById('tv-lbl-prog-2').style.color = "#55ff55"; // Verde!
+                document.getElementById('tv-lbl-prog-2').style.color = "#55ff55";
                 
                 if (payload.arm_prog !== undefined) document.getElementById('tv-prog-1').style.width = payload.arm_prog + '%';
                 if (payload.def_prog !== undefined) document.getElementById('tv-prog-2').style.width = payload.def_prog + '%';
@@ -420,7 +424,7 @@
                 document.getElementById('tv-lbl-prog-1').textContent = `${currentFactions.ALPHA.name} ACTION`;
                 document.getElementById('tv-lbl-prog-1').style.color = "var(--sop-alert)";
                 document.getElementById('tv-lbl-prog-2').textContent = `${currentFactions.BRAVO.name} ACTION`;
-                document.getElementById('tv-lbl-prog-2').style.color = "#55ff55"; // Verde!
+                document.getElementById('tv-lbl-prog-2').style.color = "#55ff55";
                 
                 if (payload.score_a !== undefined) document.getElementById('tv-dom-a').textContent = formatTime(payload.score_a);
                 if (payload.score_b !== undefined) document.getElementById('tv-dom-b').textContent = formatTime(payload.score_b);

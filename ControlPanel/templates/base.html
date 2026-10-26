@@ -92,13 +92,10 @@
     <div id="operator-modal" class="modal-overlay hidden">
         <div class="sop-card profile-modal">
             <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--sop-primary);">
-                
-                <!-- AGGIUNTO IL BOTTONE PER RINOMINARE (REN) -->
                 <h2 style="margin: 0; padding: 10px; color: var(--sop-primary); letter-spacing: 2px; font-size: 24px; display:flex; align-items:center; gap:10px;">
                     <span id="modal-op-name-text">OPERATOR PROFILE</span>
                     <span class="action-btn" onclick="renameFromProfile()" style="font-size:16px;">[REN]</span>
                 </h2>
-                
                 <button class="close-modal-btn" onclick="closeModal()">[X]</button>
             </div>
             <div class="panel-body profile-grid">
@@ -123,14 +120,16 @@
                 
                 <div class="profile-info-col">
                     <div style="background: rgba(0,0,0,0.4); padding: 15px; border: 1px solid var(--sop-dim); margin-bottom: 20px;">
-                        
-                        <!-- AGGIUNTO IL TIPO ACCOUNT E IL BOTTONE UPGRADE -->
                         <div class="data-row" style="margin-bottom: 10px; border-bottom: 1px dashed var(--sop-dim); padding-bottom: 10px;">
                             <span class="label">TIPO ACCOUNT:</span> 
                             <span id="modal-op-type" class="value" style="font-weight:bold;">--</span>
                             <button id="btn-toggle-pro" class="deck-btn" style="padding: 2px 8px; margin-left: 15px; font-size: 12px;" onclick="toggleProStatus()">[ UPGRADE ]</button>
                         </div>
-                        
+                        <div class="data-row" style="margin-bottom: 10px; border-bottom: 1px dashed var(--sop-dim); padding-bottom: 10px;">
+                            <span class="label">SQUADRA (ASD):</span> 
+                            <span id="modal-op-asd" class="value" style="font-weight:bold;">--</span>
+                            <span class="action-btn" onclick="editAsdFromProfile()" style="font-size:14px; margin-left:15px; color:var(--sop-primary);">[EDIT]</span>
+                        </div>
                         <div class="data-row"><span class="label">UID TESSERA:</span> <span id="modal-op-uid" class="value" style="font-family: monospace;">--</span></div>
                         <div class="data-row"><span class="label">REGISTRATO IL:</span> <span id="modal-op-date" class="value">--</span></div>
                     </div>
@@ -209,7 +208,11 @@
                 </div>
                 <div class="input-group-tactical" style="margin-bottom: 15px;">
                     <label class="setup-label">NOME OPERATORE / GUEST</label>
-                    <input type="text" id="reg-alias" class="setup-input" placeholder="Es. VIPER o GUEST-01">
+                    <input type="text" id="reg-alias" class="setup-input" placeholder="Es. VIPER o OP-17">
+                </div>
+                <div class="input-group-tactical" style="margin-bottom: 15px;">
+                    <label class="setup-label">SQUADRA (ASD) - Lasciare vuoto se nessuna</label>
+                    <input type="text" id="reg-asd" class="setup-input" placeholder="Es. TASK FORCE 141">
                 </div>
                 <div class="input-group-tactical" style="margin-bottom: 15px;">
                     <label class="setup-label">TIPO ACCOUNT</label>
@@ -227,7 +230,7 @@
         </div>
     </div>
 
-    <!-- MODALE 3: MODIFICA FAZIONE -->
+    <!-- MODALE 3: MODIFICA FAZIONE E VITTORIE -->
     <div id="faction-edit-modal" class="modal-overlay hidden">
         <div class="sop-card profile-modal" style="width: 400px;">
             <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--sop-primary);">
@@ -240,12 +243,16 @@
                     <label class="setup-label">FACTION NAME</label>
                     <input type="text" id="edit-faction-name" class="setup-input">
                 </div>
-                <div class="input-group-tactical" style="margin-bottom: 25px;">
+                <div class="input-group-tactical" style="margin-bottom: 15px;">
                     <label class="setup-label">FACTION COLOR</label>
                     <div style="display: flex; gap: 10px;">
                         <input type="color" id="edit-faction-color" style="flex: 1; height: 50px; background: transparent; border: 1px solid var(--sop-dim); cursor: pointer;">
                         <button class="deck-btn" style="margin: 0; height: 50px; padding: 0 20px;" onclick="resetFactionColor()">[ DEFAULT ]</button>
                     </div>
+                </div>
+                <div class="input-group-tactical" style="margin-bottom: 25px;">
+                    <label class="setup-label">VITTORIE ODIERNE</label>
+                    <input type="number" id="edit-faction-wins" class="setup-input" value="0" min="0">
                 </div>
                 <button class="deck-btn full-width" style="border-color: var(--sop-primary); color: var(--sop-primary);" onclick="saveFactionConfig()">[ SAVE CONFIG ]</button>
             </div>

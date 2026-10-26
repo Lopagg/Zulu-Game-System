@@ -181,6 +181,7 @@ export function populateProfileModal(data) {
     setEl('modal-op-name-text', `PROFILE // ${data.alias}`);
     setEl('modal-op-uid', data.uid);
     setEl('modal-op-date', data.registered_at || 'Sconosciuta');
+    setEl('modal-op-asd', data.asd_team || 'NESSUNA'); // ASD
     
     const games = data.games_played || 0;
     const wins = data.wins || 0;
@@ -191,7 +192,6 @@ export function populateProfileModal(data) {
     setEl('modal-stat-wins', wins);
     setEl('modal-stat-rate', `${winRate}%`);
     
-    // --- GESTIONE ACCOUNT PRO / GUEST ---
     const isPro = data.is_pro === 1;
     const typeEl = document.getElementById('modal-op-type');
     const toggleBtn = document.getElementById('btn-toggle-pro');

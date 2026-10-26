@@ -16,8 +16,12 @@ def trigger_end_match_sequence(end_state):
     logger.info(f"[GAME ENGINE] Sequenza di Fine Partita innescata: {end_state}")
     try: mqtt_client.publish("zulu/cmd/broadcast", json.dumps({"cmd": "SIREN_LONG"}))
     except: pass
+    
     db_manager.process_match_stats(end_state)
-    if socketio: socketio.emit('database_update', db_manager.get_all_players())
+    
+    if socketio:
+        socketio.emit('database_update', db_manager.get_all_players())
+        socketio.emit('factions_update', db_manager.get_factions_config())
 
 class BaseGameMode:
     def __init__(self, mission_ctrl): self.mc = mission_ctrl
@@ -308,7 +312,6 @@ def on_mqtt_message(client, userdata, msg):
                 uid = payload.get('uid')
                 reply_action = "UNKNOWN"
                 if uid:
-                    # --- INVIA UID GREZZO AL FRONTEND PER LA REGISTRAZIONE ---
                     if socketio: socketio.emit('raw_tag_scanned', {'uid': uid})
                     
                     row = db_manager.get_player_status(uid)

@@ -126,7 +126,6 @@ def handle_connect():
     emit('weather_update', {'weather': fetch_weather()})
     emit('factions_update', db_manager.get_factions_config())
     socketio.emit('roster_update', db_manager.get_full_roster())
-    
     emit('database_update', db_manager.get_all_players())
 
 @socketio.on('update_factions')
@@ -136,6 +135,10 @@ def handle_update_factions(data):
         db_manager.set_faction_config('ALPHA', data['alpha_name'], data['alpha_color'])
     if 'bravo_name' in data and 'bravo_color' in data:
         db_manager.set_faction_config('BRAVO', data['bravo_name'], data['bravo_color'])
+        
+    # Salva le vittorie manuali odierne
+    if 'alpha_wins' in data: db_manager.update_faction_wins('ALPHA', data['alpha_wins'])
+    if 'bravo_wins' in data: db_manager.update_faction_wins('BRAVO', data['bravo_wins'])
     
     new_config = db_manager.get_factions_config()
     socketio.emit('factions_update', new_config)
@@ -152,7 +155,6 @@ def handle_update_factions(data):
         "t1": new_config['ALPHA']['name'], "t1_c": a_rgb,
         "t2": new_config['BRAVO']['name'], "t2_c": b_rgb
     }))
-    logger.info(f"[SYSTEM] Nuove Fazioni Trasmesse: {new_config}")
 
 @socketio.on('request_roster')
 def handle_request_roster(): socketio.emit('roster_update', db_manager.get_full_roster())
@@ -189,9 +191,10 @@ def handle_register_manual(data):
     alias = data.get('alias')
     is_pro = data.get('is_pro', 0)
     tag_info = data.get('tag_info', 'NTAG215 / ISO 14443-3A')
+    asd_team = data.get('asd_team', 'NESSUNA')
     
     if uid and alias:
-        db_manager.register_player_manual(uid, alias.upper(), is_pro, tag_info)
+        db_manager.register_player_manual(uid, alias.upper(), is_pro, tag_info, asd_team.upper())
         socketio.emit('database_update', db_manager.get_all_players())
 
 @socketio.on('update_db_player')
@@ -201,6 +204,7 @@ def handle_update_db_player(data):
     elif action == 'delete': db_manager.delete_player_permanently(uid)
     elif action == 'reset_stats': db_manager.reset_player_stats(uid)
     elif action == 'toggle_pro': db_manager.toggle_pro_status(uid)
+    elif action == 'edit_asd': db_manager.update_player_asd(uid, value)
     
     socketio.emit('roster_update', db_manager.get_full_roster())
     socketio.emit('database_update', db_manager.get_all_players())

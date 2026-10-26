@@ -6,11 +6,11 @@ const socket = io();
 let currentDevices = [];
 let arenaRoster = {}; 
 let monitoredDeviceId = null;
-let currentCropper = null; // Variabile globale per il ritaglio foto
+let currentCropper = null;
 
 export let currentFactions = { 
-    ALPHA: { name: 'ALPHA', color: '#ff3333' }, 
-    BRAVO: { name: 'BRAVO', color: '#55ff55' } 
+    ALPHA: { name: 'ALPHA', color: '#ff3333', daily_wins: 0 }, 
+    BRAVO: { name: 'BRAVO', color: '#55ff55', daily_wins: 0 } 
 };
 
 function applyFactionStyles(factions) {
@@ -62,6 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('edit-faction-id').value = teamId;
         document.getElementById('edit-faction-name').value = f.name;
         document.getElementById('edit-faction-color').value = f.color;
+        document.getElementById('edit-faction-wins').value = f.daily_wins || 0;
         document.getElementById('modal-faction-title').textContent = `EDIT ${teamId} SETTINGS`;
         document.getElementById('faction-edit-modal').classList.remove('hidden');
     };
@@ -81,15 +82,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const teamId = document.getElementById('edit-faction-id').value;
         const newName = document.getElementById('edit-faction-name').value.trim().toUpperCase();
         const newColor = document.getElementById('edit-faction-color').value;
+        const newWins = parseInt(document.getElementById('edit-faction-wins').value) || 0;
 
         if (newName !== '') {
             const data = {};
             if (teamId === 'ALPHA') {
                 data.alpha_name = newName;
                 data.alpha_color = newColor;
+                data.alpha_wins = newWins;
             } else if (teamId === 'BRAVO') {
                 data.bravo_name = newName;
                 data.bravo_color = newColor;
+                data.bravo_wins = newWins;
             }
             socket.emit('update_factions', data);
             closeFactionModal();
@@ -270,8 +274,6 @@ window.uiForceEndMission = function() {
     socket.emit('send_command', { target_id: "SERVER-ROUTER", command: { cmd: action } });
 };
 
-
-// --- FUNZIONI OPERATORE (NOTE E STATISTICHE) ---
 window.saveOperatorNotes = function() {
     const uid = getCurrentProfileUid();
     const notes = document.getElementById('modal-op-notes').value;
@@ -301,7 +303,6 @@ window.modKarma = function(val) {
     socket.emit('update_karma', { uid: getCurrentProfileUid(), karma: currentKarma });
 };
 
-// --- NUOVE FUNZIONI DI GESTIONE ACCOUNT & MANUTENZIONE ---
 window.renameFromProfile = function() {
     const uid = getCurrentProfileUid();
     const currentNameText = document.getElementById('modal-op-name-text').innerText;
@@ -310,6 +311,18 @@ window.renameFromProfile = function() {
     
     if (newName && newName.trim() !== '') {
         socket.emit('update_db_player', { uid: uid, action: 'rename', value: newName.trim().toUpperCase() });
+        setTimeout(() => { socket.emit('request_profile', {uid: uid}); }, 100); 
+    }
+};
+
+window.editAsdFromProfile = function() {
+    const uid = getCurrentProfileUid();
+    const currentAsd = document.getElementById('modal-op-asd').innerText;
+    const newAsd = prompt("Inserisci il nome della SQUADRA o dell'ASD (lascia vuoto per 'NESSUNA'):", currentAsd === 'NESSUNA' ? '' : currentAsd);
+    
+    if (newAsd !== null) {
+        const finalAsd = newAsd.trim() === '' ? 'NESSUNA' : newAsd.trim().toUpperCase();
+        socket.emit('update_db_player', { uid: uid, action: 'edit_asd', value: finalAsd });
         setTimeout(() => { socket.emit('request_profile', {uid: uid}); }, 100); 
     }
 };
@@ -330,7 +343,6 @@ window.purgeGuests = function() {
 };
 
 
-// --- GESTIONE RITAGLIO FOTO (CROPPER.JS) ---
 window.handlePhotoUpload = function(input) {
     if (input.files && input.files[0]) {
         const reader = new FileReader();
@@ -391,15 +403,13 @@ window.confirmCrop = function() {
     }, 'image/jpeg', 0.9);
 };
 
-// --- FUNZIONI DI REGISTRAZIONE MANUALE TAG (KIOSK TO WEB) ---
+
 window.openRegistrationModal = function() {
     document.getElementById('reg-uid').value = '';
     
-    // --- FIX: Calcola automaticamente il prossimo numero OP-X ---
     let maxOp = 0;
     if (globalPlayersDB) {
         globalPlayersDB.forEach(p => {
-            // Cerca il numero più alto tra gli operatori chiamati OP-
             const nameToCheck = p.alias;
             if (nameToCheck && nameToCheck.startsWith('OP-')) {
                 const num = parseInt(nameToCheck.replace('OP-', ''));
@@ -412,6 +422,7 @@ window.openRegistrationModal = function() {
     
     document.getElementById('reg-alias').value = `OP-${maxOp + 1}`;
     document.getElementById('reg-pro').value = '0';
+    document.getElementById('reg-asd').value = '';
     document.getElementById('registration-modal').classList.remove('hidden');
 };
 
@@ -424,6 +435,7 @@ window.submitRegistration = function() {
     const alias = document.getElementById('reg-alias').value.trim();
     const isPro = document.getElementById('reg-pro').value;
     const tagInfo = document.getElementById('reg-tag-info').value.trim();
+    const asdTeam = document.getElementById('reg-asd').value.trim();
     
     if (!uid || !alias) {
         alert("Attendi la scansione dell'UID sul Kiosk e inserisci un Nome.");
@@ -434,7 +446,8 @@ window.submitRegistration = function() {
         uid: uid,
         alias: alias,
         is_pro: parseInt(isPro),
-        tag_info: tagInfo
+        tag_info: tagInfo,
+        asd_team: asdTeam === '' ? 'NESSUNA' : asdTeam
     });
     
     closeRegistrationModal();
