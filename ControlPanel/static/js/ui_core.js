@@ -15,6 +15,7 @@ const views = {
 };
 
 export function showView(viewName, socket) {
+    // --- FIX: Ricarica sempre il database dal server quando si apre il pannello ---
     if(viewName === 'arena-db' && socket) {
         socket.emit('request_database'); 
     }
