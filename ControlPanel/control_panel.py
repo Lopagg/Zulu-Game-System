@@ -136,7 +136,6 @@ def handle_update_factions(data):
     if 'bravo_name' in data and 'bravo_color' in data:
         db_manager.set_faction_config('BRAVO', data['bravo_name'], data['bravo_color'])
         
-    # Salva le vittorie manuali odierne
     if 'alpha_wins' in data: db_manager.update_faction_wins('ALPHA', data['alpha_wins'])
     if 'bravo_wins' in data: db_manager.update_faction_wins('BRAVO', data['bravo_wins'])
     
@@ -155,6 +154,11 @@ def handle_update_factions(data):
         "t1": new_config['ALPHA']['name'], "t1_c": a_rgb,
         "t2": new_config['BRAVO']['name'], "t2_c": b_rgb
     }))
+
+@socketio.on('reset_daily_wins')
+def handle_reset_daily_wins():
+    db_manager.reset_daily_wins()
+    socketio.emit('factions_update', db_manager.get_factions_config())
 
 @socketio.on('request_roster')
 def handle_request_roster(): socketio.emit('roster_update', db_manager.get_full_roster())

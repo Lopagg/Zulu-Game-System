@@ -16,7 +16,7 @@ export function resetMonitorLayout() {
     document.getElementById('monitor-mode-title').textContent = "AWAITING MISSION DATA...";
 
     document.getElementById('widget-sd-tactical').classList.add('hidden');
-    document.getElementById('widget-sd-rules').classList.add('hidden');
+    // Rimossa nascondimento widget rules per farlo restare sempre visibile
     document.getElementById('widget-generic-map').classList.remove('hidden');
 
     document.querySelector('.bomb-timer-container').classList.add('hidden');
@@ -26,7 +26,6 @@ export function resetMonitorLayout() {
     lastConfiguredMode = null;
 }
 
-// --- NUOVA FUNZIONE: Chiamata da main.js quando cambiano le fazioni ---
 export function updateMonitorDailyWins(factions) {
     const setEl = (id, txt) => { const el = document.getElementById(id); if(el) el.textContent = txt; };
     
@@ -48,7 +47,7 @@ export function updateMonitorDailyWins(factions) {
     if(bravoNum && bravoLbl) {
         bravoNum.style.color = factions.BRAVO.color;
         bravoNum.style.textShadow = `0 0 10px ${factions.BRAVO.color}66`;
-        braLbl.style.color = factions.BRAVO.color;
+        bravoLbl.style.color = factions.BRAVO.color;
     }
 }
 
@@ -58,11 +57,9 @@ export function updateUniversalFeed(payload, mode, msgType) {
     if (mode && mode !== lastConfiguredMode) {
         lastConfiguredMode = mode;
         document.getElementById('widget-sd-tactical').classList.remove('hidden');
-        document.getElementById('widget-sd-rules').classList.remove('hidden');
         document.getElementById('widget-generic-map').classList.add('hidden');
         document.getElementById('monitor-mode-title').textContent = `OPERATION: ${mode.replace(/_/g, ' ').toUpperCase()}`;
         
-        // Imposta le barre a rosso/verde fisso
         const armBar = document.getElementById('sd-arm-bar');
         const defuseBar = document.getElementById('sd-defuse-bar');
         if (armBar) armBar.className = "progress-fill fill-red";
@@ -153,9 +150,6 @@ export function updateUniversalFeed(payload, mode, msgType) {
 
     updateProgressBar(document.getElementById('sd-arm-bar'), width1, bar1Active, 1);
     updateProgressBar(document.getElementById('sd-defuse-bar'), width2, bar2Active, 2);
-    
-    // Aggiorniamo anche le daily wins in caso siano state caricate dopo l'apertura del monitor
-    updateMonitorDailyWins(currentFactions);
 }
 
 function updateProgressBar(barElem, width, isActive, timerRefName) {

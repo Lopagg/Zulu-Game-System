@@ -9,7 +9,6 @@
     </div>
 
     <div class="grid-dashboard">
-        <!-- RIGA 1: Timer e Operatori -->
         <div class="widget sop-card widget-timer">
             <div class="widget-header">MATCH TIMER</div>
             <div class="widget-body">
@@ -38,7 +37,6 @@
             </div>
         </div>
         
-        <!-- RIGA 2: Tactical Feed Centrale -->
         <div id="widget-sd-tactical" class="widget sop-card widget-tactical hidden">
             <div id="tactical-panel-title" class="widget-header">TACTICAL FEED</div>
             <div class="widget-body tactical-body">
@@ -69,10 +67,9 @@
             </div>
         </div>
         
-        <!-- RIGA 2 (Lato Destro): Vittorie Odierne e Regole -->
-        <div id="widget-sd-rules" class="widget sop-card widget-rules hidden" style="display: flex; flex-direction: column;">
+        <!-- RIMOSSA LA CLASSE HIDDEN: ORA E' SEMPRE VISIBILE -->
+        <div id="widget-sd-rules" class="widget sop-card widget-rules" style="display: flex; flex-direction: column;">
             
-            <!-- BLOCCO VITTORIE ODIERNE -->
             <div class="widget-header" style="border-bottom: 1px solid var(--sop-dim);">DAILY MATCH WINS</div>
             <div style="display: flex; justify-content: space-around; align-items: center; padding: 15px 0; border-bottom: 2px dashed var(--sop-dim); background: rgba(0,0,0,0.4);">
                 <div style="text-align: center;">
@@ -86,7 +83,6 @@
                 </div>
             </div>
 
-            <!-- BLOCCO REGOLE DI PARTITA -->
             <div class="widget-header">MISSION INTEL // RULES</div>
             <div class="widget-body rules-body" style="flex: 1; min-height: 0;">
                 <ul id="sd-rules-list" class="rules-list">
@@ -94,7 +90,6 @@
                 </ul>
             </div>
 
-            <!-- FOOTER CON BOTTONE TERMINA PARTITA -->
             <div class="rules-footer">
                 <button id="btn-force-end" class="deck-btn btn-danger full-width" onclick="uiForceEndMission()">
                     [ TERMINATE MISSION ]

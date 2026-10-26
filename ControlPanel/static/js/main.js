@@ -1,5 +1,5 @@
 import { showView, logSystem, updateDeviceList, updateClock, activeInspectorId } from './ui_core.js';
-import { resetMonitorLayout, updateUniversalFeed, renderRules } from './game_monitor.js';
+import { resetMonitorLayout, updateUniversalFeed, renderRules, updateMonitorDailyWins } from './game_monitor.js';
 import { renderArenaRoster, renderDatabase, populateProfileModal, getCurrentProfileUid, globalPlayersDB } from './roster_manager.js';
 
 const socket = io();
@@ -122,6 +122,18 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
+    // --- FIX BUG SCHERMATA BLOCCATA SU START MISSION ---
+    socket.on('mission_start_warning', (data) => {
+        if(confirm(data.msg)) {
+            data.original_request.force = true; // Se l'utente clicca OK, forza l'avvio scavalcando il blocco Python
+            socket.emit('request_mission_start', data.original_request);
+        } else {
+            // Se l'utente clicca Annulla, sblocca il bottone grafico per riprovare
+            document.getElementById('btn-start-mission').classList.remove('disabled'); 
+            document.getElementById('btn-start-mission').disabled = false; 
+        }
+    });
+
     setInterval(() => {
         if (socket.connected) {
             socket.emit('request_roster', () => {});
@@ -160,6 +172,8 @@ socket.on('factions_update', (factions) => {
     
     renderArenaRoster(arenaRoster, socket);
     if (typeof globalPlayersDB !== 'undefined' && globalPlayersDB.length > 0) renderDatabase(globalPlayersDB, socket, arenaRoster);
+    
+    updateMonitorDailyWins(factions); // Aggiorna graficamente i numeri sul monitor centrale
     
     const attackerSelect = document.getElementById('sd-attacker-team');
     if (attackerSelect) {
@@ -342,6 +356,12 @@ window.purgeGuests = function() {
     }
 };
 
+// --- TASTO NUOVO: RESET DELLE VITTORIE DIURNE ---
+window.resetDailyWins = function() {
+    if(confirm("ATTENZIONE: Vuoi azzerare i contatori delle vittorie odierne per ENTRAMBE le Fazioni?")) {
+        socket.emit('reset_daily_wins');
+    }
+};
 
 window.handlePhotoUpload = function(input) {
     if (input.files && input.files[0]) {

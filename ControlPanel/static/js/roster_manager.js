@@ -57,8 +57,9 @@ export function renderArenaRoster(arenaRoster, socket) {
     if(alphaCount === 0) listAlphaManage.innerHTML = '<li class="placeholder-text" style="color:var(--sop-dim); text-align:center; margin-top:20px;">NESSUN OPERATORE</li>';
     if(bravoCount === 0) listBravoManage.innerHTML = '<li class="placeholder-text" style="color:var(--sop-dim); text-align:center; margin-top:20px;">NESSUN OPERATORE</li>';
     
-    document.getElementById('header-alpha-manage').innerHTML = `${currentFactions.ALPHA.name} (${alphaCount}) <span class="action-btn" onclick="openFactionModal('ALPHA')" style="font-size:14px; float:right;">[EDIT]</span>`;
-    document.getElementById('header-bravo-manage').innerHTML = `${currentFactions.BRAVO.name} (${bravoCount}) <span class="action-btn" onclick="openFactionModal('BRAVO')" style="font-size:14px; float:right;">[EDIT]</span>`;
+    // --- VITTORIE ODIERNE NEL BOX ROSTER ---
+    document.getElementById('header-alpha-manage').innerHTML = `${currentFactions.ALPHA.name} (${alphaCount}) <span style="color:#fff; margin-left:15px; font-size:16px;">VITTORIE: ${currentFactions.ALPHA.daily_wins || 0}</span> <span class="action-btn" onclick="openFactionModal('ALPHA')" style="font-size:14px; float:right;">[EDIT]</span>`;
+    document.getElementById('header-bravo-manage').innerHTML = `${currentFactions.BRAVO.name} (${bravoCount}) <span style="color:#fff; margin-left:15px; font-size:16px;">VITTORIE: ${currentFactions.BRAVO.daily_wins || 0}</span> <span class="action-btn" onclick="openFactionModal('BRAVO')" style="font-size:14px; float:right;">[EDIT]</span>`;
     
     const setEl = (id, txt) => { const el = document.getElementById(id); if(el) el.textContent = txt; };
     setEl('header-alpha-track-in', `${currentFactions.ALPHA.name} IN CAMPO (${alphaInCount})`);
@@ -181,7 +182,7 @@ export function populateProfileModal(data) {
     setEl('modal-op-name-text', `PROFILE // ${data.alias}`);
     setEl('modal-op-uid', data.uid);
     setEl('modal-op-date', data.registered_at || 'Sconosciuta');
-    setEl('modal-op-asd', data.asd_team || 'NESSUNA'); // ASD
+    setEl('modal-op-asd', data.asd_team || 'NESSUNA');
     
     const games = data.games_played || 0;
     const wins = data.wins || 0;
@@ -271,11 +272,9 @@ function createTrackItem(player, socket, isInField) {
 
 export function openOperatorProfile(uid, socket) { currentProfileUid = uid; socket.emit('request_profile', {uid: uid}); }
 
-// Forziamo il render della lista immediatamente prima di aprire il modal
 window.openAddPlayerModal = function() { 
     renderAddPlayerList(cachedSocket, cachedArenaRoster);
     document.getElementById('add-player-modal').classList.remove('hidden'); 
 };
-
 window.closeAddPlayerModal = function() { document.getElementById('add-player-modal').classList.add('hidden'); };
 window.closeModal = function() { document.getElementById('operator-modal').classList.add('hidden'); };

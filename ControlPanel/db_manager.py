@@ -33,8 +33,6 @@ def init_db():
         except sqlite3.OperationalError: pass
         try: c.execute("ALTER TABLE players ADD COLUMN original_alias TEXT")
         except sqlite3.OperationalError: pass
-        
-        # --- NUOVA COLONNA: Squadra (ASD) ---
         try: c.execute("ALTER TABLE players ADD COLUMN asd_team TEXT DEFAULT 'NESSUNA'")
         except sqlite3.OperationalError: pass
 
@@ -56,8 +54,6 @@ def init_db():
                      
         try: c.execute("ALTER TABLE factions_config ADD COLUMN hex_color TEXT")
         except sqlite3.OperationalError: pass
-        
-        # --- NUOVA COLONNA: Vittorie Odierne ---
         try: c.execute("ALTER TABLE factions_config ADD COLUMN daily_wins INTEGER DEFAULT 0")
         except sqlite3.OperationalError: pass
         
@@ -106,6 +102,13 @@ def update_faction_wins(team_id, wins):
         conn.execute("UPDATE factions_config SET daily_wins = ? WHERE team_id = ?", (wins, team_id))
         conn.commit()
     return True
+
+# --- NUOVA FUNZIONE ---
+def reset_daily_wins():
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("UPDATE factions_config SET daily_wins = 0")
+        conn.commit()
+        logger.info("[DB] Vittorie di fazione odierne azzerate.")
 
 def get_device_alias(device_id):
     with sqlite3.connect(DB_PATH) as conn:
@@ -270,7 +273,6 @@ def process_match_stats(winner_state):
         with sqlite3.connect(DB_PATH) as conn:
             c = conn.cursor()
             
-            # 1. Aggiorna i giocatori nel roster
             c.execute("SELECT uid, team FROM active_roster")
             players = c.fetchall()
             p_count = 0
@@ -282,9 +284,7 @@ def process_match_stats(winner_state):
                     w_count += 1
                     c.execute("UPDATE players SET wins = COALESCE(wins, 0) + 1 WHERE uid = ?", (uid,))
             
-            # 2. Aggiorna le Vittorie Odierne (Daily Wins) della Fazione Vincitrice
             c.execute("UPDATE factions_config SET daily_wins = COALESCE(daily_wins, 0) + 1 WHERE team_id = ?", (winning_team,))
-            
             conn.commit()
             logger.info(f"[STATS SALVATE] +1 Partita a {p_count} giocatori | +1 Vittoria a {w_count} giocatori del Team {winning_team} e +1 Vittoria alla Fazione.")
     except Exception as e:
