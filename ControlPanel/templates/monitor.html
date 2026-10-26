@@ -69,18 +69,36 @@
             </div>
         </div>
         
-        <!-- RIGA 2 (Lato Destro): Regole e Mission Intel -->
-        <div id="widget-sd-rules" class="widget sop-card widget-rules hidden">
+        <!-- RIGA 2 (Lato Destro): Vittorie Odierne e Regole -->
+        <div id="widget-sd-rules" class="widget sop-card widget-rules hidden" style="display: flex; flex-direction: column;">
+            
+            <!-- BLOCCO VITTORIE ODIERNE -->
+            <div class="widget-header" style="border-bottom: 1px solid var(--sop-dim);">DAILY MATCH WINS</div>
+            <div style="display: flex; justify-content: space-around; align-items: center; padding: 15px 0; border-bottom: 2px dashed var(--sop-dim); background: rgba(0,0,0,0.4);">
+                <div style="text-align: center;">
+                    <div style="font-size: 14px; letter-spacing: 2px; margin-bottom: 5px; color: var(--sop-alert);" id="monitor-wins-lbl-a">ALPHA</div>
+                    <div id="monitor-wins-alpha" style="font-size: 45px; font-weight: bold; line-height: 1; color: var(--sop-alert); text-shadow: 0 0 10px rgba(255, 51, 51, 0.4);">0</div>
+                </div>
+                <div style="font-size: 24px; color: #555; font-weight: bold;">-</div>
+                <div style="text-align: center;">
+                    <div style="font-size: 14px; letter-spacing: 2px; margin-bottom: 5px; color: #55ff55;" id="monitor-wins-lbl-b">BRAVO</div>
+                    <div id="monitor-wins-bravo" style="font-size: 45px; font-weight: bold; line-height: 1; color: #55ff55; text-shadow: 0 0 10px rgba(85, 255, 85, 0.4);">0</div>
+                </div>
+            </div>
+
+            <!-- BLOCCO REGOLE DI PARTITA -->
             <div class="widget-header">MISSION INTEL // RULES</div>
-            <div class="widget-body rules-body">
+            <div class="widget-body rules-body" style="flex: 1; min-height: 0;">
                 <ul id="sd-rules-list" class="rules-list">
                     <li>WAITING FOR TELEMETRY...</li>
                 </ul>
-                <div class="rules-footer">
-                    <button id="btn-force-end" class="deck-btn btn-danger full-width" onclick="uiForceEndMission()">
-                        [ TERMINATE MISSION ]
-                    </button>
-                </div>
+            </div>
+
+            <!-- FOOTER CON BOTTONE TERMINA PARTITA -->
+            <div class="rules-footer">
+                <button id="btn-force-end" class="deck-btn btn-danger full-width" onclick="uiForceEndMission()">
+                    [ TERMINATE MISSION ]
+                </button>
             </div>
         </div>
     </div>

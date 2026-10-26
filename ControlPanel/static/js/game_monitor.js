@@ -26,6 +26,32 @@ export function resetMonitorLayout() {
     lastConfiguredMode = null;
 }
 
+// --- NUOVA FUNZIONE: Chiamata da main.js quando cambiano le fazioni ---
+export function updateMonitorDailyWins(factions) {
+    const setEl = (id, txt) => { const el = document.getElementById(id); if(el) el.textContent = txt; };
+    
+    setEl('monitor-wins-lbl-a', factions.ALPHA.name);
+    setEl('monitor-wins-lbl-b', factions.BRAVO.name);
+    setEl('monitor-wins-alpha', factions.ALPHA.daily_wins || 0);
+    setEl('monitor-wins-bravo', factions.BRAVO.daily_wins || 0);
+    
+    const alphaNum = document.getElementById('monitor-wins-alpha');
+    const alphaLbl = document.getElementById('monitor-wins-lbl-a');
+    if(alphaNum && alphaLbl) {
+        alphaNum.style.color = factions.ALPHA.color;
+        alphaNum.style.textShadow = `0 0 10px ${factions.ALPHA.color}66`;
+        alphaLbl.style.color = factions.ALPHA.color;
+    }
+    
+    const bravoNum = document.getElementById('monitor-wins-bravo');
+    const bravoLbl = document.getElementById('monitor-wins-lbl-b');
+    if(bravoNum && bravoLbl) {
+        bravoNum.style.color = factions.BRAVO.color;
+        bravoNum.style.textShadow = `0 0 10px ${factions.BRAVO.color}66`;
+        braLbl.style.color = factions.BRAVO.color;
+    }
+}
+
 export function updateUniversalFeed(payload, mode, msgType) {
     if (['KIOSK', 'MAIN MENU', 'TERMINAL'].includes(mode)) return;
     
@@ -36,7 +62,7 @@ export function updateUniversalFeed(payload, mode, msgType) {
         document.getElementById('widget-generic-map').classList.add('hidden');
         document.getElementById('monitor-mode-title').textContent = `OPERATION: ${mode.replace(/_/g, ' ').toUpperCase()}`;
         
-        // Imposta le barre a rosso/verde fisso!
+        // Imposta le barre a rosso/verde fisso
         const armBar = document.getElementById('sd-arm-bar');
         const defuseBar = document.getElementById('sd-defuse-bar');
         if (armBar) armBar.className = "progress-fill fill-red";
@@ -49,7 +75,6 @@ export function updateUniversalFeed(payload, mode, msgType) {
         const statusEl = document.getElementById('sd-bomb-status');
         statusEl.textContent = s;
         
-        // Fazioni (Fine Partita) vs Rosso/Verde (Durante il gioco)
         if (s.includes('WINS') || s.includes('OWNED')) {
             if (s.includes('CT WINS') || s.includes('BRAVO WINS') || s.includes('OWNED BRAVO') || s.includes(currentFactions.BRAVO.name)) {
                 statusEl.style.color = currentFactions.BRAVO.color; 
@@ -58,9 +83,9 @@ export function updateUniversalFeed(payload, mode, msgType) {
             }
         } else {
             if (s.includes('DEFUS') || s.includes('CAPTURING B')) {
-                statusEl.style.color = '#55ff55'; // VERDE 
+                statusEl.style.color = '#55ff55'; 
             } else if (s.includes('ARM') || s.includes('EXPLODED') || s.includes('CAPTURING A')) {
-                statusEl.style.color = '#ff3333'; // ROSSO
+                statusEl.style.color = '#ff3333'; 
             } else if (s === 'STANDBY' || s === 'PREPARING' || s === 'DRAW') {
                 statusEl.style.color = '#ff9900'; 
             } else {
@@ -128,6 +153,9 @@ export function updateUniversalFeed(payload, mode, msgType) {
 
     updateProgressBar(document.getElementById('sd-arm-bar'), width1, bar1Active, 1);
     updateProgressBar(document.getElementById('sd-defuse-bar'), width2, bar2Active, 2);
+    
+    // Aggiorniamo anche le daily wins in caso siano state caricate dopo l'apertura del monitor
+    updateMonitorDailyWins(currentFactions);
 }
 
 function updateProgressBar(barElem, width, isActive, timerRefName) {
