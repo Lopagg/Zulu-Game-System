@@ -14,11 +14,18 @@ def init_db():
         c.execute('''CREATE TABLE IF NOT EXISTS players
                      (uid TEXT PRIMARY KEY, alias TEXT, games_played INTEGER DEFAULT 0, wins INTEGER DEFAULT 0)''')
         
+        # --- FIX COLONNE MANCANTI ---
+        # Se la tabella players esisteva già, CREATE TABLE non aggiunge i nuovi campi.
+        # Forziamo l'inserimento con ALTER TABLE (se esistono già va in except e ignora)
         try: c.execute("ALTER TABLE players ADD COLUMN registered_at TEXT")
         except sqlite3.OperationalError: pass
         try: c.execute("ALTER TABLE players ADD COLUMN notes TEXT")
         except sqlite3.OperationalError: pass
         try: c.execute("ALTER TABLE players ADD COLUMN photo TEXT")
+        except sqlite3.OperationalError: pass
+        try: c.execute("ALTER TABLE players ADD COLUMN games_played INTEGER DEFAULT 0")
+        except sqlite3.OperationalError: pass
+        try: c.execute("ALTER TABLE players ADD COLUMN wins INTEGER DEFAULT 0")
         except sqlite3.OperationalError: pass
 
         c.execute('''CREATE TABLE IF NOT EXISTS active_roster
@@ -169,17 +176,19 @@ def update_player_photo(uid, filename):
 
 def process_match_stats(winner_state):
     winning_team = None
+    config = get_factions_config()
+    alpha_name = config.get('ALPHA', {}).get('name', 'ALPHA')
+    bravo_name = config.get('BRAVO', {}).get('name', 'BRAVO')
     
-    # Il backend ragiona solo sulle keyword standard.
-    if winner_state in ['ALPHA WINS', 'OWNED ALPHA', 'T WINS']:
+    # Copertura totale: standard backend ("T WINS"), Custom web ("SPETSNAZ WINS") 
+    if winner_state in ['ALPHA WINS', 'OWNED ALPHA', 'T WINS', f"{alpha_name} WINS", f"OWNED {alpha_name}"]:
         winning_team = 'ALPHA'
-    elif winner_state in ['BRAVO WINS', 'OWNED BRAVO', 'CT WINS']:
+    elif winner_state in ['BRAVO WINS', 'OWNED BRAVO', 'CT WINS', f"{bravo_name} WINS", f"OWNED {bravo_name}"]:
         winning_team = 'BRAVO'
         
     try:
         with sqlite3.connect(DB_PATH) as conn:
             c = conn.cursor()
-            # Rimosso il filtro status='IN', ora processiamo chiunque sia nel roster attivo
             c.execute("SELECT uid, team FROM active_roster")
             players = c.fetchall()
             for uid, team in players:

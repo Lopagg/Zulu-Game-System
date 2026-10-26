@@ -50,6 +50,9 @@ class TDMEngine(BaseGameMode):
             mc.state = end_state_str
             trigger_siren("SIREN_LONG") 
             db_manager.process_match_stats(end_state_str)
+            
+            if socketio: socketio.emit('database_update', db_manager.get_all_players())
+            
             doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": end_state_str, "game_time": mc.global_time_left } }
             if socketio: socketio.emit('esp_event', {"parsed_data": doc})
             mqtt_client.publish("zulu/telemetry/SERVER-TDM", json.dumps(doc), qos=1)
@@ -150,7 +153,6 @@ class MissionController:
                 
             logger.info(f"[MISSION CONTROL] Missione Globale Avviata: {mode.upper()} su {target_id}")
 
-        # --- FIX: Invio sicuro delle fazioni (Blocca crash del tasto Start) ---
         if target_id and target_id != "SERVER-TDM":
             try:
                 config = db_manager.get_factions_config()
@@ -287,7 +289,9 @@ def on_mqtt_message(client, userdata, msg):
                 cmd_str = payload.get('cmd')
                 if cmd_str: 
                     if cmd_str == "GAME_START":
-                        if mission_ready_flag and not mission_control.active_mission:
+                        can_override_start = not mission_control.active_mission or mission_control.state not in ["ACTIVE", "PREPARING"]
+                        
+                        if mission_ready_flag and can_override_start:
                             target = mission_control.target_id
                             mode = mission_control.mode
                             dur = int(mission_control.global_duration / 60) if mission_control.global_duration > 0 else 15
@@ -315,6 +319,8 @@ def on_mqtt_message(client, userdata, msg):
                                 if mission_control.mode == 'tdm':
                                     mission_control.state = "STOPPED"
                                     db_manager.process_match_stats("STOPPED")
+                                    if socketio: socketio.emit('database_update', db_manager.get_all_players())
+                                    
                                     doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": "STOPPED", "game_time": mission_control.global_time_left } }
                                     socketio.emit('esp_event', {"parsed_data": doc})
                                     trigger_siren("SIREN_LONG")
@@ -407,6 +413,9 @@ def on_mqtt_message(client, userdata, msg):
                         if new_state in ['T WINS', 'CT WINS', 'ALPHA WINS', 'BRAVO WINS', 'DRAW', 'STOPPED'] and old_state not in ['T WINS', 'CT WINS', 'ALPHA WINS', 'BRAVO WINS', 'DRAW', 'STOPPED']:
                             trigger_siren("SIREN_LONG")
                             db_manager.process_match_stats(new_state)
+                            
+                            if socketio: socketio.emit('database_update', db_manager.get_all_players())
+                            
                             mission_control.state = new_state
                         if old_state == 'PREPARING' and new_state in ['ACTIVE', 'SAFE', 'NEUTRAL']:
                             mission_control.state = "ACTIVE"
@@ -446,7 +455,8 @@ def background_cleanup(fetch_weather_callback):
         bravo_in = sum(1 for p in players if p[1] == 'BRAVO' and p[2] == 'IN')
         
         with mission_control.lock:
-            game_is_running = mission_control.active_mission
+            game_is_running = mission_control.active_mission and mission_control.state in ["ACTIVE", "PREPARING"]
+            
         if game_is_running:
             mission_ready_flag = False
 

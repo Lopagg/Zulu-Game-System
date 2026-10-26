@@ -127,7 +127,6 @@ def handle_connect():
     emit('factions_update', db_manager.get_factions_config())
     socketio.emit('roster_update', db_manager.get_full_roster())
     
-    # Invia il database completo subito dopo la connessione per precaricarlo
     emit('database_update', db_manager.get_all_players())
 
 @socketio.on('update_factions')
@@ -273,10 +272,14 @@ def handle_socket_command(data):
             if not game_engine.mission_control.active_mission or not rt: return
             if rt == "SERVER-TDM":
                 if "FORCE_END_GAME" in cmd_str:
-                    game_engine.mission_control.state = "STOPPED"
-                    socketio.emit('esp_event', {"parsed_data": { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": "STOPPED", "game_time": game_engine.mission_control.tdm_time_left } }})
-                    game_engine.trigger_siren("SIREN_LONG")
-                    db_manager.process_match_stats("STOPPED") 
+                    with game_engine.mission_control.lock:
+                        if game_engine.mission_control.state != "STOPPED":
+                            game_engine.mission_control.state = "STOPPED"
+                            db_manager.process_match_stats("STOPPED")
+                            if socketio: socketio.emit('database_update', db_manager.get_all_players())
+                            doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": "STOPPED", "game_time": game_engine.mission_control.global_time_left } }
+                            socketio.emit('esp_event', {"parsed_data": doc})
+                            game_engine.trigger_siren("SIREN_LONG")
                 elif "CLOSE_MISSION" in cmd_str:
                     game_engine.mission_control.end_mission()
                     socketio.emit('esp_event', {"parsed_data": {"id": "SERVER-TDM", "type": "MODE_EXIT"}})
