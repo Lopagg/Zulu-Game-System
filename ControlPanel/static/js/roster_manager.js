@@ -3,11 +3,18 @@ import { currentFactions } from './main.js';
 let currentProfileUid = null;
 export let globalPlayersDB = [];
 
+// Variabili per memorizzare la sessione e il roster correnti
+let cachedSocket = null;
+let cachedArenaRoster = {};
+
 export function getCurrentProfileUid() {
     return currentProfileUid;
 }
 
 export function renderArenaRoster(arenaRoster, socket) {
+    cachedSocket = socket;
+    cachedArenaRoster = arenaRoster;
+    
     const listAlphaManage = document.getElementById('roster-alpha-manage');
     const listBravoManage = document.getElementById('roster-bravo-manage');
     const listAlphaIn = document.getElementById('track-alpha-in');
@@ -70,6 +77,9 @@ export function renderArenaRoster(arenaRoster, socket) {
 
 export function renderDatabase(players, socket, arenaRoster) {
     globalPlayersDB = players;
+    cachedSocket = socket;
+    cachedArenaRoster = arenaRoster;
+    
     const modal = document.getElementById('add-player-modal');
     if (modal && !modal.classList.contains('hidden')) renderAddPlayerList(socket, arenaRoster);
 
@@ -122,9 +132,11 @@ export function renderAddPlayerList(socket, arenaRoster) {
     if (!list) return;
     list.innerHTML = '';
 
+    if (!globalPlayersDB || !arenaRoster) return;
+
     const availablePlayers = globalPlayersDB.filter(p => !arenaRoster[p.uid]);
     if (availablePlayers.length === 0) {
-        list.innerHTML = '<li class="placeholder-text" style="color:var(--sop-dim); text-align:center; margin-top:20px;">NESSUN GIOCATORE DISPONIBILE</li>';
+        list.innerHTML = '<li class="placeholder-text" style="color:var(--sop-dim); text-align:center; margin-top:20px;">NESSUN GIOCATORE DISPONIBILE O GIA\' IN CAMPO</li>';
         return;
     }
 
@@ -212,6 +224,12 @@ function createTrackItem(player, socket, isInField) {
 }
 
 export function openOperatorProfile(uid, socket) { currentProfileUid = uid; socket.emit('request_profile', {uid: uid}); }
-window.openAddPlayerModal = function() { document.getElementById('add-player-modal').classList.remove('hidden'); };
+
+// Forziamo il render della lista immediatamente prima di aprire il modal
+window.openAddPlayerModal = function() { 
+    renderAddPlayerList(cachedSocket, cachedArenaRoster);
+    document.getElementById('add-player-modal').classList.remove('hidden'); 
+};
+
 window.closeAddPlayerModal = function() { document.getElementById('add-player-modal').classList.add('hidden'); };
 window.closeModal = function() { document.getElementById('operator-modal').classList.add('hidden'); };
