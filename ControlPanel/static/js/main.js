@@ -268,3 +268,51 @@ window.uiForceEndMission = function() {
     const action = btn ? (btn.dataset.action || "FORCE_END_GAME") : "FORCE_END_GAME"; 
     socket.emit('send_command', { target_id: "SERVER-ROUTER", command: { cmd: action } });
 };
+
+// Aggiungi questo in fondo a main.js
+window.saveOperatorNotes = function() {
+    const uid = getCurrentProfileUid();
+    const notes = document.getElementById('modal-op-notes').value;
+    if(uid) socket.emit('save_notes', { uid: uid, notes: notes });
+    alert("Annotazioni salvate.");
+};
+
+window.handlePhotoUpload = function(input) {
+    if (input.files && input.files[0]) {
+        const formData = new FormData();
+        formData.append('photo', input.files[0]);
+        formData.append('uid', getCurrentProfileUid());
+        
+        fetch('/upload_photo', { method: 'POST', body: formData })
+        .then(response => response.json())
+        .then(data => {
+            if(data.status === 'ok') {
+                document.getElementById('modal-op-photo').src = `/static/uploads/${data.filename}?t=${new Date().getTime()}`;
+            }
+        });
+    }
+};
+
+window.resetOperatorStats = function() {
+    if(confirm("ATTENZIONE: Azzerare partite e vittorie di questo operatore?")) {
+        socket.emit('update_db_player', { uid: getCurrentProfileUid(), action: 'reset_stats' });
+        closeModal();
+    }
+};
+
+window.modKarma = function(val) {
+    const el = document.getElementById('modal-op-karma');
+    if(!el) return;
+    let currentKarma = parseInt(el.textContent) || 0;
+    currentKarma += val;
+    
+    // Aggiorniamo subito graficamente per reattività
+    el.textContent = currentKarma;
+    const badge = el.parentElement;
+    badge.classList.remove('positive', 'negative');
+    if (currentKarma < 0) badge.classList.add('negative');
+    else if (currentKarma > 0) badge.classList.add('positive');
+    
+    // Comunichiamo al server il nuovo valore fisso
+    socket.emit('update_karma', { uid: getCurrentProfileUid(), karma: currentKarma });
+};

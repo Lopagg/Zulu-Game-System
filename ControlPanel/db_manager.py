@@ -14,7 +14,6 @@ def init_db():
         c.execute('''CREATE TABLE IF NOT EXISTS players
                      (uid TEXT PRIMARY KEY, alias TEXT, games_played INTEGER DEFAULT 0, wins INTEGER DEFAULT 0)''')
         
-        # --- FIX COLONNE MANCANTI ---
         try: c.execute("ALTER TABLE players ADD COLUMN registered_at TEXT")
         except sqlite3.OperationalError: pass
         try: c.execute("ALTER TABLE players ADD COLUMN notes TEXT")
@@ -25,11 +24,14 @@ def init_db():
         except sqlite3.OperationalError: pass
         try: c.execute("ALTER TABLE players ADD COLUMN wins INTEGER DEFAULT 0")
         except sqlite3.OperationalError: pass
+        
+        # --- NUOVA COLONNA: KARMA ---
+        try: c.execute("ALTER TABLE players ADD COLUMN karma INTEGER DEFAULT 0")
+        except sqlite3.OperationalError: pass
 
-        # --- FIX TRAPPOLA NULL ---
-        # Spazza via i valori vuoti (NULL) dei vecchi giocatori e li converte in veri zeri
         c.execute("UPDATE players SET games_played = 0 WHERE games_played IS NULL")
         c.execute("UPDATE players SET wins = 0 WHERE wins IS NULL")
+        c.execute("UPDATE players SET karma = 0 WHERE karma IS NULL")
 
         c.execute('''CREATE TABLE IF NOT EXISTS active_roster
                      (uid TEXT PRIMARY KEY, team TEXT, status TEXT)''')
@@ -177,6 +179,16 @@ def update_player_photo(uid, filename):
         conn.execute("UPDATE players SET photo = ? WHERE uid = ?", (filename, uid))
         conn.commit()
 
+def reset_player_stats(uid):
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("UPDATE players SET games_played = 0, wins = 0 WHERE uid = ?", (uid,))
+        conn.commit()
+
+def update_player_karma(uid, new_karma):
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("UPDATE players SET karma = ? WHERE uid = ?", (new_karma, uid))
+        conn.commit()
+
 def process_match_stats(winner_state):
     raw_state = str(winner_state).strip().upper()
     logger.info(f"[DB] Analisi verdetto di fine partita per statistiche: '{raw_state}'")
@@ -213,7 +225,6 @@ def process_match_stats(winner_state):
             w_count = 0
             for uid, team in players:
                 p_count += 1
-                # COALESCE ripara la matematica se la cella è NULL
                 c.execute("UPDATE players SET games_played = COALESCE(games_played, 0) + 1 WHERE uid = ?", (uid,))
                 if team == winning_team:
                     w_count += 1

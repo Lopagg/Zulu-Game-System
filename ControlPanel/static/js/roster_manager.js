@@ -105,7 +105,6 @@ export function renderDatabase(players, socket, arenaRoster) {
         let winRate = 0;
         if (games > 0) winRate = Math.round((wins / games) * 100);
         
-        // Formattazione migliorata per la leggibilità delle statistiche (testi più grandi e chiari)
         nameSpan.innerHTML = `${player.alias} <span style="font-size: 16px; font-weight: normal; color: #aaa; margin-left: 15px; font-family: monospace;">(UID: ${player.uid}) &nbsp;&nbsp;|&nbsp;&nbsp; P: <span style="color:var(--sop-primary); font-weight:bold">${games}</span> &nbsp;&nbsp;V: <span style="color:var(--sop-success); font-weight:bold">${wins}</span> <span style="color: #666; font-size:14px;">(${winRate}%)</span></span>`;
         nameSpan.style.fontWeight = 'bold'; 
         nameSpan.style.fontSize = '22px'; 
@@ -181,10 +180,26 @@ export function populateProfileModal(data) {
     setEl('modal-op-uid', data.uid);
     setEl('modal-op-date', data.registered_at || 'Sconosciuta');
     
-    // Mostriamo anche le vittorie nel pannello profilo
+    // Assegnazione Griglia Statistiche
     const games = data.games_played || 0;
     const wins = data.wins || 0;
-    setEl('modal-op-games', `${games} (Vittorie: ${wins})`);
+    let winRate = 0;
+    if (games > 0) winRate = Math.round((wins / games) * 100);
+    
+    setEl('modal-stat-games', games);
+    setEl('modal-stat-wins', wins);
+    setEl('modal-stat-rate', `${winRate}%`);
+    
+    // Gestione KARMA
+    const karma = data.karma || 0;
+    const karmaEl = document.getElementById('modal-op-karma');
+    if(karmaEl) {
+        karmaEl.textContent = karma;
+        const badge = karmaEl.parentElement;
+        badge.classList.remove('positive', 'negative');
+        if (karma < 0) badge.classList.add('negative');
+        else if (karma > 0) badge.classList.add('positive');
+    }
     
     const notesEl = document.getElementById('modal-op-notes');
     if(notesEl) notesEl.value = data.notes || '';
@@ -238,7 +253,6 @@ function createTrackItem(player, socket, isInField) {
 
 export function openOperatorProfile(uid, socket) { currentProfileUid = uid; socket.emit('request_profile', {uid: uid}); }
 
-// Forziamo il render della lista immediatamente prima di aprire il modal
 window.openAddPlayerModal = function() { 
     renderAddPlayerList(cachedSocket, cachedArenaRoster);
     document.getElementById('add-player-modal').classList.remove('hidden'); 

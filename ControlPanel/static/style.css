@@ -223,14 +223,12 @@ body {
 
 .grid-dashboard {
     display: grid; 
-    /* La colonna sinistra prende 2 quote (2/3), la destra prende 1 quota (1/3) */
     grid-template-columns: 3fr 2fr; 
     grid-template-rows: auto minmax(0, 1fr);
     gap: 20px; 
     height: calc(100% - 95px); 
 }
 
-/* Aggiunto min-height: 0 per impedire a CSS Grid di rompere i bordi in verticale */
 .widget { background: rgba(0, 0, 0, 0.3); border: 1px solid var(--sop-dim); display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
 .widget-header { background: var(--sop-dim); color: var(--sop-text); padding: 8px 12px; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; flex-shrink: 0; font-weight: bold; }
 .widget-body { flex: 1; display: flex; justify-content: center; align-items: center; position: relative; overflow: hidden; padding: 15px; min-height: 0; }
@@ -256,9 +254,9 @@ body {
     border: 3px solid var(--sop-alert); 
     border-radius: 8px; 
     margin: 0 auto; 
-    padding: 10px 0 10px 8px; /* 8px a sinistra bilanciano il letter-spacing a destra */
-    width: fit-content;       /* Il box si adatta esattamente alla larghezza del testo */
-    min-width: 400px;         /* Impedisce al box di rimpicciolirsi troppo */
+    padding: 10px 0 10px 8px; 
+    width: fit-content;       
+    min-width: 400px;         
     display: flex;
     justify-content: center;
     align-items: center;
@@ -286,14 +284,13 @@ body {
 .faction-container { flex-direction: column !important; align-items: stretch !important; justify-content: flex-start !important; padding: 20px !important; min-height: 0; }
 .faction-grid { width: 100%; display: flex; justify-content: space-around; margin-bottom: 15px; flex-shrink: 0; }
 
-/* Centra sia il numero (score) che il nome della fazione (name) */
 .faction { 
     display: flex; 
     flex-direction: column; 
     align-items: center; 
     justify-content: center; 
     text-align: center; 
-    width: 45%; /* Forza i due team ad avere la stessa larghezza ai lati del VS */
+    width: 45%; 
 }
 .faction-score { display: block; font-size: 55px; font-weight: bold; line-height: 1; margin-bottom: 5px; text-align: center; }
 
@@ -301,7 +298,6 @@ body {
 .faction-b .faction-score { color: var(--sop-success); }
 .vs-divider { font-size: 28px; color: #555; align-self: center; font-weight: bold; }
 
-/* Imposta lo scroll esclusivo SOLO sulla lista operatori */
 .faction-rosters { display: flex; justify-content: space-between; width: 100%; border-top: 1px solid var(--sop-dim); padding-top: 15px; margin-top: 5px; flex: 1; overflow-y: auto; min-height: 0; }
 .monitor-roster-list { list-style: none; padding: 0; margin: 0; width: 48%; }
 .monitor-roster-list li { font-size: 24px; font-weight: bold; padding: 10px 0; border-bottom: 1px dashed rgba(255,255,255,0.1); text-align: center; }
@@ -324,15 +320,29 @@ body {
 .rules-footer { flex-shrink: 0; padding: 15px !important; border-top: 1px solid var(--sop-dim); background: rgba(255, 0, 0, 0.05); }
 .full-width { width: 100%; font-size: 18px; padding: 15px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; margin: 0;}
 
-/* --- MODAL PROFILE --- */
+/* --- MODAL PROFILE (Migliorata e ingrandita) --- */
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; display: flex; justify-content: center; align-items: center; backdrop-filter: blur(5px); }
-.profile-modal { width: 650px; max-width: 90%; background: var(--sop-bg); border: 2px solid var(--sop-primary); box-shadow: 0 0 30px rgba(0,255,204,0.2); }
-.profile-grid { display: grid; grid-template-columns: 220px 1fr; gap: 25px; padding: 25px; }
-.photo-frame { width: 100%; height: 260px; border: 1px solid var(--sop-dim); background: rgba(0,255,204,0.05); display: flex; justify-content: center; align-items: center; margin-bottom: 15px; overflow: hidden; }
+.profile-modal { width: 850px; max-width: 95%; background: var(--sop-bg); border: 2px solid var(--sop-primary); box-shadow: 0 0 30px rgba(0,255,204,0.2); }
+.profile-grid { display: grid; grid-template-columns: 280px 1fr; gap: 30px; padding: 30px; }
+.photo-frame { width: 100%; height: 300px; border: 1px solid var(--sop-dim); background: rgba(0,255,204,0.05); display: flex; justify-content: center; align-items: center; margin-bottom: 15px; overflow: hidden; }
 .photo-frame img { width: 100%; height: 100%; object-fit: cover; }
-.tactical-textarea { resize: none; font-size: 15px; background: rgba(0,0,0,0.8); padding: 15px;}
+.tactical-textarea { resize: none; font-size: 16px; background: rgba(0,0,0,0.8); padding: 15px; font-family: 'Share Tech Mono', monospace; line-height: 1.5; border-color: var(--sop-dim);}
 .close-modal-btn { background: transparent; border: none; color: var(--sop-alert); font-size: 24px; font-weight: bold; cursor: pointer; transition: 0.2s; }
 .close-modal-btn:hover { text-shadow: 0 0 15px var(--sop-alert); transform: scale(1.1); }
+
+/* --- STATS GRID & KARMA --- */
+.stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 25px; }
+.stat-box { background: rgba(0,0,0,0.5); border: 1px solid var(--sop-dim); padding: 15px; text-align: center; border-radius: 4px; display: flex; flex-direction: column; justify-content: center; }
+.stat-lbl { font-size: 11px; color: #888; letter-spacing: 1.5px; margin-bottom: 8px; display: block; font-weight: bold; }
+.stat-val { font-size: 32px; font-weight: bold; font-family: monospace; }
+
+.karma-container { display: flex; align-items: stretch; justify-content: space-between; gap: 5px; height: 65px;}
+.karma-btn { flex: 1; background: transparent; border: 1px solid var(--sop-dim); color: var(--sop-text); font-family: monospace; font-size: 24px; font-weight: bold; cursor: pointer; transition: 0.2s;}
+.karma-btn.minus:hover { background: rgba(255,51,51,0.2); border-color: var(--sop-alert); color: var(--sop-alert); }
+.karma-btn.plus:hover { background: rgba(85,255,85,0.2); border-color: var(--sop-success); color: var(--sop-success); }
+.karma-badge { flex: 1.5; background: var(--sop-primary); color: var(--sop-bg); display: flex; flex-direction: column; justify-content: center; align-items: center; font-size: 28px; font-weight: bold; border-radius: 4px;}
+.karma-badge.negative { background: var(--sop-alert); color: #fff;}
+.karma-badge.positive { background: var(--sop-secondary); color: #000;}
 
 /* --- ARENA COMMAND CENTER --- */
 .arena-grid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: minmax(250px, 1fr) auto; gap: 20px; height: calc(100% - 55px); }
