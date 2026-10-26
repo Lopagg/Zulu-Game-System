@@ -125,10 +125,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- FIX BUG SCHERMATA BLOCCATA SU START MISSION ---
     socket.on('mission_start_warning', (data) => {
         if(confirm(data.msg)) {
-            data.original_request.force = true; // Se l'utente clicca OK, forza l'avvio scavalcando il blocco Python
+            data.original_request.force = true; 
             socket.emit('request_mission_start', data.original_request);
         } else {
-            // Se l'utente clicca Annulla, sblocca il bottone grafico per riprovare
             document.getElementById('btn-start-mission').classList.remove('disabled'); 
             document.getElementById('btn-start-mission').disabled = false; 
         }
@@ -173,7 +172,7 @@ socket.on('factions_update', (factions) => {
     renderArenaRoster(arenaRoster, socket);
     if (typeof globalPlayersDB !== 'undefined' && globalPlayersDB.length > 0) renderDatabase(globalPlayersDB, socket, arenaRoster);
     
-    updateMonitorDailyWins(factions); // Aggiorna graficamente i numeri sul monitor centrale
+    updateMonitorDailyWins(factions); 
     
     const attackerSelect = document.getElementById('sd-attacker-team');
     if (attackerSelect) {
@@ -356,7 +355,6 @@ window.purgeGuests = function() {
     }
 };
 
-// --- TASTO NUOVO: RESET DELLE VITTORIE DIURNE ---
 window.resetDailyWins = function() {
     if(confirm("ATTENZIONE: Vuoi azzerare i contatori delle vittorie odierne per ENTRAMBE le Fazioni?")) {
         socket.emit('reset_daily_wins');
@@ -472,13 +470,6 @@ window.submitRegistration = function() {
     
     closeRegistrationModal();
 };
-
-window.openAddPlayerModal = function() { 
-    renderAddPlayerList(socket, arenaRoster); 
-    document.getElementById('add-player-modal').classList.remove('hidden'); 
-};
-window.closeAddPlayerModal = function() { document.getElementById('add-player-modal').classList.add('hidden'); };
-window.closeModal = function() { document.getElementById('operator-modal').classList.add('hidden'); };
 
 socket.on('raw_tag_scanned', (data) => {
     const modal = document.getElementById('registration-modal');
