@@ -2,7 +2,8 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- Viewport blindato: impedisce lo zoom e il ridimensionamento anomalo -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
     <title>ZULU // MOBILE CMD</title>
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
@@ -11,42 +12,95 @@
             --sop-bg: #050505; --sop-panel: #111; --sop-primary: #00ffcc;
             --sop-alert: #ff3333; --sop-success: #55ff55; --sop-dim: #333;
         }
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Share Tech Mono', monospace; user-select: none; }
         
-        /* Uso di dvh per supportare l'UI a scomparsa di Safari/Chrome su Mobile */
-        body { background: var(--sop-bg); color: #eee; height: 100dvh; width: 100vw; display: flex; flex-direction: column; overflow: hidden; }
+        * { 
+            box-sizing: border-box; 
+            margin: 0; padding: 0; 
+            font-family: 'Share Tech Mono', monospace; 
+            user-select: none;
+            -webkit-tap-highlight-color: transparent; 
+        }
         
-        .header { background: #000; border-bottom: 2px solid var(--sop-primary); padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
-        .header h1 { font-size: 1.3rem; margin: 0; color: var(--sop-primary); letter-spacing: 2px; }
-        .logout { color: var(--sop-alert); text-decoration: none; font-size: 0.9rem; border: 1px solid var(--sop-alert); padding: 5px 10px; border-radius: 3px; }
+        /* Layout Monolitico: 100% dello schermo esatto, senza scorrimento della pagina intera */
+        html, body {
+            background: var(--sop-bg); color: #eee; 
+            height: 100vh; height: 100dvh; /* Supporto ai nuovi browser mobile */
+            width: 100vw; max-width: 100%;
+            display: flex; flex-direction: column; 
+            overflow: hidden; /* Blocca ogni scorrimento fuori schermo */
+        }
         
-        .content { flex: 1; overflow-y: auto; overflow-x: hidden; position: relative; width: 100%; display: flex; flex-direction: column;}
+        /* HEADER FISSO IN ALTO */
+        .header { 
+            background: #000; border-bottom: 2px solid var(--sop-primary); 
+            padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; 
+            flex-shrink: 0;
+        }
+        .header h1 { font-size: 20px; margin: 0; color: var(--sop-primary); letter-spacing: 2px; }
+        .logout { color: var(--sop-alert); text-decoration: none; font-size: 14px; font-weight: bold; border: 1px solid var(--sop-alert); padding: 6px 12px; border-radius: 4px; }
         
-        .tab-view { display: none; flex-direction: column; width: 100%; padding: 20px; min-height: 100%; }
+        /* CONTENITORE CENTRALE */
+        .content { 
+            flex: 1; /* Prende tutto lo spazio tra header e menu in basso */
+            position: relative; 
+            width: 100%; 
+            overflow: hidden; /* La content non scorre, scorrono le tab internamente */
+        }
+        
+        /* TAB INTERNE (Fatte per scorrere se i contenuti sono troppi) */
+        .tab-view { 
+            display: none; flex-direction: column; 
+            width: 100%; height: 100%; padding: 20px; 
+            overflow-y: auto; overflow-x: hidden;
+        }
         .tab-view.active { display: flex; }
         
-        .top-zone { display: flex; flex-direction: column; align-items: center; justify-content: center; margin-bottom: 30px; }
-        .bottom-zone { margin-top: auto; display: flex; flex-direction: column; gap: 15px; }
+        /* ZONE DI LAYOUT TAB 1 */
+        .top-zone { display: flex; flex-direction: column; align-items: center; justify-content: center; margin-bottom: 20px; flex: 1; }
+        .bottom-zone { margin-top: auto; display: flex; flex-direction: column; gap: 15px; flex-shrink: 0; padding-bottom: 5px;}
         
-        .status-display { text-align: center; font-size: 1.5rem; letter-spacing: 2px; font-weight: bold; margin-bottom: 10px;}
-        .timer-display { font-size: 5.5rem; text-align: center; color: var(--sop-primary); text-shadow: 0 0 15px rgba(0,255,204,0.3); line-height: 1; }
+        .status-display { text-align: center; font-size: 24px; letter-spacing: 2px; font-weight: bold; margin-bottom: 15px;}
+        .timer-display { font-size: 75px; text-align: center; color: var(--sop-primary); text-shadow: 0 0 15px rgba(0,255,204,0.3); line-height: 1; }
         
-        .btn { width: 100%; padding: 18px; font-size: 1.1rem; font-weight: bold; background: rgba(0,0,0,0.5); color: var(--sop-primary); border: 2px solid var(--sop-primary); border-radius: 4px; letter-spacing: 1px;}
+        /* PULSANTI TATTICI ENORMI */
+        .btn { 
+            width: 100%; padding: 20px; font-size: 18px; font-weight: bold; 
+            background: rgba(0,0,0,0.5); color: var(--sop-primary); 
+            border: 2px solid var(--sop-primary); border-radius: 4px; letter-spacing: 1px;
+            text-align: center; display: block;
+        }
         .btn:active { background: var(--sop-primary); color: #000; }
         .btn.danger { color: var(--sop-alert); border-color: var(--sop-alert); }
         .btn.danger:active { background: var(--sop-alert); color: #fff; }
         
-        .input-group { margin-bottom: 20px; width: 100%; }
-        .input-group label { display: block; color: #888; margin-bottom: 8px; font-size: 1rem; }
-        .input-group select, .input-group input { width: 100%; padding: 15px; background: rgba(0,0,0,0.8); border: 1px solid var(--sop-dim); color: #fff; font-size: 1.2rem; border-radius: 4px;}
+        /* INPUT FORMS */
+        .input-group { margin-bottom: 25px; width: 100%; }
+        .input-group label { display: block; color: #888; margin-bottom: 8px; font-size: 14px; font-weight: bold; }
+        .input-group select, .input-group input { 
+            width: 100%; padding: 15px; background: rgba(0,0,0,0.8); 
+            border: 1px solid var(--sop-dim); color: #fff; font-size: 18px; border-radius: 4px;
+            outline: none;
+        }
         
-        /* FIX NFC LOG per non sforare orizzontalmente */
-        .nfc-log { flex: 1; background: rgba(0,0,0,0.5); border: 1px solid var(--sop-dim); padding: 10px; overflow-y: auto; margin-top: 20px; font-family: 'Courier New', monospace; font-size: 0.85rem; color: #aaa; word-wrap: break-word; white-space: pre-wrap; min-height: 150px;}
-        .nfc-scan-indicator { text-align: center; margin-top: 15px; font-size: 1.1rem; color: #888; }
+        /* NFC LOG (Blindato per non sfondare lo schermo) */
+        .nfc-log { 
+            flex: 1; min-height: 150px;
+            background: rgba(0,0,0,0.5); border: 1px solid var(--sop-dim); padding: 15px; 
+            overflow-y: auto; overflow-x: hidden; margin-top: 20px; 
+            font-family: 'Courier New', monospace; font-size: 14px; color: #aaa; 
+            word-wrap: break-word; word-break: break-all; white-space: pre-wrap;
+        }
+        .nfc-scan-indicator { text-align: center; margin-top: 20px; font-size: 16px; color: #888; }
         
-        /* NAVBAR INFERIORE */
-        .bottom-nav { display: flex; background: #000; border-top: 1px solid var(--sop-dim); flex-shrink: 0; padding-bottom: env(safe-area-inset-bottom); }
-        .nav-btn { flex: 1; padding: 20px 0; text-align: center; color: #666; font-size: 0.95rem; font-weight: bold; background: transparent; border: none; outline: none; border-bottom: 3px solid transparent; letter-spacing: 1px; }
+        /* MENU NAVIGAZIONE INFERIORE */
+        .bottom-nav { 
+            display: flex; background: #000; border-top: 1px solid var(--sop-dim); 
+            flex-shrink: 0; padding-bottom: env(safe-area-inset-bottom); /* Supporto tacca iPhone/Android */
+        }
+        .nav-btn { 
+            flex: 1; padding: 22px 0; text-align: center; color: #666; font-size: 14px; font-weight: bold; 
+            background: transparent; border: none; outline: none; border-bottom: 3px solid transparent; letter-spacing: 1px; 
+        }
         .nav-btn.active { color: var(--sop-primary); border-bottom-color: var(--sop-primary); background: rgba(0,255,204,0.05); }
     </style>
 </head>
@@ -58,7 +112,7 @@
     </div>
 
     <div class="content">
-        <!-- TAB 1: CONTROL (Timer e Stop) -->
+        <!-- TAB 1: CONTROL -->
         <div id="tab-control" class="tab-view active">
             <div class="top-zone">
                 <div class="status-display" id="mob-status">STANDBY</div>
@@ -71,9 +125,9 @@
             </div>
         </div>
 
-        <!-- TAB 2: SETUP RAPIDO -->
+        <!-- TAB 2: SETUP -->
         <div id="tab-setup" class="tab-view">
-            <h2 style="color: #fff; font-size: 1.2rem; margin-bottom: 25px; text-align:center;">AVVIO RAPIDO MISSIONE</h2>
+            <h2 style="color: #fff; font-size: 18px; margin-bottom: 25px; text-align:center;">AVVIO RAPIDO MISSIONE</h2>
             <div class="input-group">
                 <label>MODALITÀ DI GIOCO</label>
                 <select id="mob-mode">
@@ -90,16 +144,16 @@
             </div>
         </div>
 
-        <!-- TAB 3: KIOSK DIGITALE (NFC) -->
+        <!-- TAB 3: NFC -->
         <div id="tab-nfc" class="tab-view">
-            <h2 style="color: #fff; font-size: 1.2rem; margin-bottom: 10px; text-align: center;">KIOSK NFC TATTICO</h2>
-            <p style="color:#888; font-size:0.8rem; text-align:center; margin-bottom: 20px; line-height: 1.4;">Richiede Chrome su Android. Appoggia le tessere (NTAG215) sul retro del telefono.</p>
+            <h2 style="color: #fff; font-size: 18px; margin-bottom: 10px; text-align: center;">KIOSK NFC TATTICO</h2>
+            <p style="color:#888; font-size:13px; text-align:center; margin-bottom: 25px; line-height: 1.4;">Richiede Chrome su Android. Appoggia le tessere sul retro del telefono.</p>
             
-            <button class="btn" id="btn-nfc" onclick="startNfcScanner()" style="border-width: 3px; font-size: 1.3rem; padding: 25px;">[ ACCENDI SENSORE ]</button>
+            <button class="btn" id="btn-nfc" onclick="startNfcScanner()" style="border-width: 3px; font-size: 20px; padding: 25px;">[ ACCENDI SENSORE ]</button>
             <div class="nfc-scan-indicator" id="nfc-status">Sensore Inattivo</div>
             
             <div class="nfc-log" id="nfc-log">
-                <div>> Pronto all'uso...</div>
+                <div>> Sistema pronto...</div>
             </div>
         </div>
     </div>
