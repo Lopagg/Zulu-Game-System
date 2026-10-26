@@ -99,8 +99,17 @@ export function renderDatabase(players, socket, arenaRoster) {
         li.className = 'roster-item';
 
         const nameSpan = document.createElement('span');
-        nameSpan.textContent = `${player.alias} (UID: ${player.uid})`;
-        nameSpan.style.fontWeight = 'bold'; nameSpan.style.fontSize = '20px'; nameSpan.className = 'clickable-name';
+        
+        // --- MODIFICA: Aggiunto calcolo Win Rate e stampa statistiche ---
+        const games = player.games_played || 0;
+        const wins = player.wins || 0;
+        let winRate = 0;
+        if (games > 0) winRate = Math.round((wins / games) * 100);
+        
+        nameSpan.innerHTML = `${player.alias} <span style="font-size: 14px; font-weight: normal; color: var(--sop-dim); margin-left: 10px;">(UID: ${player.uid}) | P: <span style="color:#fff">${games}</span> V: <span style="color:#55ff55">${wins}</span> (${winRate}%)</span>`;
+        nameSpan.style.fontWeight = 'bold'; 
+        nameSpan.style.fontSize = '20px'; 
+        nameSpan.className = 'clickable-name';
         nameSpan.onclick = () => openOperatorProfile(player.uid, socket);
 
         const controlsDiv = document.createElement('div');
@@ -171,7 +180,11 @@ export function populateProfileModal(data) {
     setEl('modal-op-name', `PROFILE // ${data.alias}`);
     setEl('modal-op-uid', data.uid);
     setEl('modal-op-date', data.registered_at || 'Sconosciuta');
-    setEl('modal-op-games', data.games_played || 0);
+    
+    // Mostriamo anche le vittorie nel pannello profilo
+    const games = data.games_played || 0;
+    const wins = data.wins || 0;
+    setEl('modal-op-games', `${games} (Vittorie: ${wins})`);
     
     const notesEl = document.getElementById('modal-op-notes');
     if(notesEl) notesEl.value = data.notes || '';
@@ -225,7 +238,6 @@ function createTrackItem(player, socket, isInField) {
 
 export function openOperatorProfile(uid, socket) { currentProfileUid = uid; socket.emit('request_profile', {uid: uid}); }
 
-// Forziamo il render della lista immediatamente prima di aprire il modal
 window.openAddPlayerModal = function() { 
     renderAddPlayerList(cachedSocket, cachedArenaRoster);
     document.getElementById('add-player-modal').classList.remove('hidden'); 

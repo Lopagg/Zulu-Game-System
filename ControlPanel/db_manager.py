@@ -171,9 +171,20 @@ def update_player_photo(uid, filename):
         conn.commit()
 
 def process_match_stats(winner_state):
+    """
+    Assegna vittorie e partite giocate agli operatori IN CAMPO al termine di un match.
+    Supporta nomi dinamici delle fazioni.
+    """
     winning_team = None
-    if winner_state in ['ALPHA WINS', 'OWNED ALPHA', 'T WINS']: winning_team = 'ALPHA'
-    elif winner_state in ['BRAVO WINS', 'OWNED BRAVO', 'CT WINS']: winning_team = 'BRAVO'
+    config = get_factions_config()
+    alpha_name = config['ALPHA']['name']
+    bravo_name = config['BRAVO']['name']
+    
+    # Controlla se la stringa di vittoria contiene il nome della fazione 1 o fazione 2
+    if winner_state in ['T WINS', f"{alpha_name} WINS", f"OWNED {alpha_name}"]:
+        winning_team = 'ALPHA'
+    elif winner_state in ['CT WINS', f"{bravo_name} WINS", f"OWNED {bravo_name}"]:
+        winning_team = 'BRAVO'
         
     try:
         with sqlite3.connect(DB_PATH) as conn:
@@ -181,10 +192,12 @@ def process_match_stats(winner_state):
             c.execute("SELECT uid, team FROM active_roster WHERE status='IN'")
             players = c.fetchall()
             for uid, team in players:
+                # Tutti quelli in campo prendono +1 giocata
                 c.execute("UPDATE players SET games_played = games_played + 1 WHERE uid = ?", (uid,))
+                # Se la tua squadra ha vinto, prendi +1 vittoria
                 if winning_team and team == winning_team:
                     c.execute("UPDATE players SET wins = wins + 1 WHERE uid = ?", (uid,))
             conn.commit()
-            logger.info(f"[STATS] Aggiornate statistiche. Team Vittorioso: {winning_team or 'NESSUNO'}")
+            logger.info(f"[STATS] Aggiornate statistiche per {len(players)} operatori. Team Vittorioso: {winning_team or 'NESSUNO'}")
     except Exception as e:
         logger.error(f"[ERROR STATS] {e}")
