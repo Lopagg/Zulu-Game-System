@@ -104,16 +104,19 @@ class SDEngine(BaseGameMode):
         event_name = payload.get('event')
         cmd_to_send = None
         
-        # FIX: Il server C++ usa "winnerTeam.indexOf("ALPHA")" in SearchDestroyMode.cpp riga 544
-        # Quindi diamogli esattamente il NOME DELLA SQUADRA (ALPHA o BRAVO), non T/CT!
+        # FIX C++: Siccome nel RAT l'esplosione accende T1 e il disinnesco T2,
+        # e avendo noi messo l'Attaccante in T1, 
+        # inganniamo il C++ dicendogli di cercare testualmente "ALPHA" per accendere T1 e "BRAVO" per T2,
+        # indipendentemente dai veri nomi delle squadre. Il Web e la TV capiranno dal server!
         if event_name == 'BOMB_EXPLODED':
-            cmd_to_send = {"cmd": "FORCE_WIN", "winner": mc.sd_attacker_team, "reason": "BOMBA ESPLOSA!"}
+            cmd_to_send = {"cmd": "FORCE_WIN", "winner": "ALPHA", "reason": "BOMBA ESPLOSA!"}
         elif event_name == 'BOMB_DEFUSED':
-            cmd_to_send = {"cmd": "FORCE_WIN", "winner": mc.sd_defender_team, "reason": "BOMBA DISINNESCATA!"}
+            cmd_to_send = {"cmd": "FORCE_WIN", "winner": "BRAVO", "reason": "BOMBA DISINNESCATA!"}
             
         if cmd_to_send:
             try: mqtt_client.publish(f"zulu/cmd/{mc.target_id}", json.dumps(cmd_to_send), qos=1)
             except Exception as e: logger.error(f"[MQTT ERROR] Impossibile inviare verdetto: {e}")
+
 
 class MissionController:
     def __init__(self):
@@ -152,19 +155,29 @@ class MissionController:
         if target_id and target_id != "SERVER-TDM":
             try:
                 config = db_manager.get_factions_config()
-                def hex_to_rgb(hex_code):
-                    if not hex_code: return (255, 255, 255)
-                    hex_code = str(hex_code).lstrip('#')
-                    return tuple(int(hex_code[i:i+2], 16) for i in (0, 2, 4))
                 
-                # FIX: Ripristinato T1=ALPHA e T2=BRAVO, così i Kiosk possono 
-                # purificare correttamente l'RGB!
+                # Questa funzione trasforma da sola il rosso e il verde in PURI
+                # aggirando la condizione stringente dell'hardware Kiosk!
+                def get_pure_rgb(hex_code):
+                    h = str(hex_code).lstrip('#').lower()
+                    if h == 'ff3333': return (255, 0, 0)
+                    if h == '55ff55': return (0, 255, 0)
+                    return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
+                
+                # BUG FIX: t1 è SEMPRE l'Attaccante, t2 è SEMPRE il Difensore!
+                if mode == 'sd':
+                    t1_id = self.sd_attacker_team
+                    t2_id = self.sd_defender_team
+                else:
+                    t1_id = 'ALPHA'
+                    t2_id = 'BRAVO'
+
                 payload = {
                     "cmd": "SET_FACTIONS",
-                    "t1": config.get('ALPHA', {}).get('name', 'ALPHA'), 
-                    "t1_c": hex_to_rgb(config.get('ALPHA', {}).get('color', '#ff3333')),
-                    "t2": config.get('BRAVO', {}).get('name', 'BRAVO'), 
-                    "t2_c": hex_to_rgb(config.get('BRAVO', {}).get('color', '#55ff55'))
+                    "t1": config.get(t1_id, {}).get('name', t1_id), 
+                    "t1_c": get_pure_rgb(config.get(t1_id, {}).get('color', '#ff3333')),
+                    "t2": config.get(t2_id, {}).get('name', t2_id), 
+                    "t2_c": get_pure_rgb(config.get(t2_id, {}).get('color', '#55ff55'))
                 }
                 mqtt_client.publish(f"zulu/cmd/{target_id}", json.dumps(payload))
             except Exception as e:
@@ -367,17 +380,13 @@ def on_mqtt_message(client, userdata, msg):
                 if mission_control.is_authorized_node(device_id) and mission_control.active_engine:
                     mission_control.active_engine.handle_event(device_id, payload)
 
-            if msg_type == 'SETTINGS_UPDATE' and not mission_control.active_mission:
-                if payload.get("bomb_time") is not None:
-                    # Rimuoviamo il salvataggio in locale: il web comanda!
-                    pass
-
             if msg_type in ['MODE_ENTER', 'SD_UPDATE', 'DOM_UPDATE']:
                 if mission_control.is_authorized_node(device_id):
                     if mission_control.mode == 'sd' and mission_control.sd_settings:
-                        # Iniettiamo costantemente i settaggi (es. attacker, duration) per il web
                         for k, v in mission_control.sd_settings.items():
-                            if k not in ['cmd', 'target_id']:
+                            # BUG FIX: Ignoriamo i contatori "vivi" che trasmette il RAT 
+                            # in modo che il tempo non rimanga a 7 o a 100 fisso.
+                            if k not in ['cmd', 'target_id', 'bomb_time', 'game_duration']:
                                 parsed['payload'][k] = v
 
             if msg_type not in ['TAG_SCANNED', 'TAG_ASSIGN', 'TERMINAL_INPUT', 'MATCH_EVENT']:
@@ -387,8 +396,6 @@ def on_mqtt_message(client, userdata, msg):
                               state = parsed['payload'].get('state', '')
                               parsed['payload']['game_time'] = mission_control.global_time_left
                               
-                              # Ora il C++ manda direttamente T WINS/CT WINS (offline) o "ALPHA WINS" (online dal server)
-                              # Se per caso arriva T WINS, traduciamo l'attaccante correttamente.
                               if state == 'T WINS': parsed['payload']['state'] = f"{mission_control.sd_attacker_team} WINS"
                               elif state == 'CT WINS': parsed['payload']['state'] = f"{mission_control.sd_defender_team} WINS"
                               
@@ -400,7 +407,6 @@ def on_mqtt_message(client, userdata, msg):
                     old_state = registry.devices[device_id].get("game_state", "STANDBY")
                     
                     if mission_control.mode == 'sd':
-                        # Interpretiamo per il database
                         if new_state == 'T WINS': new_state = f"{mission_control.sd_attacker_team} WINS"
                         elif new_state == 'CT WINS': new_state = f"{mission_control.sd_defender_team} WINS"
 

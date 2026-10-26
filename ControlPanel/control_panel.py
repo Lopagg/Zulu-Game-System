@@ -150,12 +150,15 @@ def handle_update_factions(data):
     new_config = db_manager.get_factions_config()
     socketio.emit('factions_update', new_config)
     
-    def hex_to_rgb(hex_code):
-        hex_code = hex_code.lstrip('#')
-        return tuple(int(hex_code[i:i+2], 16) for i in (0, 2, 4))
+    # Manda colori PURI al Kiosk se usa quelli di default
+    def get_pure_rgb(hex_code):
+        h = str(hex_code).lstrip('#').lower()
+        if h == 'ff3333': return (255, 0, 0)
+        if h == '55ff55': return (0, 255, 0)
+        return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
         
-    a_rgb = hex_to_rgb(new_config['ALPHA']['color'])
-    b_rgb = hex_to_rgb(new_config['BRAVO']['color'])
+    a_rgb = get_pure_rgb(new_config['ALPHA']['color'])
+    b_rgb = get_pure_rgb(new_config['BRAVO']['color'])
     
     game_engine.mqtt_client.publish("zulu/cmd/broadcast", json.dumps({
         "cmd": "SET_FACTIONS",
@@ -313,23 +316,28 @@ def handle_socket_command(data):
                 game_engine.mission_control.target_id = cmd_obj.get("target_id")
                 game_engine.mission_control.global_duration = cmd_obj.get("duration", 15) * 60
                 return
+            
             elif c == "SET_SD_SETTINGS":
                 game_engine.mission_control.sd_settings = cmd_obj
-                # FIX: Invia un JSON appiattito esattamente come se lo aspetta il RAT C++
+                
+                # BUG FIX: Invio dati al RAT in formato castato puro (int/str)
                 if target_id and target_id != "SERVER-ROUTER":
+                    use_arm = str(cmd_obj.get("use_arm_pin", "true")).lower() == "true"
+                    use_defuse = str(cmd_obj.get("use_defuse_pin", "true")).lower() == "true"
+                    
                     flat_payload = {
                         "cmd": "SET_SD_SETTINGS",
-                        "bomb_time": cmd_obj.get("bomb_time", 10),
-                        "arm_time": cmd_obj.get("arm_time", 5),
-                        "defuse_time": cmd_obj.get("defuse_time", 10),
+                        "bomb_time": int(cmd_obj.get("bomb_time", 10)),
+                        "arm_time": int(cmd_obj.get("arm_time", 5)),
+                        "defuse_time": int(cmd_obj.get("defuse_time", 10)),
                         "arm_pin": str(cmd_obj.get("arm_pin", "1234")),
                         "defuse_pin": str(cmd_obj.get("defuse_pin", "4321")),
-                        "use_arm_pin": bool(cmd_obj.get("use_arm_pin", True)),
-                        "use_defuse_pin": bool(cmd_obj.get("use_defuse_pin", True)),
-                        "duration": cmd_obj.get("game_duration", 15)
+                        "use_arm_pin": use_arm,
+                        "use_defuse_pin": use_defuse
                     }
                     game_engine.mqtt_client.publish(f"zulu/cmd/{target_id}", json.dumps(flat_payload))
                 return
+                
             elif c == "SET_TDM_SETTINGS": 
                 return
 

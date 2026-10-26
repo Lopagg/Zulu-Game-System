@@ -157,7 +157,6 @@ export function updateUniversalFeed(payload, mode, msgType) {
     
     updateMonitorDailyWins(currentFactions);
     
-    // FIX: Renderizziamo sempre le regole se fornite, per evitare che spariscano!
     if (payload.game_duration || payload.bomb_time || payload.attacker) {
         renderRules(payload);
     }
@@ -228,13 +227,14 @@ export function renderRules(payload) {
     };
 
     for (const [key, val] of Object.entries(payload)) {
-        if (key === 'mode' || key === 'version' || key === 'type' || key === 'attacker') continue; 
+        // BUG FIX: Blocchiamo le stringhe di sistema e mostriamo SOLO ciò che esiste nel keysMap
+        if (!keysMap[key]) continue; 
         
         let displayVal = val;
         if(val === true || val === 'YES') displayVal = 'SÌ';
         if(val === false || val === 'NO') displayVal = 'NO';
         
-        const label = keysMap[key] || key.toUpperCase().replace('_', ' ');
+        const label = keysMap[key];
         const li = document.createElement('li');
         li.innerHTML = `<span class="rule-key">${label}</span> <span class="rule-val">${displayVal}</span>`;
         elSdRulesList.appendChild(li);
