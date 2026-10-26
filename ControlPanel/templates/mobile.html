@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>ZULU // MOBILE CMD</title>
-    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <style>
         :root {
@@ -12,36 +12,42 @@
             --sop-alert: #ff3333; --sop-success: #55ff55; --sop-dim: #333;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Share Tech Mono', monospace; user-select: none; }
-        body { background: var(--sop-bg); color: #eee; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
         
-        .header { background: #000; border-bottom: 2px solid var(--sop-primary); padding: 15px; display: flex; justify-content: space-between; align-items: center; }
-        .header h1 { font-size: 1.2rem; margin: 0; color: var(--sop-primary); letter-spacing: 2px; }
-        .logout { color: var(--sop-alert); text-decoration: none; font-size: 0.9rem; border: 1px solid var(--sop-alert); padding: 5px 10px; }
+        /* Uso di dvh per supportare l'UI a scomparsa di Safari/Chrome su Mobile */
+        body { background: var(--sop-bg); color: #eee; height: 100dvh; width: 100vw; display: flex; flex-direction: column; overflow: hidden; }
         
-        .content { flex: 1; padding: 20px; overflow-y: auto; }
-        .tab-view { display: none; height: 100%; flex-direction: column; }
+        .header { background: #000; border-bottom: 2px solid var(--sop-primary); padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+        .header h1 { font-size: 1.3rem; margin: 0; color: var(--sop-primary); letter-spacing: 2px; }
+        .logout { color: var(--sop-alert); text-decoration: none; font-size: 0.9rem; border: 1px solid var(--sop-alert); padding: 5px 10px; border-radius: 3px; }
+        
+        .content { flex: 1; overflow-y: auto; overflow-x: hidden; position: relative; width: 100%; display: flex; flex-direction: column;}
+        
+        .tab-view { display: none; flex-direction: column; width: 100%; padding: 20px; min-height: 100%; }
         .tab-view.active { display: flex; }
         
-        /* NAVBAR INFERIORE */
-        .bottom-nav { display: flex; background: #000; border-top: 1px solid var(--sop-dim); }
-        .nav-btn { flex: 1; padding: 20px 0; text-align: center; color: #888; font-size: 0.9rem; font-weight: bold; background: transparent; border: none; outline: none; border-bottom: 3px solid transparent; }
-        .nav-btn.active { color: var(--sop-primary); border-bottom-color: var(--sop-primary); background: rgba(0,255,204,0.05); }
-
-        /* UI ELEMENTS */
-        .btn { width: 100%; padding: 20px; font-size: 1.2rem; font-weight: bold; background: transparent; color: var(--sop-primary); border: 2px solid var(--sop-primary); margin-bottom: 15px; border-radius: 4px; }
+        .top-zone { display: flex; flex-direction: column; align-items: center; justify-content: center; margin-bottom: 30px; }
+        .bottom-zone { margin-top: auto; display: flex; flex-direction: column; gap: 15px; }
+        
+        .status-display { text-align: center; font-size: 1.5rem; letter-spacing: 2px; font-weight: bold; margin-bottom: 10px;}
+        .timer-display { font-size: 5.5rem; text-align: center; color: var(--sop-primary); text-shadow: 0 0 15px rgba(0,255,204,0.3); line-height: 1; }
+        
+        .btn { width: 100%; padding: 18px; font-size: 1.1rem; font-weight: bold; background: rgba(0,0,0,0.5); color: var(--sop-primary); border: 2px solid var(--sop-primary); border-radius: 4px; letter-spacing: 1px;}
         .btn:active { background: var(--sop-primary); color: #000; }
         .btn.danger { color: var(--sop-alert); border-color: var(--sop-alert); }
         .btn.danger:active { background: var(--sop-alert); color: #fff; }
         
-        .timer-display { font-size: 5rem; text-align: center; color: var(--sop-primary); margin: 20px 0; text-shadow: 0 0 15px rgba(0,255,204,0.3); line-height: 1; }
-        .status-display { text-align: center; font-size: 1.5rem; margin-bottom: 20px; letter-spacing: 2px; }
+        .input-group { margin-bottom: 20px; width: 100%; }
+        .input-group label { display: block; color: #888; margin-bottom: 8px; font-size: 1rem; }
+        .input-group select, .input-group input { width: 100%; padding: 15px; background: rgba(0,0,0,0.8); border: 1px solid var(--sop-dim); color: #fff; font-size: 1.2rem; border-radius: 4px;}
         
-        .input-group { margin-bottom: 20px; }
-        .input-group label { display: block; color: #888; margin-bottom: 8px; font-size: 0.9rem; }
-        .input-group select, .input-group input { width: 100%; padding: 15px; background: rgba(0,0,0,0.5); border: 1px solid var(--sop-dim); color: #fff; font-size: 1.1rem; }
+        /* FIX NFC LOG per non sforare orizzontalmente */
+        .nfc-log { flex: 1; background: rgba(0,0,0,0.5); border: 1px solid var(--sop-dim); padding: 10px; overflow-y: auto; margin-top: 20px; font-family: 'Courier New', monospace; font-size: 0.85rem; color: #aaa; word-wrap: break-word; white-space: pre-wrap; min-height: 150px;}
+        .nfc-scan-indicator { text-align: center; margin-top: 15px; font-size: 1.1rem; color: #888; }
         
-        .nfc-log { flex: 1; background: rgba(0,0,0,0.5); border: 1px solid var(--sop-dim); padding: 10px; overflow-y: auto; margin-top: 20px; font-family: 'Courier New', monospace; font-size: 0.8rem; color: #aaa; }
-        .nfc-scan-indicator { text-align: center; margin-top: 20px; font-size: 1.2rem; color: #888; }
+        /* NAVBAR INFERIORE */
+        .bottom-nav { display: flex; background: #000; border-top: 1px solid var(--sop-dim); flex-shrink: 0; padding-bottom: env(safe-area-inset-bottom); }
+        .nav-btn { flex: 1; padding: 20px 0; text-align: center; color: #666; font-size: 0.95rem; font-weight: bold; background: transparent; border: none; outline: none; border-bottom: 3px solid transparent; letter-spacing: 1px; }
+        .nav-btn.active { color: var(--sop-primary); border-bottom-color: var(--sop-primary); background: rgba(0,255,204,0.05); }
     </style>
 </head>
 <body>
@@ -54,18 +60,20 @@
     <div class="content">
         <!-- TAB 1: CONTROL (Timer e Stop) -->
         <div id="tab-control" class="tab-view active">
-            <div class="status-display" id="mob-status">STANDBY</div>
-            <div class="timer-display" id="mob-timer">--:--</div>
+            <div class="top-zone">
+                <div class="status-display" id="mob-status">STANDBY</div>
+                <div class="timer-display" id="mob-timer">--:--</div>
+            </div>
             
-            <div style="margin-top: auto;">
-                <button class="btn danger" onclick="forceEndMatch()">TERMINA PARTITA</button>
-                <button class="btn" style="color:var(--sop-secondary); border-color:var(--sop-secondary);" onclick="socket.emit('send_command', { target_id: 'BROADCAST_ENV', command: { cmd: 'SIREN_LONG' } })">SUONA SIRENA</button>
+            <div class="bottom-zone">
+                <button class="btn danger" onclick="forceEndMatch()">[ TERMINA PARTITA ]</button>
+                <button class="btn" style="color:var(--sop-secondary); border-color:var(--sop-secondary);" onclick="socket.emit('send_command', { target_id: 'BROADCAST_ENV', command: { cmd: 'SIREN_LONG' } })">[ SUONA SIRENA ]</button>
             </div>
         </div>
 
         <!-- TAB 2: SETUP RAPIDO -->
         <div id="tab-setup" class="tab-view">
-            <h2 style="color: #fff; font-size: 1.2rem; margin-bottom: 20px;">AVVIO RAPIDO MISSIONE</h2>
+            <h2 style="color: #fff; font-size: 1.2rem; margin-bottom: 25px; text-align:center;">AVVIO RAPIDO MISSIONE</h2>
             <div class="input-group">
                 <label>MODALITÀ DI GIOCO</label>
                 <select id="mob-mode">
@@ -76,17 +84,18 @@
                 <label>DURATA (Minuti)</label>
                 <input type="number" id="mob-dur" value="15" min="1">
             </div>
-            <div style="margin-top: auto;">
+            
+            <div class="bottom-zone">
                 <button class="btn" onclick="startQuickMatch()">[ LANCIA PARTITA ]</button>
             </div>
         </div>
 
         <!-- TAB 3: KIOSK DIGITALE (NFC) -->
         <div id="tab-nfc" class="tab-view">
-            <h2 style="color: #fff; font-size: 1.2rem; margin-bottom: 20px; text-align: center;">KIOSK NFC PORTATILE</h2>
-            <p style="color:#888; font-size:0.85rem; text-align:center; margin-bottom: 20px;">Richiede Google Chrome su Android e connessione HTTPS (o flag attivi su reti locali).</p>
+            <h2 style="color: #fff; font-size: 1.2rem; margin-bottom: 10px; text-align: center;">KIOSK NFC TATTICO</h2>
+            <p style="color:#888; font-size:0.8rem; text-align:center; margin-bottom: 20px; line-height: 1.4;">Richiede Chrome su Android. Appoggia le tessere (NTAG215) sul retro del telefono.</p>
             
-            <button class="btn" id="btn-nfc" onclick="startNfcScanner()" style="border-width: 3px; font-size: 1.4rem;">ATTIVA SENSORE</button>
+            <button class="btn" id="btn-nfc" onclick="startNfcScanner()" style="border-width: 3px; font-size: 1.3rem; padding: 25px;">[ ACCENDI SENSORE ]</button>
             <div class="nfc-scan-indicator" id="nfc-status">Sensore Inattivo</div>
             
             <div class="nfc-log" id="nfc-log">
@@ -113,7 +122,6 @@
             btnElement.classList.add('active');
         }
 
-        // --- GESTIONE TELEMETRIA (Control Tab) ---
         const formatTime = (seconds) => {
             if(seconds === undefined) return "00:00";
             const m = Math.floor(seconds / 60); const s = seconds % 60;
@@ -135,7 +143,7 @@
             if (payload.state) {
                 let s = payload.state;
                 document.getElementById('mob-status').textContent = s;
-                if (s.includes('WINS')) document.getElementById('mob-status').style.color = "var(--sop-alert)";
+                if (s.includes('WINS') || s.includes('OWNED')) document.getElementById('mob-status').style.color = "var(--sop-alert)";
                 else document.getElementById('mob-status').style.color = "var(--sop-primary)";
             }
 
@@ -146,26 +154,22 @@
             }
         });
 
-        // --- FUNZIONI DI CONTROLLO ---
         function forceEndMatch() {
-            if(confirm("Terminare immediatamente la partita in corso?")) {
+            if(confirm("ATTENZIONE: Terminare immediatamente la partita in corso?")) {
                 socket.emit('send_command', { target_id: "SERVER-ROUTER", command: { cmd: "FORCE_END_GAME" } });
             }
         }
 
         function startQuickMatch() {
             const dur = parseInt(document.getElementById('mob-dur').value) || 15;
-            // Per ora supportiamo TDM su server come avvio rapido. SD/DOM richiedono target_id hardware.
-            socket.emit('send_command', { target_id: 'SERVER-TDM', command: { cmd: "SET_TDM_SETTINGS", duration: dur } });
-            socket.emit('send_command', { target_id: 'broadcast', command: { cmd: "SET_READY", mode: 'tdm', target_id: 'SERVER-TDM', duration: dur } });
-            
-            // Bypassiamo il blocco delle squadre (force:true) per fare un avvio rapido brutale
-            socket.emit('request_mission_start', { mode: 'tdm', target_id: 'SERVER-TDM', duration: dur, force: true });
-            
-            switchTab('control', document.querySelectorAll('.nav-btn')[0]);
+            if(confirm(`Avviare TEAM DEATHMATCH globale da ${dur} minuti?`)) {
+                socket.emit('send_command', { target_id: 'SERVER-TDM', command: { cmd: "SET_TDM_SETTINGS", duration: dur } });
+                socket.emit('send_command', { target_id: 'broadcast', command: { cmd: "SET_READY", mode: 'tdm', target_id: 'SERVER-TDM', duration: dur } });
+                socket.emit('request_mission_start', { mode: 'tdm', target_id: 'SERVER-TDM', duration: dur, force: true });
+                switchTab('control', document.querySelectorAll('.nav-btn')[0]);
+            }
         }
 
-        // --- GESTIONE SENSORE NFC (DIGITAL KIOSK) ---
         function logNFC(msg) {
             const logBox = document.getElementById('nfc-log');
             const d = document.createElement('div');
@@ -187,8 +191,8 @@
                 
                 document.getElementById('btn-nfc').style.borderColor = "var(--sop-success)";
                 document.getElementById('btn-nfc').style.color = "var(--sop-success)";
-                document.getElementById('btn-nfc').textContent = "SENSORE ATTIVO";
-                document.getElementById('nfc-status').textContent = "Appoggia la tessera sul retro...";
+                document.getElementById('btn-nfc').textContent = "[ SENSORE ATTIVO ]";
+                document.getElementById('nfc-status').textContent = "In attesa del TAG...";
                 document.getElementById('nfc-status').style.color = "var(--sop-success)";
                 
                 logNFC("Sensore NFC inizializzato con successo.");
@@ -198,16 +202,13 @@
                     if(serial) {
                         const rawUid = serial.replace(/:/g, '').toUpperCase();
                         logNFC(`> SCANSIONE: ${rawUid}`);
-                        
-                        // Invia al server la scansione mobile (funziona sia per registrazione che per In/Out Roster)
                         socket.emit('mobile_tag_scanned', { uid: rawUid });
-                        
                         if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
                     }
                 };
                 
                 ndef.onreadingerror = () => {
-                    logNFC("! Errore di lettura. Riprova.");
+                    logNFC("! Errore di lettura. Appoggia bene la tessera.");
                     if (navigator.vibrate) navigator.vibrate(300);
                 };
             } catch (error) {
@@ -217,9 +218,9 @@
 
         socket.on('mobile_scan_reply', (data) => {
             if (data.success) {
-                logNFC(`✅ [${data.team}] Cambio stato in: ${data.status}`);
+                logNFC(`✅ [${data.team}] Cambio stato: ${data.status}`);
             } else {
-                logNFC(`❌ TAG SCONOSCIUTO. Apri 'Registrazione' dal PC.`);
+                logNFC(`❌ SCONOSCIUTO. Usa 'Registra' su PC.`);
             }
         });
     </script>

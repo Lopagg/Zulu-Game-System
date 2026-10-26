@@ -2,7 +2,8 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- FIX: Blocco dello zoom per i dispositivi mobile -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>SYSTEM ACCESS // PHILANTHROPY</title>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -84,7 +85,8 @@
                 {% endif %}
             {% endwith %}
 
-            <form method="POST" action="/login" class="login-form">
+            <!-- FIX: L'attributo action="" garantisce che i parametri URL come ?next=/mobile vengano preservati -->
+            <form method="POST" action="" class="login-form">
                 <div class="input-group">
                     <label for="username">OPERATOR ID:</label>
                     <input type="text" name="username" id="username" autofocus autocomplete="off" placeholder="Inserire ID...">
