@@ -385,3 +385,15 @@ body {
 ::-webkit-scrollbar-thumb { background: var(--sop-dim); border: 1px solid var(--sop-bg); border-radius: 4px;}
 ::-webkit-scrollbar-thumb:hover { background: var(--sop-primary); border-color: var(--sop-primary); box-shadow: 0 0 8px var(--sop-primary); }
 .console-log::-webkit-scrollbar { width: 5px; }
+
+/* --- CROPPER.JS OVERRIDES (Tema Tattico) --- */
+.cropper-view-box, .cropper-face {
+    border-radius: 0 !important;
+}
+.cropper-line, .cropper-point {
+    background-color: var(--sop-primary) !important;
+}
+.cropper-view-box {
+    outline-color: var(--sop-primary) !important;
+    outline-width: 2px !important;
+}

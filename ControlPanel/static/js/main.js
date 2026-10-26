@@ -6,6 +6,7 @@ const socket = io();
 let currentDevices = [];
 let arenaRoster = {}; 
 let monitoredDeviceId = null;
+let currentCropper = null; // Variabile globale per il ritaglio foto
 
 export let currentFactions = { 
     ALPHA: { name: 'ALPHA', color: '#ff3333' }, 
@@ -269,32 +270,17 @@ window.uiForceEndMission = function() {
     socket.emit('send_command', { target_id: "SERVER-ROUTER", command: { cmd: action } });
 };
 
-// Aggiungi questo in fondo a main.js
+
+// --- FUNZIONI OPERATORE (NOTE E STATISTICHE) ---
 window.saveOperatorNotes = function() {
     const uid = getCurrentProfileUid();
     const notes = document.getElementById('modal-op-notes').value;
     if(uid) socket.emit('save_notes', { uid: uid, notes: notes });
-    alert("Annotazioni salvate.");
-};
-
-window.handlePhotoUpload = function(input) {
-    if (input.files && input.files[0]) {
-        const formData = new FormData();
-        formData.append('photo', input.files[0]);
-        formData.append('uid', getCurrentProfileUid());
-        
-        fetch('/upload_photo', { method: 'POST', body: formData })
-        .then(response => response.json())
-        .then(data => {
-            if(data.status === 'ok') {
-                document.getElementById('modal-op-photo').src = `/static/uploads/${data.filename}?t=${new Date().getTime()}`;
-            }
-        });
-    }
+    alert("Annotazioni tattiche registrate.");
 };
 
 window.resetOperatorStats = function() {
-    if(confirm("ATTENZIONE: Azzerare partite e vittorie di questo operatore?")) {
+    if(confirm("ATTENZIONE CRITICA: Vuoi azzerare definitivamente le partite e le vittorie di questo operatore?")) {
         socket.emit('update_db_player', { uid: getCurrentProfileUid(), action: 'reset_stats' });
         closeModal();
     }
@@ -306,13 +292,76 @@ window.modKarma = function(val) {
     let currentKarma = parseInt(el.textContent) || 0;
     currentKarma += val;
     
-    // Aggiorniamo subito graficamente per reattività
     el.textContent = currentKarma;
     const badge = el.parentElement;
     badge.classList.remove('positive', 'negative');
     if (currentKarma < 0) badge.classList.add('negative');
     else if (currentKarma > 0) badge.classList.add('positive');
     
-    // Comunichiamo al server il nuovo valore fisso
     socket.emit('update_karma', { uid: getCurrentProfileUid(), karma: currentKarma });
+};
+
+// --- GESTIONE RITAGLIO FOTO (CROPPER.JS) ---
+window.handlePhotoUpload = function(input) {
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const img = document.getElementById('image-to-crop');
+            img.src = e.target.result;
+            
+            // Chiudi momentaneamente il profilo e apri il calibratore
+            document.getElementById('operator-modal').classList.add('hidden');
+            document.getElementById('crop-modal').classList.remove('hidden');
+            
+            if (currentCropper) {
+                currentCropper.destroy();
+            }
+            
+            // Il nostro box è 280x300, quindi il rapporto (aspect ratio) è 280/300
+            currentCropper = new Cropper(img, {
+                aspectRatio: 280 / 300, 
+                viewMode: 1,
+                background: false,
+                zoomable: true,
+                autoCropArea: 1,
+            });
+        }
+        reader.readAsDataURL(input.files[0]);
+        input.value = ''; // Resetta l'input
+    }
+};
+
+window.closeCropModal = function() {
+    document.getElementById('crop-modal').classList.add('hidden');
+    // Riapri il profilo operatore per non far sparire tutto
+    document.getElementById('operator-modal').classList.remove('hidden');
+    if (currentCropper) {
+        currentCropper.destroy();
+        currentCropper = null;
+    }
+};
+
+window.confirmCrop = function() {
+    if (!currentCropper) return;
+    
+    // Genera l'immagine croppata (280x300 pixel esatti)
+    currentCropper.getCroppedCanvas({
+        width: 280,
+        height: 300,
+        imageSmoothingEnabled: true,
+        imageSmoothingQuality: 'high',
+    }).toBlob((blob) => {
+        const formData = new FormData();
+        formData.append('photo', blob, 'cropped.jpg');
+        formData.append('uid', getCurrentProfileUid());
+        
+        fetch('/upload_photo', { method: 'POST', body: formData })
+        .then(response => response.json())
+        .then(data => {
+            if(data.status === 'ok') {
+                document.getElementById('modal-op-photo').src = `/static/uploads/${data.filename}?t=${new Date().getTime()}`;
+            }
+            closeCropModal();
+        });
+    }, 'image/jpeg', 0.9);
 };

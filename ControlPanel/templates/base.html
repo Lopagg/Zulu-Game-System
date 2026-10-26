@@ -6,8 +6,13 @@
     <title>PHILANTHROPY // SOP NODE</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <!-- LIBRERIE PER IL RITAGLIO FOTO (CROPPER.JS) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=14">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=15">
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script type="module" src="{{ url_for('static', filename='js/main.js') }}?v=999"></script>
 </head>
@@ -138,6 +143,25 @@
                     <textarea id="modal-op-notes" class="setup-input tactical-textarea" rows="5" placeholder="Nessuna nota presente..."></textarea>
                     
                     <button class="deck-btn" style="border-color: var(--sop-primary); color: var(--sop-primary); float: right; margin-top: 10px;" onclick="saveOperatorNotes()">[ SALVA NOTE ]</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODALE: TAGLIO FOTO CROPPER.JS -->
+    <div id="crop-modal" class="modal-overlay hidden" style="z-index: 2000;">
+        <div class="sop-card profile-modal" style="width: 500px;">
+            <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--sop-primary);">
+                <h2 style="margin: 0; padding: 10px; color: var(--sop-primary); letter-spacing: 2px;">CALIBRAZIONE IMMAGINE</h2>
+                <button class="close-modal-btn" onclick="closeCropModal()">[X]</button>
+            </div>
+            <div class="panel-body" style="padding: 20px; text-align: center;">
+                <div style="max-height: 400px; width: 100%; margin-bottom: 20px; background: rgba(0,0,0,0.5);">
+                    <img id="image-to-crop" style="max-width: 100%; max-height: 400px; display: block; margin: 0 auto;">
+                </div>
+                <div style="display: flex; gap: 15px;">
+                    <button class="deck-btn btn-danger full-width" onclick="closeCropModal()">[ ANNULLA ]</button>
+                    <button class="deck-btn full-width" style="border-color: var(--sop-primary); color: var(--sop-primary);" onclick="confirmCrop()">[ CONFERMA TAGLIO ]</button>
                 </div>
             </div>
         </div>
