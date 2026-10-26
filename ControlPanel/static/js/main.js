@@ -365,3 +365,15 @@ window.confirmCrop = function() {
         });
     }, 'image/jpeg', 0.9);
 };
+
+socket.on('raw_tag_scanned', (data) => {
+    const modal = document.getElementById('registration-modal');
+    if (modal && !modal.classList.contains('hidden')) {
+        const uidInput = document.getElementById('reg-uid');
+        if (uidInput) {
+            uidInput.value = data.uid;
+            uidInput.style.color = 'var(--sop-success)'; 
+            logSystem(`KIOSK: Intercettato nuovo TAG [${data.uid}]`);
+        }
+    }
+});

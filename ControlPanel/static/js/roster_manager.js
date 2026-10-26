@@ -3,7 +3,6 @@ import { currentFactions } from './main.js';
 let currentProfileUid = null;
 export let globalPlayersDB = [];
 
-// Variabili per memorizzare la sessione e il roster correnti
 let cachedSocket = null;
 let cachedArenaRoster = {};
 
@@ -105,7 +104,11 @@ export function renderDatabase(players, socket, arenaRoster) {
         let winRate = 0;
         if (games > 0) winRate = Math.round((wins / games) * 100);
         
-        nameSpan.innerHTML = `${player.alias} <span style="font-size: 16px; font-weight: normal; color: #aaa; margin-left: 15px; font-family: monospace;">(UID: ${player.uid}) &nbsp;&nbsp;|&nbsp;&nbsp; P: <span style="color:var(--sop-primary); font-weight:bold">${games}</span> &nbsp;&nbsp;V: <span style="color:var(--sop-success); font-weight:bold">${wins}</span> <span style="color: #666; font-size:14px;">(${winRate}%)</span></span>`;
+        // --- FIX: Aggiunta Badge PRO / GUEST ---
+        const isPro = player.is_pro === 1;
+        const badge = isPro ? '<span class="pro-badge">[★ PRO]</span>' : '<span class="guest-badge">[GUEST]</span>';
+        
+        nameSpan.innerHTML = `${badge} ${player.alias} <span style="font-size: 16px; font-weight: normal; color: #aaa; margin-left: 15px; font-family: monospace;">(UID: ${player.uid}) &nbsp;&nbsp;|&nbsp;&nbsp; P: <span style="color:var(--sop-primary); font-weight:bold">${games}</span> &nbsp;&nbsp;V: <span style="color:var(--sop-success); font-weight:bold">${wins}</span> <span style="color: #666; font-size:14px;">(${winRate}%)</span></span>`;
         nameSpan.style.fontWeight = 'bold'; 
         nameSpan.style.fontSize = '22px'; 
         nameSpan.className = 'clickable-name';
@@ -180,7 +183,6 @@ export function populateProfileModal(data) {
     setEl('modal-op-uid', data.uid);
     setEl('modal-op-date', data.registered_at || 'Sconosciuta');
     
-    // Assegnazione Griglia Statistiche
     const games = data.games_played || 0;
     const wins = data.wins || 0;
     let winRate = 0;
@@ -190,7 +192,6 @@ export function populateProfileModal(data) {
     setEl('modal-stat-wins', wins);
     setEl('modal-stat-rate', `${winRate}%`);
     
-    // Gestione KARMA
     const karma = data.karma || 0;
     const karmaEl = document.getElementById('modal-op-karma');
     if(karmaEl) {
@@ -253,10 +254,43 @@ function createTrackItem(player, socket, isInField) {
 
 export function openOperatorProfile(uid, socket) { currentProfileUid = uid; socket.emit('request_profile', {uid: uid}); }
 
+
+// --- FUNZIONI DI REGISTRAZIONE MANUALE TAG (KIOSK TO WEB) ---
+window.openRegistrationModal = function() {
+    document.getElementById('reg-uid').value = '';
+    document.getElementById('reg-alias').value = '';
+    document.getElementById('reg-pro').value = '0';
+    document.getElementById('registration-modal').classList.remove('hidden');
+};
+
+window.closeRegistrationModal = function() {
+    document.getElementById('registration-modal').classList.add('hidden');
+};
+
+window.submitRegistration = function() {
+    const uid = document.getElementById('reg-uid').value.trim();
+    const alias = document.getElementById('reg-alias').value.trim();
+    const isPro = document.getElementById('reg-pro').value;
+    const tagInfo = document.getElementById('reg-tag-info').value.trim();
+    
+    if (!uid || !alias) {
+        alert("Attendi la scansione dell'UID sul Kiosk e inserisci un Nome.");
+        return;
+    }
+    
+    cachedSocket.emit('register_player_manual', {
+        uid: uid,
+        alias: alias,
+        is_pro: parseInt(isPro),
+        tag_info: tagInfo
+    });
+    
+    closeRegistrationModal();
+};
+
 window.openAddPlayerModal = function() { 
     renderAddPlayerList(cachedSocket, cachedArenaRoster);
     document.getElementById('add-player-modal').classList.remove('hidden'); 
 };
-
 window.closeAddPlayerModal = function() { document.getElementById('add-player-modal').classList.add('hidden'); };
 window.closeModal = function() { document.getElementById('operator-modal').classList.add('hidden'); };

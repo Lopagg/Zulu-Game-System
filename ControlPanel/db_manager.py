@@ -24,14 +24,19 @@ def init_db():
         except sqlite3.OperationalError: pass
         try: c.execute("ALTER TABLE players ADD COLUMN wins INTEGER DEFAULT 0")
         except sqlite3.OperationalError: pass
-        
-        # --- NUOVA COLONNA: KARMA ---
         try: c.execute("ALTER TABLE players ADD COLUMN karma INTEGER DEFAULT 0")
+        except sqlite3.OperationalError: pass
+        
+        # --- NUOVE COLONNE GUEST/PRO E SPECIFICHE HARDWARE ---
+        try: c.execute("ALTER TABLE players ADD COLUMN is_pro INTEGER DEFAULT 0")
+        except sqlite3.OperationalError: pass
+        try: c.execute("ALTER TABLE players ADD COLUMN tag_info TEXT DEFAULT 'NTAG215'")
         except sqlite3.OperationalError: pass
 
         c.execute("UPDATE players SET games_played = 0 WHERE games_played IS NULL")
         c.execute("UPDATE players SET wins = 0 WHERE wins IS NULL")
         c.execute("UPDATE players SET karma = 0 WHERE karma IS NULL")
+        c.execute("UPDATE players SET is_pro = 0 WHERE is_pro IS NULL")
 
         c.execute('''CREATE TABLE IF NOT EXISTS active_roster
                      (uid TEXT PRIMARY KEY, team TEXT, status TEXT)''')
@@ -50,6 +55,18 @@ def init_db():
         
         c.execute("UPDATE factions_config SET hex_color = '#ff3333' WHERE team_id = 'ALPHA' AND hex_color IS NULL")
         c.execute("UPDATE factions_config SET hex_color = '#55ff55' WHERE team_id = 'BRAVO' AND hex_color IS NULL")
+        conn.commit()
+
+# --- NUOVA FUNZIONE: Registrazione Manuale ---
+def register_player_manual(uid, alias, is_pro, tag_info):
+    with sqlite3.connect(DB_PATH) as conn:
+        c = conn.cursor()
+        c.execute("SELECT uid FROM players WHERE uid = ?", (uid,))
+        if c.fetchone():
+            c.execute("UPDATE players SET alias = ?, is_pro = ?, tag_info = ? WHERE uid = ?", (alias, is_pro, tag_info, uid))
+        else:
+            c.execute("INSERT INTO players (uid, alias, registered_at, games_played, wins, karma, is_pro, tag_info) VALUES (?, ?, ?, 0, 0, 0, ?, ?)", 
+                      (uid, alias, get_current_time(), is_pro, tag_info))
         conn.commit()
 
 def get_factions_config():

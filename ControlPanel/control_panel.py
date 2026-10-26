@@ -183,11 +183,24 @@ def handle_clear_roster():
 @socketio.on('request_database')
 def handle_request_database(): socketio.emit('database_update', db_manager.get_all_players())
 
+# --- NUOVA REGISTRAZIONE MANUALE DA KIOSK ---
+@socketio.on('register_player_manual')
+def handle_register_manual(data):
+    uid = data.get('uid')
+    alias = data.get('alias')
+    is_pro = data.get('is_pro', 0)
+    tag_info = data.get('tag_info', 'NTAG215 / ISO 14443-3A')
+    
+    if uid and alias:
+        db_manager.register_player_manual(uid, alias.upper(), is_pro, tag_info)
+        socketio.emit('database_update', db_manager.get_all_players())
+
 @socketio.on('update_db_player')
 def handle_update_db_player(data):
     uid, action, value = data.get('uid'), data.get('action'), data.get('value')
     if action == 'rename': db_manager.rename_player(uid, value)
     elif action == 'delete': db_manager.delete_player_permanently(uid)
+    elif action == 'reset_stats': db_manager.reset_player_stats(uid)
     socketio.emit('roster_update', db_manager.get_full_roster())
     socketio.emit('database_update', db_manager.get_all_players())
 
@@ -198,6 +211,13 @@ def handle_request_profile(data):
 
 @socketio.on('save_notes')
 def handle_save_notes(data): db_manager.update_player_notes(data.get('uid'), data.get('notes'))
+
+@socketio.on('update_karma')
+def handle_update_karma(data):
+    db_manager.update_player_karma(data.get('uid'), data.get('karma'))
+    socketio.emit('database_update', db_manager.get_all_players())
+    profile = db_manager.get_player_profile(data.get('uid'))
+    if profile: emit('profile_data', profile)
 
 @socketio.on('request_mission_start')
 def handle_request_mission_start(data):

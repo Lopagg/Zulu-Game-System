@@ -12,45 +12,22 @@ mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
 mission_ready_flag = False
 background_thread_started = False
 
-# --- FUNZIONE CENTRALIZZATA DI FINE PARTITA ---
 def trigger_end_match_sequence(end_state):
-    """
-    Richiama la sirena, calcola le statistiche e forza l'aggiornamento del DB 
-    a tutti i client connessi. Chiamare questa funzione GARANTISCE che tutto sia salvato.
-    """
     logger.info(f"[GAME ENGINE] Sequenza di Fine Partita innescata: {end_state}")
-    
-    # 1. Suona l'allarme
     try: mqtt_client.publish("zulu/cmd/broadcast", json.dumps({"cmd": "SIREN_LONG"}))
     except: pass
-    
-    # 2. Aggiorna DB (Games Played / Wins)
     db_manager.process_match_stats(end_state)
-    
-    # 3. Aggiorna in tempo reale tutte le interfacce collegate (Player Database)
-    if socketio:
-        socketio.emit('database_update', db_manager.get_all_players())
+    if socketio: socketio.emit('database_update', db_manager.get_all_players())
 
-# ==========================================
-# 1. MOTORI DI GIOCO MODULARI (PLUGINS)
-# ==========================================
 class BaseGameMode:
-    def __init__(self, mission_ctrl):
-        self.mc = mission_ctrl
-
-    def tick(self, alpha_in, bravo_in):
-        pass 
-
-    def handle_event(self, device_id, payload):
-        pass 
-
+    def __init__(self, mission_ctrl): self.mc = mission_ctrl
+    def tick(self, alpha_in, bravo_in): pass 
+    def handle_event(self, device_id, payload): pass 
 
 class TDMEngine(BaseGameMode):
     def tick(self, alpha_in, bravo_in):
         mc = self.mc
-        if mc.global_time_left > 0:
-            mc.global_time_left -= 1
-        
+        if mc.global_time_left > 0: mc.global_time_left -= 1
         match_ends = False
         end_state_str = "ACTIVE"
         
@@ -72,9 +49,7 @@ class TDMEngine(BaseGameMode):
             
         if match_ends:
             mc.state = end_state_str
-            # Sostituito col sistema centralizzato!
             trigger_end_match_sequence(end_state_str)
-            
             doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": end_state_str, "game_time": mc.global_time_left } }
             if socketio: socketio.emit('esp_event', {"parsed_data": doc})
             mqtt_client.publish("zulu/telemetry/SERVER-TDM", json.dumps(doc), qos=1)
@@ -87,9 +62,7 @@ class TDMEngine(BaseGameMode):
 class SDEngine(BaseGameMode):
     def tick(self, alpha_in, bravo_in):
         mc = self.mc
-        if mc.global_time_left > 0:
-            mc.global_time_left -= 1
-            
+        if mc.global_time_left > 0: mc.global_time_left -= 1
         match_ends = False
         end_state_str = "ACTIVE"
         
@@ -126,20 +99,15 @@ class SDEngine(BaseGameMode):
         mc = self.mc
         event_name = payload.get('event')
         cmd_to_send = None
-        
         if event_name == 'BOMB_EXPLODED':
             cmd_to_send = {"cmd": "FORCE_WIN", "winner": mc.sd_attacker_team, "reason": "BOMBA ESPLOSA!"}
         elif event_name == 'BOMB_DEFUSED':
             cmd_to_send = {"cmd": "FORCE_WIN", "winner": mc.sd_defender_team, "reason": "BOMBA DISINNESCATA!"}
-        
         if cmd_to_send:
             try: mqtt_client.publish(f"zulu/cmd/{mc.target_id}", json.dumps(cmd_to_send), qos=1)
             except Exception as e: logger.error(f"[MQTT ERROR] Impossibile inviare verdetto: {e}")
 
 
-# ==========================================
-# 2. CONTROLLER PRINCIPALE
-# ==========================================
 class MissionController:
     def __init__(self):
         self.lock = Lock()
@@ -149,7 +117,6 @@ class MissionController:
         self.state = "STANDBY"
         self.global_duration = 0
         self.global_time_left = 0
-        
         self.sd_attacker_team = "ALPHA"
         self.sd_defender_team = "BRAVO"
         self.sd_settings = {}
@@ -211,10 +178,6 @@ class MissionController:
 
 mission_control = MissionController()
 
-
-# ==========================================
-# 3. GESTIONE REGISTRO DISPOSITIVI
-# ==========================================
 class DeviceRegistry:
     def __init__(self):
         self.devices = {}
@@ -299,7 +262,6 @@ def on_mqtt_message(client, userdata, msg):
             logger.info(f"[MQTT RX] {device_id} -> TYPE: {msg_type} | PAYLOAD: {payload}")
         
         if device_id:
-            # --- INTERCETTAZIONE COMANDI HARDWARE DAL KIOSK ---
             if msg_type == 'KIOSK_CMD':
                 cmd_str = payload.get('cmd')
                 if cmd_str: 
@@ -313,13 +275,11 @@ def on_mqtt_message(client, userdata, msg):
                             
                             if target and mode:
                                 logger.info(f"[KIOSK OVERRIDE] Avvio Hardware Missione: {mode} su {target}")
-                                
                                 mission_control.start_mission(mode, target, duration=dur)
                                 
                                 if mode == 'tdm':
                                     doc = { "id": "SERVER-TDM", "type": "MODE_ENTER", "payload": {"mode": "TEAM_DEATHMATCH"} }
                                     socketio.emit('esp_event', {"parsed_data": doc})
-                                    
                                     try: mqtt_client.publish("zulu/cmd/broadcast", json.dumps({"cmd": "SIREN_LONG"}))
                                     except: pass
                                 else:
@@ -348,6 +308,9 @@ def on_mqtt_message(client, userdata, msg):
                 uid = payload.get('uid')
                 reply_action = "UNKNOWN"
                 if uid:
+                    # --- INVIA UID GREZZO AL FRONTEND PER LA REGISTRAZIONE ---
+                    if socketio: socketio.emit('raw_tag_scanned', {'uid': uid})
+                    
                     row = db_manager.get_player_status(uid)
                     if row:
                         new_status = db_manager.toggle_player_status(uid, row[0])
@@ -368,11 +331,8 @@ def on_mqtt_message(client, userdata, msg):
 
             if msg_type == 'MODE_CHANGE' and parsed.get('payload', {}).get('new_mode') == 'MAIN_MENU':
                 if mission_control.active_mission and device_id == mission_control.target_id:
-                    logger.info(f"[DISASTER RECOVERY] Il nodo {device_id} è nel Main Menu. Forzo il ripristino...")
-                    
                     if mission_control.state == "PAUSED_OFFLINE":
                         mission_control.state = "PREPARING"
-                    
                     last_tel = registry.devices.get(device_id, {}).get("telemetry", {})
                     sd_state = last_tel.get("state", "SAFE")
                     bomb_time = last_tel.get("bomb_time", 0)
@@ -384,10 +344,8 @@ def on_mqtt_message(client, userdata, msg):
                         "bomb_time_left": bomb_time,
                         "global_time_left": mission_control.global_time_left
                     }
-                    try:
-                        mqtt_client.publish(f"zulu/cmd/{device_id}", json.dumps(resume_payload), qos=1)
-                    except Exception as e:
-                        logger.error(f"[DISASTER RECOVERY ERROR] {e}")
+                    try: mqtt_client.publish(f"zulu/cmd/{device_id}", json.dumps(resume_payload), qos=1)
+                    except Exception as e: logger.error(f"[DISASTER RECOVERY ERROR] {e}")
             
             if msg_type == 'MODE_EXIT':
                 if mission_control.is_authorized_node(device_id):
@@ -406,15 +364,10 @@ def on_mqtt_message(client, userdata, msg):
                      if mission_control.is_authorized_node(device_id):
                           if msg_type == 'SD_UPDATE' and mission_control.state not in ['T WINS', 'CT WINS', 'ALPHA WINS', 'BRAVO WINS', 'DRAW', 'STOPPED']:
                               parsed['payload']['game_time'] = mission_control.global_time_left
-                              
-                              if parsed['payload']['state'] == f"{mission_control.sd_attacker_team} WINS":
-                                  parsed['payload']['state'] = 'T WINS'
-                              elif parsed['payload']['state'] == f"{mission_control.sd_defender_team} WINS":
-                                  parsed['payload']['state'] = 'CT WINS'
-                                  
+                              if parsed['payload']['state'] == f"{mission_control.sd_attacker_team} WINS": parsed['payload']['state'] = 'T WINS'
+                              elif parsed['payload']['state'] == f"{mission_control.sd_defender_team} WINS": parsed['payload']['state'] = 'CT WINS'
                           socketio.emit('esp_event', {"parsed_data": parsed})
 
-            # --- PARSER TELEMETRIA NODI HARDWARE (SD / DOM) ---
             if msg_type in ['SD_UPDATE', 'DOM_UPDATE']:
                 if mission_control.is_authorized_node(device_id):
                     new_state = payload.get('state')
@@ -426,7 +379,6 @@ def on_mqtt_message(client, userdata, msg):
 
                     if registry.update_telemetry(device_id, payload, new_state):
                         if new_state in ['T WINS', 'CT WINS', 'ALPHA WINS', 'BRAVO WINS', 'DRAW', 'STOPPED'] and old_state not in ['T WINS', 'CT WINS', 'ALPHA WINS', 'BRAVO WINS', 'DRAW', 'STOPPED']:
-                            # Sostituito col sistema centralizzato
                             trigger_end_match_sequence(new_state)
                             mission_control.state = new_state
                         

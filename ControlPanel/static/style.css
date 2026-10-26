@@ -397,3 +397,7 @@ body {
     outline-color: var(--sop-primary) !important;
     outline-width: 2px !important;
 }
+
+/* --- PRO / GUEST BADGES --- */
+.pro-badge { color: #ffd700; font-weight: bold; margin-right: 12px; text-shadow: 0 0 10px rgba(255,215,0,0.5); font-size: 16px;}
+.guest-badge { color: #888; font-weight: bold; margin-right: 12px; font-size: 16px;}
