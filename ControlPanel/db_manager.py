@@ -175,27 +175,51 @@ def update_player_photo(uid, filename):
         conn.commit()
 
 def process_match_stats(winner_state):
+    # Ripuliamo qualsiasi artefatto
+    raw_state = str(winner_state).strip().upper()
+    logger.info(f"[DB] Analisi verdetto di fine partita per statistiche: '{raw_state}'")
+    
+    if raw_state in ['STOPPED', 'STANDBY', 'DRAW', 'PREPARING']:
+        logger.info("[DB] Nessuna vittoria assegnata (Partita chiusa, pari o abortita).")
+        return
+        
     winning_team = None
     config = get_factions_config()
-    alpha_name = config.get('ALPHA', {}).get('name', 'ALPHA')
-    bravo_name = config.get('BRAVO', {}).get('name', 'BRAVO')
+    alpha_name = config.get('ALPHA', {}).get('name', 'ALPHA').upper()
+    bravo_name = config.get('BRAVO', {}).get('name', 'BRAVO').upper()
     
-    # Copertura totale: standard backend ("T WINS"), Custom web ("SPETSNAZ WINS") 
-    if winner_state in ['ALPHA WINS', 'OWNED ALPHA', 'T WINS', f"{alpha_name} WINS", f"OWNED {alpha_name}"]:
+    # 1. Controlla prima le diciture standard del server interno (Infallibile)
+    if "ALPHA" in raw_state or "T WINS" in raw_state:
         winning_team = 'ALPHA'
-    elif winner_state in ['BRAVO WINS', 'OWNED BRAVO', 'CT WINS', f"{bravo_name} WINS", f"OWNED {bravo_name}"]:
+    elif "BRAVO" in raw_state or "CT WINS" in raw_state:
+        winning_team = 'BRAVO'
+    # 2. Se non le trova, controlla i nomi custom (nel caso il RAT li mandi)
+    elif alpha_name in raw_state:
+        winning_team = 'ALPHA'
+    elif bravo_name in raw_state:
         winning_team = 'BRAVO'
         
+    if not winning_team:
+        logger.warning(f"[DB] ATTENZIONE: Impossibile determinare la squadra vincente da '{raw_state}'. Statistiche non aggiornate.")
+        return
+
     try:
         with sqlite3.connect(DB_PATH) as conn:
             c = conn.cursor()
+            # Mantenuto il controllo totale: processiamo tutto il roster
             c.execute("SELECT uid, team FROM active_roster")
             players = c.fetchall()
+            
+            p_count = 0
+            w_count = 0
             for uid, team in players:
+                p_count += 1
                 c.execute("UPDATE players SET games_played = games_played + 1 WHERE uid = ?", (uid,))
-                if winning_team and team == winning_team:
+                if team == winning_team:
+                    w_count += 1
                     c.execute("UPDATE players SET wins = wins + 1 WHERE uid = ?", (uid,))
+            
             conn.commit()
-            logger.info(f"[STATS] Aggiornate statistiche per {len(players)} operatori nel roster. Team Vittorioso: {winning_team or 'NESSUNO'}")
+            logger.info(f"[STATS SALVATE] +1 Partita a {p_count} giocatori | +1 Vittoria a {w_count} giocatori del Team {winning_team}.")
     except Exception as e:
         logger.error(f"[ERROR STATS] {e}")

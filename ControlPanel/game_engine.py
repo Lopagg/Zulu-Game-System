@@ -7,6 +7,30 @@ import db_manager
 
 logger = logging.getLogger(__name__)
 
+socketio = None  
+mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
+mission_ready_flag = False
+background_thread_started = False
+
+# --- FUNZIONE CENTRALIZZATA DI FINE PARTITA ---
+def trigger_end_match_sequence(end_state):
+    """
+    Richiama la sirena, calcola le statistiche e forza l'aggiornamento del DB 
+    a tutti i client connessi. Chiamare questa funzione GARANTISCE che tutto sia salvato.
+    """
+    logger.info(f"[GAME ENGINE] Sequenza di Fine Partita innescata: {end_state}")
+    
+    # 1. Suona l'allarme
+    try: mqtt_client.publish("zulu/cmd/broadcast", json.dumps({"cmd": "SIREN_LONG"}))
+    except: pass
+    
+    # 2. Aggiorna DB (Games Played / Wins)
+    db_manager.process_match_stats(end_state)
+    
+    # 3. Aggiorna in tempo reale tutte le interfacce collegate (Player Database)
+    if socketio:
+        socketio.emit('database_update', db_manager.get_all_players())
+
 # ==========================================
 # 1. MOTORI DI GIOCO MODULARI (PLUGINS)
 # ==========================================
@@ -48,10 +72,8 @@ class TDMEngine(BaseGameMode):
             
         if match_ends:
             mc.state = end_state_str
-            trigger_siren("SIREN_LONG") 
-            db_manager.process_match_stats(end_state_str)
-            
-            if socketio: socketio.emit('database_update', db_manager.get_all_players())
+            # Sostituito col sistema centralizzato!
+            trigger_end_match_sequence(end_state_str)
             
             doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": end_state_str, "game_time": mc.global_time_left } }
             if socketio: socketio.emit('esp_event', {"parsed_data": doc})
@@ -257,14 +279,7 @@ class DeviceRegistry:
         return active_list, needs_update
 
 registry = DeviceRegistry()
-mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
-socketio = None  
-mission_ready_flag = False
-background_thread_started = False
 
-def trigger_siren(cmd_type="SIREN_LONG"):
-    try: mqtt_client.publish("zulu/cmd/broadcast", json.dumps({"cmd": cmd_type}))
-    except: pass
 
 def on_mqtt_connect(client, userdata, flags, rc):
     logger.info(f"[MQTT] Connesso al Broker con codice: {rc}")
@@ -304,7 +319,9 @@ def on_mqtt_message(client, userdata, msg):
                                 if mode == 'tdm':
                                     doc = { "id": "SERVER-TDM", "type": "MODE_ENTER", "payload": {"mode": "TEAM_DEATHMATCH"} }
                                     socketio.emit('esp_event', {"parsed_data": doc})
-                                    trigger_siren("SIREN_LONG")
+                                    
+                                    try: mqtt_client.publish("zulu/cmd/broadcast", json.dumps({"cmd": "SIREN_LONG"}))
+                                    except: pass
                                 else:
                                     cmd_start = "START_SD_GAME" if mode == 'sd' else "START_DOM_GAME"
                                     mqtt_client.publish(f"zulu/cmd/{target}", json.dumps({"cmd": cmd_start}))
@@ -318,12 +335,9 @@ def on_mqtt_message(client, userdata, msg):
                                 
                                 if mission_control.mode == 'tdm':
                                     mission_control.state = "STOPPED"
-                                    db_manager.process_match_stats("STOPPED")
-                                    if socketio: socketio.emit('database_update', db_manager.get_all_players())
-                                    
+                                    trigger_end_match_sequence("STOPPED")
                                     doc = { "id": "SERVER-TDM", "type": "TDM_UPDATE", "payload": { "mode": "TEAM_DEATHMATCH", "state": "STOPPED", "game_time": mission_control.global_time_left } }
                                     socketio.emit('esp_event', {"parsed_data": doc})
-                                    trigger_siren("SIREN_LONG")
                                 else:
                                     mqtt_client.publish(f"zulu/cmd/{mission_control.target_id}", json.dumps({"cmd": "FORCE_END_GAME"}), qos=1)
 
@@ -400,6 +414,7 @@ def on_mqtt_message(client, userdata, msg):
                                   
                           socketio.emit('esp_event', {"parsed_data": parsed})
 
+            # --- PARSER TELEMETRIA NODI HARDWARE (SD / DOM) ---
             if msg_type in ['SD_UPDATE', 'DOM_UPDATE']:
                 if mission_control.is_authorized_node(device_id):
                     new_state = payload.get('state')
@@ -411,15 +426,14 @@ def on_mqtt_message(client, userdata, msg):
 
                     if registry.update_telemetry(device_id, payload, new_state):
                         if new_state in ['T WINS', 'CT WINS', 'ALPHA WINS', 'BRAVO WINS', 'DRAW', 'STOPPED'] and old_state not in ['T WINS', 'CT WINS', 'ALPHA WINS', 'BRAVO WINS', 'DRAW', 'STOPPED']:
-                            trigger_siren("SIREN_LONG")
-                            db_manager.process_match_stats(new_state)
-                            
-                            if socketio: socketio.emit('database_update', db_manager.get_all_players())
-                            
+                            # Sostituito col sistema centralizzato
+                            trigger_end_match_sequence(new_state)
                             mission_control.state = new_state
+                        
                         if old_state == 'PREPARING' and new_state in ['ACTIVE', 'SAFE', 'NEUTRAL']:
                             mission_control.state = "ACTIVE"
-                            trigger_siren("SIREN_LONG")
+                            try: mqtt_client.publish("zulu/cmd/broadcast", json.dumps({"cmd": "SIREN_LONG"}))
+                            except: pass
                             
             elif msg_type == 'MODE_ENTER':
                 registry.update_telemetry(device_id, {}, "PREPARING")
