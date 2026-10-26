@@ -183,7 +183,6 @@ def handle_clear_roster():
 @socketio.on('request_database')
 def handle_request_database(): socketio.emit('database_update', db_manager.get_all_players())
 
-# --- NUOVA REGISTRAZIONE MANUALE DA KIOSK ---
 @socketio.on('register_player_manual')
 def handle_register_manual(data):
     uid = data.get('uid')
@@ -201,8 +200,16 @@ def handle_update_db_player(data):
     if action == 'rename': db_manager.rename_player(uid, value)
     elif action == 'delete': db_manager.delete_player_permanently(uid)
     elif action == 'reset_stats': db_manager.reset_player_stats(uid)
+    elif action == 'toggle_pro': db_manager.toggle_pro_status(uid)
+    
     socketio.emit('roster_update', db_manager.get_full_roster())
     socketio.emit('database_update', db_manager.get_all_players())
+
+@socketio.on('purge_guests')
+def handle_purge_guests():
+    db_manager.purge_guest_data()
+    socketio.emit('database_update', db_manager.get_all_players())
+    socketio.emit('roster_update', db_manager.get_full_roster())
 
 @socketio.on('request_profile')
 def handle_request_profile(data):

@@ -377,3 +377,176 @@ socket.on('raw_tag_scanned', (data) => {
         }
     }
 });
+
+// --- FUNZIONI OPERATORE (NOTE E STATISTICHE) ---
+window.saveOperatorNotes = function() {
+    const uid = getCurrentProfileUid();
+    const notes = document.getElementById('modal-op-notes').value;
+    if(uid) socket.emit('save_notes', { uid: uid, notes: notes });
+    alert("Annotazioni tattiche registrate.");
+};
+
+window.resetOperatorStats = function() {
+    if(confirm("ATTENZIONE CRITICA: Vuoi azzerare definitivamente le partite e le vittorie di questo operatore?")) {
+        socket.emit('update_db_player', { uid: getCurrentProfileUid(), action: 'reset_stats' });
+        closeModal();
+    }
+};
+
+window.modKarma = function(val) {
+    const el = document.getElementById('modal-op-karma');
+    if(!el) return;
+    let currentKarma = parseInt(el.textContent) || 0;
+    currentKarma += val;
+    
+    el.textContent = currentKarma;
+    const badge = el.parentElement;
+    badge.classList.remove('positive', 'negative');
+    if (currentKarma < 0) badge.classList.add('negative');
+    else if (currentKarma > 0) badge.classList.add('positive');
+    
+    socket.emit('update_karma', { uid: getCurrentProfileUid(), karma: currentKarma });
+};
+
+// --- NUOVE FUNZIONI DI GESTIONE ACCOUNT & MANUTENZIONE ---
+window.renameFromProfile = function() {
+    const uid = getCurrentProfileUid();
+    const currentNameText = document.getElementById('modal-op-name-text').innerText;
+    const currentName = currentNameText.replace('PROFILE // ', '');
+    const newName = prompt("Inserisci nuovo nome operatore:", currentName);
+    
+    if (newName && newName.trim() !== '') {
+        socket.emit('update_db_player', { uid: uid, action: 'rename', value: newName.trim().toUpperCase() });
+        // Ricarichiamo il profilo per aggiornare immediatamente il testo nel popup
+        setTimeout(() => { socket.emit('request_profile', {uid: uid}); }, 100); 
+    }
+};
+
+window.toggleProStatus = function() {
+    const uid = getCurrentProfileUid();
+    if(confirm("Vuoi cambiare il tipo di account (PRO / GUEST) per questa tessera?")) {
+        socket.emit('update_db_player', { uid: uid, action: 'toggle_pro' });
+        setTimeout(() => { socket.emit('request_profile', {uid: uid}); }, 100);
+    }
+};
+
+window.purgeGuests = function() {
+    if(confirm("ATTENZIONE: Verranno azzerate statistiche, note, karma e foto di TUTTE le tessere GUEST. Continuare?")) {
+        socket.emit('purge_guests');
+        alert("Operazione di pulizia completata. Le tessere GUEST sono nuovamente vergini.");
+    }
+};
+
+
+// --- GESTIONE RITAGLIO FOTO (CROPPER.JS) ---
+window.handlePhotoUpload = function(input) {
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const img = document.getElementById('image-to-crop');
+            img.src = e.target.result;
+            
+            document.getElementById('operator-modal').classList.add('hidden');
+            document.getElementById('crop-modal').classList.remove('hidden');
+            
+            if (currentCropper) {
+                currentCropper.destroy();
+            }
+            
+            currentCropper = new Cropper(img, {
+                aspectRatio: 280 / 300, 
+                viewMode: 1,
+                background: false,
+                zoomable: true,
+                autoCropArea: 1,
+            });
+        }
+        reader.readAsDataURL(input.files[0]);
+        input.value = ''; 
+    }
+};
+
+window.closeCropModal = function() {
+    document.getElementById('crop-modal').classList.add('hidden');
+    document.getElementById('operator-modal').classList.remove('hidden');
+    if (currentCropper) {
+        currentCropper.destroy();
+        currentCropper = null;
+    }
+};
+
+window.confirmCrop = function() {
+    if (!currentCropper) return;
+    
+    currentCropper.getCroppedCanvas({
+        width: 280,
+        height: 300,
+        imageSmoothingEnabled: true,
+        imageSmoothingQuality: 'high',
+    }).toBlob((blob) => {
+        const formData = new FormData();
+        formData.append('photo', blob, 'cropped.jpg');
+        formData.append('uid', getCurrentProfileUid());
+        
+        fetch('/upload_photo', { method: 'POST', body: formData })
+        .then(response => response.json())
+        .then(data => {
+            if(data.status === 'ok') {
+                document.getElementById('modal-op-photo').src = `/static/uploads/${data.filename}?t=${new Date().getTime()}`;
+            }
+            closeCropModal();
+        });
+    }, 'image/jpeg', 0.9);
+};
+
+// --- FUNZIONI DI REGISTRAZIONE MANUALE TAG (KIOSK TO WEB) ---
+window.openRegistrationModal = function() {
+    document.getElementById('reg-uid').value = '';
+    document.getElementById('reg-alias').value = '';
+    document.getElementById('reg-pro').value = '0';
+    document.getElementById('registration-modal').classList.remove('hidden');
+};
+
+window.closeRegistrationModal = function() {
+    document.getElementById('registration-modal').classList.add('hidden');
+};
+
+window.submitRegistration = function() {
+    const uid = document.getElementById('reg-uid').value.trim();
+    const alias = document.getElementById('reg-alias').value.trim();
+    const isPro = document.getElementById('reg-pro').value;
+    const tagInfo = document.getElementById('reg-tag-info').value.trim();
+    
+    if (!uid || !alias) {
+        alert("Attendi la scansione dell'UID sul Kiosk e inserisci un Nome.");
+        return;
+    }
+    
+    socket.emit('register_player_manual', {
+        uid: uid,
+        alias: alias,
+        is_pro: parseInt(isPro),
+        tag_info: tagInfo
+    });
+    
+    closeRegistrationModal();
+};
+
+window.openAddPlayerModal = function() { 
+    renderAddPlayerList(socket, arenaRoster); // Corretto riferimento al socket
+    document.getElementById('add-player-modal').classList.remove('hidden'); 
+};
+window.closeAddPlayerModal = function() { document.getElementById('add-player-modal').classList.add('hidden'); };
+window.closeModal = function() { document.getElementById('operator-modal').classList.add('hidden'); };
+
+socket.on('raw_tag_scanned', (data) => {
+    const modal = document.getElementById('registration-modal');
+    if (modal && !modal.classList.contains('hidden')) {
+        const uidInput = document.getElementById('reg-uid');
+        if (uidInput) {
+            uidInput.value = data.uid;
+            uidInput.style.color = 'var(--sop-success)'; 
+            logSystem(`KIOSK: Intercettato nuovo TAG [${data.uid}]`);
+        }
+    }
+});

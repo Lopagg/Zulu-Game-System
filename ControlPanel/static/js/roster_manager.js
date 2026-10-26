@@ -104,7 +104,6 @@ export function renderDatabase(players, socket, arenaRoster) {
         let winRate = 0;
         if (games > 0) winRate = Math.round((wins / games) * 100);
         
-        // --- FIX: Aggiunta Badge PRO / GUEST ---
         const isPro = player.is_pro === 1;
         const badge = isPro ? '<span class="pro-badge">[★ PRO]</span>' : '<span class="guest-badge">[GUEST]</span>';
         
@@ -179,7 +178,7 @@ export function renderAddPlayerList(socket, arenaRoster) {
 
 export function populateProfileModal(data) {
     const setEl = (id, txt) => { const el = document.getElementById(id); if(el) el.textContent = txt; };
-    setEl('modal-op-name', `PROFILE // ${data.alias}`);
+    setEl('modal-op-name-text', `PROFILE // ${data.alias}`);
     setEl('modal-op-uid', data.uid);
     setEl('modal-op-date', data.registered_at || 'Sconosciuta');
     
@@ -191,6 +190,24 @@ export function populateProfileModal(data) {
     setEl('modal-stat-games', games);
     setEl('modal-stat-wins', wins);
     setEl('modal-stat-rate', `${winRate}%`);
+    
+    // --- GESTIONE ACCOUNT PRO / GUEST ---
+    const isPro = data.is_pro === 1;
+    const typeEl = document.getElementById('modal-op-type');
+    const toggleBtn = document.getElementById('btn-toggle-pro');
+    if (typeEl && toggleBtn) {
+        if (isPro) {
+            typeEl.innerHTML = '<span style="color:#ffd700">[★ PRO]</span>';
+            toggleBtn.textContent = "[ DOWNGRADE TO GUEST ]";
+            toggleBtn.className = "deck-btn btn-warning";
+        } else {
+            typeEl.innerHTML = '<span style="color:#888">[GUEST]</span>';
+            toggleBtn.textContent = "[ UPGRADE TO PRO ]";
+            toggleBtn.className = "deck-btn";
+            toggleBtn.style.color = "var(--sop-primary)";
+            toggleBtn.style.borderColor = "var(--sop-primary)";
+        }
+    }
     
     const karma = data.karma || 0;
     const karmaEl = document.getElementById('modal-op-karma');
@@ -254,43 +271,11 @@ function createTrackItem(player, socket, isInField) {
 
 export function openOperatorProfile(uid, socket) { currentProfileUid = uid; socket.emit('request_profile', {uid: uid}); }
 
-
-// --- FUNZIONI DI REGISTRAZIONE MANUALE TAG (KIOSK TO WEB) ---
-window.openRegistrationModal = function() {
-    document.getElementById('reg-uid').value = '';
-    document.getElementById('reg-alias').value = '';
-    document.getElementById('reg-pro').value = '0';
-    document.getElementById('registration-modal').classList.remove('hidden');
-};
-
-window.closeRegistrationModal = function() {
-    document.getElementById('registration-modal').classList.add('hidden');
-};
-
-window.submitRegistration = function() {
-    const uid = document.getElementById('reg-uid').value.trim();
-    const alias = document.getElementById('reg-alias').value.trim();
-    const isPro = document.getElementById('reg-pro').value;
-    const tagInfo = document.getElementById('reg-tag-info').value.trim();
-    
-    if (!uid || !alias) {
-        alert("Attendi la scansione dell'UID sul Kiosk e inserisci un Nome.");
-        return;
-    }
-    
-    cachedSocket.emit('register_player_manual', {
-        uid: uid,
-        alias: alias,
-        is_pro: parseInt(isPro),
-        tag_info: tagInfo
-    });
-    
-    closeRegistrationModal();
-};
-
+// Forziamo il render della lista immediatamente prima di aprire il modal
 window.openAddPlayerModal = function() { 
     renderAddPlayerList(cachedSocket, cachedArenaRoster);
     document.getElementById('add-player-modal').classList.remove('hidden'); 
 };
+
 window.closeAddPlayerModal = function() { document.getElementById('add-player-modal').classList.add('hidden'); };
 window.closeModal = function() { document.getElementById('operator-modal').classList.add('hidden'); };

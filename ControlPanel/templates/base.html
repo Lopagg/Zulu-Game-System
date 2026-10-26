@@ -92,7 +92,13 @@
     <div id="operator-modal" class="modal-overlay hidden">
         <div class="sop-card profile-modal">
             <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--sop-primary);">
-                <h2 id="modal-op-name" style="margin: 0; padding: 10px; color: var(--sop-primary); letter-spacing: 2px; font-size: 24px;">OPERATOR PROFILE</h2>
+                
+                <!-- AGGIUNTO IL BOTTONE PER RINOMINARE (REN) -->
+                <h2 style="margin: 0; padding: 10px; color: var(--sop-primary); letter-spacing: 2px; font-size: 24px; display:flex; align-items:center; gap:10px;">
+                    <span id="modal-op-name-text">OPERATOR PROFILE</span>
+                    <span class="action-btn" onclick="renameFromProfile()" style="font-size:16px;">[REN]</span>
+                </h2>
+                
                 <button class="close-modal-btn" onclick="closeModal()">[X]</button>
             </div>
             <div class="panel-body profile-grid">
@@ -117,6 +123,14 @@
                 
                 <div class="profile-info-col">
                     <div style="background: rgba(0,0,0,0.4); padding: 15px; border: 1px solid var(--sop-dim); margin-bottom: 20px;">
+                        
+                        <!-- AGGIUNTO IL TIPO ACCOUNT E IL BOTTONE UPGRADE -->
+                        <div class="data-row" style="margin-bottom: 10px; border-bottom: 1px dashed var(--sop-dim); padding-bottom: 10px;">
+                            <span class="label">TIPO ACCOUNT:</span> 
+                            <span id="modal-op-type" class="value" style="font-weight:bold;">--</span>
+                            <button id="btn-toggle-pro" class="deck-btn" style="padding: 2px 8px; margin-left: 15px; font-size: 12px;" onclick="toggleProStatus()">[ UPGRADE ]</button>
+                        </div>
+                        
                         <div class="data-row"><span class="label">UID TESSERA:</span> <span id="modal-op-uid" class="value" style="font-family: monospace;">--</span></div>
                         <div class="data-row"><span class="label">REGISTRATO IL:</span> <span id="modal-op-date" class="value">--</span></div>
                     </div>

@@ -27,7 +27,6 @@ def init_db():
         try: c.execute("ALTER TABLE players ADD COLUMN karma INTEGER DEFAULT 0")
         except sqlite3.OperationalError: pass
         
-        # --- NUOVE COLONNE GUEST/PRO E SPECIFICHE HARDWARE ---
         try: c.execute("ALTER TABLE players ADD COLUMN is_pro INTEGER DEFAULT 0")
         except sqlite3.OperationalError: pass
         try: c.execute("ALTER TABLE players ADD COLUMN tag_info TEXT DEFAULT 'NTAG215'")
@@ -57,7 +56,6 @@ def init_db():
         c.execute("UPDATE factions_config SET hex_color = '#55ff55' WHERE team_id = 'BRAVO' AND hex_color IS NULL")
         conn.commit()
 
-# --- NUOVA FUNZIONE: Registrazione Manuale ---
 def register_player_manual(uid, alias, is_pro, tag_info):
     with sqlite3.connect(DB_PATH) as conn:
         c = conn.cursor()
@@ -198,13 +196,25 @@ def update_player_photo(uid, filename):
 
 def reset_player_stats(uid):
     with sqlite3.connect(DB_PATH) as conn:
-        conn.execute("UPDATE players SET games_played = 0, wins = 0 WHERE uid = ?", (uid,))
+        conn.execute("UPDATE players SET games_played = 0, wins = 0, karma = 0, notes = '', photo = NULL WHERE uid = ?", (uid,))
         conn.commit()
 
 def update_player_karma(uid, new_karma):
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute("UPDATE players SET karma = ? WHERE uid = ?", (new_karma, uid))
         conn.commit()
+
+def toggle_pro_status(uid):
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("UPDATE players SET is_pro = CASE WHEN is_pro = 1 THEN 0 ELSE 1 END WHERE uid = ?", (uid,))
+        conn.commit()
+
+def purge_guest_data():
+    """Azzera le statistiche di tutte le tessere GUEST (is_pro = 0)"""
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("UPDATE players SET games_played = 0, wins = 0, karma = 0, notes = '', photo = NULL WHERE is_pro = 0")
+        conn.commit()
+        logger.info("[DB] Eseguita pulizia massiva (Purge) dei dati GUEST.")
 
 def process_match_stats(winner_state):
     raw_state = str(winner_state).strip().upper()
