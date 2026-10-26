@@ -313,10 +313,10 @@ def handle_socket_command(data):
                 game_engine.mission_control.target_id = cmd_obj.get("target_id")
                 game_engine.mission_control.global_duration = cmd_obj.get("duration", 15) * 60
                 return
-            elif c == "SET_SD_SETTINGS": 
+            elif c == "SET_SD_SETTINGS":
+                # Salva l'Attaccante per l'uso nel Kiosk
                 game_engine.mission_control.sd_settings = cmd_obj
-                # [BUG FIX] Rimosso il 'return' in modo che il comando prosegua 
-                # e venga spedito via MQTT al terminale fisico a riga 362!
+                return
             elif c == "SET_TDM_SETTINGS": 
                 return
 
@@ -350,7 +350,6 @@ def handle_socket_command(data):
                     game_engine.mqtt_client.publish(f"zulu/cmd/{rt}", cmd_str)
             return
 
-        # Ed ecco dove i tuoi dati di setup SD arriveranno finalmente al RAT!
         game_engine.mqtt_client.publish(f"zulu/cmd/{target_id}", cmd_str)
              
     except Exception as e:
