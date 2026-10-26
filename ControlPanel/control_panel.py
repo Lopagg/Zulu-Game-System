@@ -314,8 +314,21 @@ def handle_socket_command(data):
                 game_engine.mission_control.global_duration = cmd_obj.get("duration", 15) * 60
                 return
             elif c == "SET_SD_SETTINGS":
-                # Salva l'Attaccante per l'uso nel Kiosk
                 game_engine.mission_control.sd_settings = cmd_obj
+                # FIX: Invia un JSON appiattito esattamente come se lo aspetta il RAT C++
+                if target_id and target_id != "SERVER-ROUTER":
+                    flat_payload = {
+                        "cmd": "SET_SD_SETTINGS",
+                        "bomb_time": cmd_obj.get("bomb_time", 10),
+                        "arm_time": cmd_obj.get("arm_time", 5),
+                        "defuse_time": cmd_obj.get("defuse_time", 10),
+                        "arm_pin": str(cmd_obj.get("arm_pin", "1234")),
+                        "defuse_pin": str(cmd_obj.get("defuse_pin", "4321")),
+                        "use_arm_pin": bool(cmd_obj.get("use_arm_pin", True)),
+                        "use_defuse_pin": bool(cmd_obj.get("use_defuse_pin", True)),
+                        "duration": cmd_obj.get("game_duration", 15)
+                    }
+                    game_engine.mqtt_client.publish(f"zulu/cmd/{target_id}", json.dumps(flat_payload))
                 return
             elif c == "SET_TDM_SETTINGS": 
                 return

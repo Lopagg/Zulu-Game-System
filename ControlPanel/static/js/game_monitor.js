@@ -156,6 +156,11 @@ export function updateUniversalFeed(payload, mode, msgType) {
     updateProgressBar(document.getElementById('sd-defuse-bar'), width2, bar2Active, 2);
     
     updateMonitorDailyWins(currentFactions);
+    
+    // FIX: Renderizziamo sempre le regole se fornite, per evitare che spariscano!
+    if (payload.game_duration || payload.bomb_time || payload.attacker) {
+        renderRules(payload);
+    }
 }
 
 function updateProgressBar(barElem, width, isActive, timerRefName) {
@@ -207,7 +212,6 @@ export function renderRules(payload) {
     if(!elSdRulesList) return;
     elSdRulesList.innerHTML = '';
     
-    // FIX: Renderizza chi è l'attaccante
     if (payload.attacker) {
         const isAlpha = payload.attacker === 'ALPHA';
         const teamName = isAlpha ? currentFactions.ALPHA.name : currentFactions.BRAVO.name;
