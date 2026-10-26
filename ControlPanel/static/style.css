@@ -401,3 +401,116 @@ body {
 /* --- PRO / GUEST BADGES --- */
 .pro-badge { color: #ffd700; font-weight: bold; margin-right: 12px; text-shadow: 0 0 10px rgba(255,215,0,0.5); font-size: 16px;}
 .guest-badge { color: #888; font-weight: bold; margin-right: 12px; font-size: 16px;}
+
+/* ==========================================================================
+   LOGIN SCREEN STYLES (RIPRISTINATI)
+   ========================================================================== */
+.login-body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    flex-direction: column;
+}
+
+.login-wrapper {
+    width: 100%;
+    max-width: 480px;
+    z-index: 10;
+    position: relative;
+    padding: 20px;
+}
+
+.login-box {
+    padding: 40px;
+    width: 100%;
+    background: rgba(10, 10, 10, 0.95);
+}
+
+.login-header {
+    text-align: center;
+    border-bottom: 2px solid var(--sop-primary);
+    padding-bottom: 15px;
+    margin-bottom: 25px;
+}
+
+.login-header h1 {
+    font-size: 28px;
+    margin: 0 0 5px 0;
+    color: var(--sop-text);
+    letter-spacing: 2px;
+}
+
+.login-header .sub {
+    color: var(--sop-alert);
+    font-weight: bold;
+    letter-spacing: 4px;
+    font-size: 14px;
+}
+
+.login-status {
+    text-align: center;
+    color: var(--sop-primary);
+    margin-bottom: 25px;
+    font-size: 14px;
+    letter-spacing: 1px;
+}
+
+.error-console {
+    background: rgba(255, 51, 51, 0.1);
+    border: 1px solid var(--sop-alert);
+    padding: 15px;
+    margin-bottom: 20px;
+}
+
+.error-line {
+    color: var(--sop-alert);
+    font-size: 14px;
+    font-weight: bold;
+    letter-spacing: 1px;
+}
+
+.login-form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.login-form label {
+    display: block;
+    text-align: left;
+    font-size: 14px;
+    color: #888;
+    margin-bottom: 8px;
+    letter-spacing: 1.5px;
+    font-weight: bold;
+}
+
+.login-form input {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid var(--sop-dim);
+    color: var(--sop-text);
+    padding: 12px 15px;
+    font-family: inherit;
+    font-size: 18px;
+    outline: none;
+    transition: all 0.3s ease;
+}
+
+.login-form input:focus {
+    border-color: var(--sop-primary);
+    box-shadow: 0 0 10px rgba(0, 255, 204, 0.2);
+    background: rgba(0, 255, 204, 0.05);
+}
+
+.login-btn {
+    width: 100%;
+    padding: 15px;
+    font-size: 18px;
+    border-color: var(--sop-primary);
+    color: var(--sop-primary);
+    font-weight: bold;
+    margin-top: 10px;
+    margin-left: 0;
+}
