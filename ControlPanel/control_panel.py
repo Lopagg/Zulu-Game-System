@@ -93,14 +93,12 @@ def tv_dashboard(): return render_template('tv.html')
 def mobile_dashboard(): 
     return render_template('mobile.html', username=current_user.name)
 
-# --- ROTTA LOGIN CON SICUREZZA REDIRECT ---
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
         
-        # Cerca la destinazione nel parametro URL
         next_page = request.args.get('next')
         
         if username in USERS and check_password_hash(USERS[username]['password_hash'], password):
@@ -317,7 +315,8 @@ def handle_socket_command(data):
                 return
             elif c == "SET_SD_SETTINGS": 
                 game_engine.mission_control.sd_settings = cmd_obj
-                return
+                # [BUG FIX] Rimosso il 'return' in modo che il comando prosegua 
+                # e venga spedito via MQTT al terminale fisico a riga 362!
             elif c == "SET_TDM_SETTINGS": 
                 return
 
@@ -351,6 +350,7 @@ def handle_socket_command(data):
                     game_engine.mqtt_client.publish(f"zulu/cmd/{rt}", cmd_str)
             return
 
+        # Ed ecco dove i tuoi dati di setup SD arriveranno finalmente al RAT!
         game_engine.mqtt_client.publish(f"zulu/cmd/{target_id}", cmd_str)
              
     except Exception as e:
