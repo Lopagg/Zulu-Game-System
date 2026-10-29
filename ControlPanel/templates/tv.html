@@ -89,7 +89,8 @@
         
         .tv-roster-list {
             list-style: none; padding: 0; margin: 0;
-            display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+            display: flex; flex-direction: column; gap: 8px; 
+            overflow-y: hidden; /* Niente barre di scorrimento brutte sulla TV */
         }
         .tv-roster-list li {
             background: rgba(0,0,0,0.5);
@@ -152,22 +153,31 @@
                 
                 <div class="sop-card tv-widget" style="flex: 1.2;">
                     <div class="widget-header">ACTIVE OPERATORS IN FIELD</div>
-                    <div style="flex: 1; display: flex; flex-direction: column; justify-content: flex-start; padding: 15px 10px 0 10px;">
+                    <!-- GRIGLIA A 2 COLONNE -->
+                    <div style="flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 15px; padding: 15px 10px 0 10px;">
                         
-                        <div class="tv-roster-row alpha">
+                        <!-- COLONNA ALPHA -->
+                        <div class="tv-roster-row alpha" style="margin-bottom: 0; min-height: 0;">
                             <div class="tv-roster-header">
                                 <span class="tv-roster-name" id="tv-name-alpha">TEAM ALPHA</span>
                                 <span id="tv-op-alpha" class="tv-roster-count count-alpha">0</span>
                             </div>
-                            <ul id="tv-list-alpha" class="tv-roster-list alpha"></ul>
+                            <!-- div per contenere la lista e farla scorrere se serve -->
+                            <div style="flex: 1; overflow-y: auto; min-height: 0;">
+                                <ul id="tv-list-alpha" class="tv-roster-list alpha"></ul>
+                            </div>
                         </div>
                         
-                        <div class="tv-roster-row bravo">
+                        <!-- COLONNA BRAVO -->
+                        <div class="tv-roster-row bravo" style="margin-bottom: 0; min-height: 0;">
                             <div class="tv-roster-header">
                                 <span class="tv-roster-name" id="tv-name-bravo">TEAM BRAVO</span>
                                 <span id="tv-op-bravo" class="tv-roster-count count-bravo">0</span>
                             </div>
-                            <ul id="tv-list-bravo" class="tv-roster-list bravo"></ul>
+                            <!-- div per contenere la lista e farla scorrere se serve -->
+                            <div style="flex: 1; overflow-y: auto; min-height: 0;">
+                                <ul id="tv-list-bravo" class="tv-roster-list bravo"></ul>
+                            </div>
                         </div>
                         
                     </div>
