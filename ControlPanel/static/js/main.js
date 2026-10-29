@@ -130,28 +130,6 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('btn-start-mission').classList.remove('disabled'); 
             document.getElementById('btn-start-mission').disabled = false; 
         }
-
-    // --- GESTIONE RICERCA E FILTRI DATABASE ---
-    const searchInput = document.getElementById('db-search');
-    if (searchInput) {
-        searchInput.addEventListener('input', () => {
-            if (typeof globalPlayersDB !== 'undefined' && globalPlayersDB.length > 0) {
-                renderDatabase(globalPlayersDB, socket, arenaRoster);
-            }
-        });
-    }
-
-    ['db-filter', 'db-sort'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-            el.addEventListener('change', () => {
-                if (typeof globalPlayersDB !== 'undefined' && globalPlayersDB.length > 0) {
-                    renderDatabase(globalPlayersDB, socket, arenaRoster);
-                }
-            });
-        }
-    });
-
     });
 
     setInterval(() => {
@@ -521,6 +499,23 @@ socket.on('raw_tag_scanned', (data) => {
             uidInput.value = data.uid;
             uidInput.style.color = 'var(--sop-success)'; 
             logSystem(`KIOSK: Intercettato nuovo TAG [${data.uid}]`);
+        }
+    }
+});
+
+// --- GESTIONE INVINCIBILE RICERCA E FILTRI ---
+document.body.addEventListener('input', (e) => {
+    if (e.target.id === 'db-search') {
+        if (typeof globalPlayersDB !== 'undefined' && globalPlayersDB.length > 0) {
+            renderDatabase(globalPlayersDB, socket, arenaRoster);
+        }
+    }
+});
+
+document.body.addEventListener('change', (e) => {
+    if (e.target.id === 'db-filter' || e.target.id === 'db-sort') {
+        if (typeof globalPlayersDB !== 'undefined' && globalPlayersDB.length > 0) {
+            renderDatabase(globalPlayersDB, socket, arenaRoster);
         }
     }
 });

@@ -91,9 +91,12 @@ export function renderDatabase(players, socket, arenaRoster) {
     const filterType = document.getElementById('db-filter')?.value || 'ALL';
     const sortBy = document.getElementById('db-sort')?.value || 'NAME';
     
-    // 1. Filtraggio
+    // 1. Filtraggio proteso contro valori nulli
     let filteredPlayers = players.filter(p => {
-        const matchSearch = p.alias.toLowerCase().includes(searchVal) || p.uid.toLowerCase().includes(searchVal);
+        const aliasSafe = (p.alias || '').toLowerCase();
+        const uidSafe = (p.uid || '').toLowerCase();
+        const matchSearch = aliasSafe.includes(searchVal) || uidSafe.includes(searchVal);
+        
         let matchType = true;
         if (filterType === 'PRO') matchType = p.is_pro === 1;
         if (filterType === 'GUEST') matchType = p.is_pro !== 1;
