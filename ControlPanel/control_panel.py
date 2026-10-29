@@ -63,13 +63,12 @@ def load_user(user_id): return User.get(user_id)
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # 1. Se l'utente non è proprio loggato, rimandalo alla schermata di Login
         if not current_user.is_authenticated:
             return redirect(url_for('login'))
         
-        # 2. Se è loggato ma ha ruolo 'player' o 'player_setup', negagli l'accesso al pannello
+        # Se un giocatore prova ad aprire l'admin, lo rimbalziamo al suo portale
         if current_user.role != 'admin':
-            return abort(403)
+            return redirect(url_for('player_portal'))
             
         return f(*args, **kwargs)
     return decorated_function
@@ -195,6 +194,8 @@ def player_login():
 @app.route('/portal/setup', methods=['GET', 'POST'])
 @login_required
 def player_setup():
+    if current_user.role == 'admin': return redirect(url_for('index'))
+    
     if current_user.role != 'player_setup': return redirect(url_for('player_portal'))
         
     if request.method == 'POST':
@@ -222,6 +223,9 @@ def player_setup():
 @app.route('/portal/dashboard')
 @login_required
 def player_portal():
+    # Se il gestore prova ad aprire la dashboard giocatori, lo rimbalziamo all'Index
+    if current_user.role == 'admin': return redirect(url_for('index'))
+    
     if current_user.role == 'player_setup': return redirect(url_for('player_setup'))
     if current_user.role != 'player': return abort(403)
     
