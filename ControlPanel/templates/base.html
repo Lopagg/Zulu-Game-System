@@ -36,10 +36,28 @@
                 </div>
             </div>
             
-            <div class="header-center">
+            <div class="header-center" style="display: flex; align-items: center; justify-content: center; gap: 30px;">
+                <!-- Orologio e Data (Raggruppati) -->
                 <div class="hud-center-group">
-                    <div id="mission-clock" class="hud-text">00:00:00</div>
-                    <div id="weather-display" class="hud-weather">--°C // SCANNING METEO...</div>
+                    <div id="mission-clock" class="hud-text" style="font-size: 34px; line-height: 1;">00:00:00</div>
+                    <!-- Nuovo elemento per la Data -->
+                    <div id="mission-date" class="hud-date" style="font-size: 14px; color: var(--sop-primary); letter-spacing: 2px; text-transform: uppercase; margin-top: 4px;">CARICAMENTO DATA...</div>
+                </div>
+
+                <!-- Divisore Visivo (Opzionale, stile cyberpunk) -->
+                <div style="width: 2px; height: 40px; background: rgba(0, 255, 204, 0.3);"></div>
+
+                <!-- Nuovo Blocco Meteo (Affiancato e Ingrandito) -->
+                <div class="hud-weather-group" style="display: flex; align-items: center; gap: 10px;">
+                    <!-- Predisposizione Icona Meteo (da CSS o CSV via JS) -->
+                    <img id="weather-icon" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMDBmZmNjIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTEyIDJ2MiIvPjxwYXRoIGQ9Ik0xMiAyMHYyIi8+PHBhdGggZD0ibTQuOTMgNC45MyAxLjQxIDEuNDEiLz48cGF0aCBkPSJtMTcuNjYgMTcuNjYgMS40MSAxLjQxIi8+PHBhdGggZD0iTTIgMTJoMiIvPjxwYXRoIGQ9Ik0yMCAxMmgyIi8+PHBhdGggZD0ibTYuMzQgMTcuNjYtMS40MSAxLjQxIi8+PHBhdGggZD0ibTE5LjA3 NC45My0xLjQxIDEuNDEiLz48Y2lyY2xlIGN4PSIxMiIgY3k9IjEyIiByPSI0Ii8+PC9zdmc+" alt="Meteo" style="width: 32px; height: 32px; filter: drop-shadow(0 0 5px var(--sop-primary));">
+                    
+                    <div style="display: flex; flex-direction: column; justify-content: center;">
+                        <!-- Località Fissa -->
+                        <span style="font-size: 11px; color: #888; letter-spacing: 2px;">LOCALITÀ: UBOLDO</span>
+                        <!-- Temperatura e Condizione -->
+                        <div id="weather-display" class="hud-weather" style="font-size: 18px; color: var(--sop-secondary); text-shadow: 0 0 8px var(--sop-secondary); margin-top: 2px; font-weight: bold;">--°C // SCANNING...</div>
+                    </div>
                 </div>
             </div>
 

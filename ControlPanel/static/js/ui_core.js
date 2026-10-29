@@ -118,8 +118,19 @@ function updateInspectorData(device) {
 
 export function updateClock() {
     const elMissionClock = document.getElementById('mission-clock');
+    const elMissionDate = document.getElementById('mission-date'); // Prendi il nuovo div
+    
+    // Opzioni per formattare la data (es: "GIOVEDÌ, 29 OTTOBRE 2026")
+    const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+
     setInterval(() => {
         const now = new Date();
-        if(elMissionClock) elMissionClock.textContent = now.toLocaleTimeString('it-IT', { hour12: false });
+        if(elMissionClock) {
+             elMissionClock.textContent = now.toLocaleTimeString('it-IT', { hour12: false });
+        }
+        if(elMissionDate) {
+             // Formatta e metti tutto in maiuscolo
+             elMissionDate.textContent = now.toLocaleDateString('it-IT', dateOptions).toUpperCase();
+        }
     }, 1000);
 }
