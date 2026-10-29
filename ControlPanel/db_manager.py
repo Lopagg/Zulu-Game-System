@@ -36,7 +36,7 @@ def init_db():
         except sqlite3.OperationalError: pass
         try: c.execute("ALTER TABLE players ADD COLUMN asd_team TEXT DEFAULT 'NESSUNA'")
         except sqlite3.OperationalError: pass
-        try: c.execute("ALTER TABLE players ADD COLUMN username TEXT UNIQUE")
+        try: c.execute("ALTER TABLE players ADD COLUMN username TEXT")
         except sqlite3.OperationalError: pass
         try: c.execute("ALTER TABLE players ADD COLUMN password_hash TEXT")
         except sqlite3.OperationalError: pass
