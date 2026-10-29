@@ -36,6 +36,9 @@ USERS = {
 from functools import wraps
 from flask import abort
 
+from functools import wraps
+from flask import abort
+
 class User(UserMixin):
     def __init__(self, id, role="admin", name=None):
         self.id = id
@@ -44,26 +47,25 @@ class User(UserMixin):
         
     @staticmethod
     def get(user_id):
-        # 1. Controlla se è un Admin (Dizionario USERS hardcodato)
         if user_id in USERS: 
             return User(user_id, role="admin", name=USERS[user_id]['name'])
             
-        # 2. Se non è Admin, controlla se è l'UID di un giocatore PRO nel database
         player = db_manager.get_player_profile(user_id)
         if player and player['is_pro'] == 1:
-            return User(user_id, role="player", name=player['alias'])
+            # Se ha già uno username, è un player normale. Altrimenti è in fase di setup.
+            role = "player" if player.get('username') else "player_setup"
+            return User(user_id, role=role, name=player['alias'])
             
         return None
 
 @login_manager.user_loader
 def load_user(user_id): return User.get(user_id)
 
-# --- NUOVO LUCCHETTO PER GLI ADMIN ---
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if not current_user.is_authenticated or current_user.role != 'admin':
-            return abort(403) # Accesso Negato (Forbidden)
+            return abort(403)
         return f(*args, **kwargs)
     return decorated_function
 
@@ -147,29 +149,73 @@ def logout():
 @app.route('/portal/login', methods=['GET', 'POST'])
 def player_login():
     if request.method == 'POST':
-        uid = request.form.get('uid', '').strip().upper()
-        player = db_manager.get_player_profile(uid)
+        login_id = request.form.get('login_id', '').strip() # Può essere UID o Username
+        password = request.form.get('password', '').strip()
         
-        if player and player['is_pro'] == 1:
-            user = User(uid, role="player", name=player['alias'])
-            login_user(user)
-            return redirect(url_for('player_portal'))
+        # 1. Cerca per UID
+        player = db_manager.get_player_profile(login_id.upper())
+        # 2. Se non lo trova, cerca per Username
+        if not player: player = db_manager.get_player_by_username(login_id)
             
-        flash('UID non trovato o account non autorizzato (Richiesto account PRO).', 'error')
+        if player and player['is_pro'] == 1:
+            # CASO A: Account già configurato (Richiede Password)
+            if player.get('username') and player.get('password_hash'):
+                if check_password_hash(player['password_hash'], password):
+                    login_user(User(player['uid'], role="player", name=player['alias']))
+                    return redirect(url_for('player_portal'))
+                else:
+                    flash('Credenziali non valide o password errata.', 'error')
+                    return render_template('player_login.html')
+                    
+            # CASO B: Primo accesso (Nessuna password, serve UID esatto)
+            else:
+                if login_id.upper() == player['uid']:
+                    login_user(User(player['uid'], role="player_setup", name=player['alias']))
+                    return redirect(url_for('player_setup'))
+                else:
+                    flash('Account non configurato. Usa l\'UID della tessera.', 'error')
+        else:
+            flash('Utente non trovato o account non abilitato.', 'error')
+            
     return render_template('player_login.html')
+
+@app.route('/portal/setup', methods=['GET', 'POST'])
+@login_required
+def player_setup():
+    if current_user.role != 'player_setup': return redirect(url_for('player_portal'))
+        
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '').strip()
+        
+        if not username or not password:
+            flash('Tutti i campi sono obbligatori.', 'error')
+            return render_template('player_setup.html')
+            
+        existing = db_manager.get_player_by_username(username)
+        if existing:
+            flash('Username già in uso, sceglierne un altro.', 'error')
+            return render_template('player_setup.html')
+            
+        db_manager.set_player_credentials(current_user.id, username, generate_password_hash(password))
+        
+        # Promozione del ruolo a player effettivo
+        player = db_manager.get_player_profile(current_user.id)
+        login_user(User(current_user.id, role="player", name=player['alias']))
+        return redirect(url_for('player_portal'))
+        
+    return render_template('player_setup.html')
 
 @app.route('/portal/dashboard')
 @login_required
 def player_portal():
+    if current_user.role == 'player_setup': return redirect(url_for('player_setup'))
     if current_user.role != 'player': return abort(403)
-    player_data = db_manager.get_player_profile(current_user.id)
     
-    # Calcolo Win Rate lato backend per comodità del template
+    player_data = db_manager.get_player_profile(current_user.id)
     games = player_data.get('games_played', 0)
     wins = player_data.get('wins', 0)
-    win_rate = round((wins / games) * 100) if games > 0 else 0
-    player_data['win_rate'] = win_rate
-    
+    player_data['win_rate'] = round((wins / games) * 100) if games > 0 else 0
     return render_template('player_portal.html', player=player_data)
 
 @app.route('/portal/upload_photo', methods=['POST'])
@@ -177,10 +223,8 @@ def player_portal():
 def upload_photo_player():
     if current_user.role != 'player': return jsonify({"status": "error"}), 403
     if 'photo' not in request.files: return jsonify({"status": "error"}), 400
-    
     file = request.files['photo']
     if file.filename != '':
-        # Sicurezza: Sovrascrive SOLO l'ID dell'utente attualmente loggato
         filename = secure_filename(f"op_{current_user.id}.jpg")
         file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
         db_manager.update_player_photo(current_user.id, filename)
@@ -190,23 +234,25 @@ def upload_photo_player():
 @app.route('/portal/rename', methods=['POST'])
 @login_required
 def rename_player_portal():
-    # Sicurezza: solo i ruoli 'player' possono usare questa funzione
     if current_user.role != 'player': return jsonify({"status": "error"}), 403
-    
     new_name = request.form.get('new_name')
     if new_name and new_name.strip() != '':
-        clean_name = new_name.strip().upper()
-        # Aggiorna il database
-        db_manager.rename_player(current_user.id, clean_name)
-        
-        # Invia un broadcast in tempo reale a tutte le interfacce (TV, Kiosk, Monitor) 
-        # per aggiornare il nome istantaneamente ovunque
+        db_manager.rename_player(current_user.id, new_name.strip().upper())
         socketio.emit('database_update', db_manager.get_all_players())
         socketio.emit('roster_update', db_manager.get_full_roster())
-        
-        return jsonify({"status": "ok", "new_name": clean_name})
-        
+        return jsonify({"status": "ok", "new_name": new_name.strip().upper()})
     return jsonify({"status": "error"}), 400
+
+@app.route('/portal/edit_asd', methods=['POST'])
+@login_required
+def edit_asd_portal():
+    if current_user.role != 'player': return jsonify({"status": "error"}), 403
+    new_asd = request.form.get('new_asd', '').strip().upper()
+    if new_asd == "": new_asd = "NESSUNA"
+    db_manager.update_player_asd(current_user.id, new_asd)
+    socketio.emit('database_update', db_manager.get_all_players())
+    socketio.emit('roster_update', db_manager.get_full_roster())
+    return jsonify({"status": "ok", "new_asd": new_asd})
 
 @app.route('/upload_photo', methods=['POST'])
 @admin_required

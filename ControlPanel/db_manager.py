@@ -36,6 +36,10 @@ def init_db():
         except sqlite3.OperationalError: pass
         try: c.execute("ALTER TABLE players ADD COLUMN asd_team TEXT DEFAULT 'NESSUNA'")
         except sqlite3.OperationalError: pass
+        try: c.execute("ALTER TABLE players ADD COLUMN username TEXT UNIQUE")
+        except sqlite3.OperationalError: pass
+        try: c.execute("ALTER TABLE players ADD COLUMN password_hash TEXT")
+        except sqlite3.OperationalError: pass
 
         c.execute("UPDATE players SET games_played = 0 WHERE games_played IS NULL")
         c.execute("UPDATE players SET wins = 0 WHERE wins IS NULL")
@@ -150,7 +154,10 @@ def get_all_players():
         conn.row_factory = sqlite3.Row
         c = conn.cursor()
         c.execute("SELECT * FROM players ORDER BY alias")
-        return [dict(r) for r in c.fetchall()]
+        players = [dict(r) for r in c.fetchall()]
+        # Rimuove le password prima di inviare i dati al Frontend
+        for p in players: p.pop('password_hash', None)
+        return players
 
 def get_player_profile(uid):
     with sqlite3.connect(DB_PATH) as conn:
@@ -305,3 +312,16 @@ def process_match_stats(winner_state):
                 logger.info(f"[STATS SALVATE] PAREGGIO: +1 Partita aggiunta a {p_count} giocatori, nessuna vittoria assegnata.")
     except Exception as e:
         logger.error(f"[ERROR STATS] {e}")
+
+def set_player_credentials(uid, username, password_hash):
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("UPDATE players SET username = ?, password_hash = ? WHERE uid = ?", (username, password_hash, uid))
+        conn.commit()
+
+def get_player_by_username(username):
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        c.execute("SELECT * FROM players WHERE username = ?", (username,))
+        row = c.fetchone()
+        return dict(row) if row else None

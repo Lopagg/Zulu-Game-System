@@ -20,23 +20,22 @@
             {% with messages = get_flashed_messages(category_filter=["error"]) %}
               {% if messages %}
                 <div class="error-console">
-                  {% for message in messages %}
-                    <div class="error-line">> {{ message }}</div>
-                  {% endfor %}
+                  {% for message in messages %}<div class="error-line">> {{ message }}</div>{% endfor %}
                 </div>
               {% endif %}
             {% endwith %}
 
             <form class="login-form" method="POST" action="{{ url_for('player_login') }}">
                 <div>
-                    <label>UID TESSERA (14 CARATTERI)</label>
-                    <input type="text" name="uid" placeholder="Es. 04863EB76F6180" required autofocus autocomplete="off" style="text-transform: uppercase;">
+                    <label>UID TESSERA O USERNAME</label>
+                    <input type="text" name="login_id" required autofocus autocomplete="off">
                 </div>
-                <button type="submit" class="deck-btn login-btn">[ INIZIALIZZA CONNESSIONE ]</button>
+                <div>
+                    <label>PASSWORD (Vuoto se è il primo accesso con UID)</label>
+                    <input type="password" name="password">
+                </div>
+                <button type="submit" class="deck-btn login-btn" style="color: var(--sop-primary); border-color: var(--sop-primary);">[ INIZIALIZZA CONNESSIONE ]</button>
             </form>
-            <div style="text-align: center; margin-top: 20px; font-size: 12px; color: #888;">
-                Utilizza un'App NFC sul telefono per leggere il codice UID della tua tessera.
-            </div>
         </div>
     </div>
 </body>
