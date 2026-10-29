@@ -206,21 +206,28 @@ const tacticalWeatherIcons = {
 
 socket.on('weather_update', (data) => { 
     if(data.weather) {
-        // La stringa che arriva da Python è tipo "18°C // CLEAR"
         const elDisplay = document.getElementById('weather-display');
         const elIcon = document.getElementById('weather-icon');
         
-        if (elDisplay) {
-            elDisplay.textContent = data.weather;
-        }
-        
-        if (elIcon) {
-            // Estrae la condizione separando la stringa in base al " // "
-            const parts = data.weather.split(' // ');
-            if (parts.length === 2) {
-                const condition = parts[1].trim(); // Prende "CLEAR", "CLOUDS", ecc.
-                // Assegna l'icona corrispondente, oppure l'icona DEFAULT di avviso
+        const parts = data.weather.split(' // ');
+        if (parts.length === 2) {
+            const temp = parts[0].trim();
+            const condition = parts[1].trim(); // Es. "CLEAR_NIGHT"
+            
+            // 1. Usa la condizione completa (con _NIGHT) per scegliere l'icona
+            if (elIcon) {
                 elIcon.src = tacticalWeatherIcons[condition] || tacticalWeatherIcons["DEFAULT"];
+            }
+            
+            // 2. Rimuove testualmente "_NIGHT" dalla stringa prima di stamparla
+            if (elDisplay) {
+                const displayCondition = condition.replace('_NIGHT', '');
+                elDisplay.textContent = `${temp} // ${displayCondition}`;
+            }
+        } else {
+            // Fallback nel caso in cui il server mandi stringhe anomale
+            if (elDisplay) {
+                elDisplay.textContent = data.weather.replace('_NIGHT', '');
             }
         }
     }
