@@ -274,7 +274,7 @@ def handle_request_mission_start(data):
         cmd_str = "START_SD_GAME" if mode == 'sd' else "START_DOM_GAME"
         try: game_engine.mqtt_client.publish(f"zulu/cmd/{target_id}", json.dumps({"cmd": cmd_str}))
         except: pass
-    emit('mission_start_success')
+    socketio.emit('mission_start_success')
 
 @socketio.on('mobile_tag_scanned')
 def handle_mobile_scan(data):
