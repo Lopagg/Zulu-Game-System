@@ -58,10 +58,25 @@ export function updateMonitorDailyWins(factions) {
 export function updateUniversalFeed(payload, mode, msgType) {
     if (['KIOSK', 'MAIN MENU', 'TERMINAL'].includes(mode)) return;
     
+    // Identificazione Modalità
+    const isDom = (msgType === 'DOM_UPDATE' || mode === 'DOMINATION');
+    const isTdm = (msgType === 'TDM_UPDATE' || mode === 'TEAM_DEATHMATCH');
+    const isSd = (msgType === 'SD_UPDATE' || mode === 'SEARCH_AND_DESTROY');
+
+    // Gestione Cambio Modalità e Layout Base
     if (mode && mode !== lastConfiguredMode) {
         lastConfiguredMode = mode;
-        document.getElementById('widget-sd-tactical').classList.remove('hidden');
-        document.getElementById('widget-generic-map').classList.add('hidden');
+        
+        // Se è Team Deathmatch NASCONDIAMO COMPLETAMENTE il Tactical Feed (widget-sd-tactical)
+        // e lasciamo la mappa in basso
+        if (isTdm) {
+            document.getElementById('widget-sd-tactical').classList.add('hidden');
+            document.getElementById('widget-generic-map').classList.remove('hidden');
+        } else {
+            document.getElementById('widget-sd-tactical').classList.remove('hidden');
+            document.getElementById('widget-generic-map').classList.add('hidden');
+        }
+        
         document.getElementById('monitor-mode-title').textContent = `OPERATION: ${mode.replace(/_/g, ' ').toUpperCase()}`;
         
         const armBar = document.getElementById('sd-arm-bar');
@@ -70,32 +85,36 @@ export function updateUniversalFeed(payload, mode, msgType) {
         if (defuseBar) defuseBar.className = "progress-fill fill-green";
     }
 
+    // -- Gestione Vittorie, Testi e Colori --
     if (payload.state) {
         let s = payload.state;
         s = s.replace('ALPHA', currentFactions.ALPHA.name).replace('BRAVO', currentFactions.BRAVO.name);
         const statusEl = document.getElementById('sd-bomb-status');
-        statusEl.textContent = s;
         
-        if (s.includes('WINS') || s.includes('OWNED')) {
-            if (s.includes('CT WINS') || s.includes('BRAVO WINS') || s.includes('OWNED BRAVO') || s.includes(currentFactions.BRAVO.name)) {
-                statusEl.style.color = currentFactions.BRAVO.color; 
-            } else if (s.includes('T WINS') || s.includes('ALPHA WINS') || s.includes('OWNED ALPHA') || s.includes(currentFactions.ALPHA.name)) {
-                statusEl.style.color = currentFactions.ALPHA.color; 
-            }
-        } else {
-            if (s.includes('DEFUS') || s.includes('CAPTURING B')) {
-                statusEl.style.color = '#55ff55'; 
-            } else if (s.includes('ARM') || s.includes('EXPLODED') || s.includes('CAPTURING A')) {
-                statusEl.style.color = '#ff3333'; 
-            } else if (s === 'STANDBY' || s === 'PREPARING' || s === 'DRAW') {
-                statusEl.style.color = '#ff9900'; 
+        if (statusEl) {
+            statusEl.textContent = s;
+            if (s.includes('WINS') || s.includes('OWNED')) {
+                if (s.includes('CT WINS') || s.includes('BRAVO WINS') || s.includes('OWNED BRAVO') || s.includes(currentFactions.BRAVO.name)) {
+                    statusEl.style.color = currentFactions.BRAVO.color; 
+                } else if (s.includes('T WINS') || s.includes('ALPHA WINS') || s.includes('OWNED ALPHA') || s.includes(currentFactions.ALPHA.name)) {
+                    statusEl.style.color = currentFactions.ALPHA.color; 
+                }
             } else {
-                statusEl.style.color = 'var(--sop-primary)';
+                if (s.includes('DEFUS') || s.includes('CAPTURING B')) {
+                    statusEl.style.color = '#55ff55'; 
+                } else if (s.includes('ARM') || s.includes('EXPLODED') || s.includes('CAPTURING A')) {
+                    statusEl.style.color = '#ff3333'; 
+                } else if (s === 'STANDBY' || s === 'PREPARING' || s === 'DRAW') {
+                    statusEl.style.color = '#ff9900'; 
+                } else {
+                    statusEl.style.color = 'var(--sop-primary)';
+                }
             }
         }
         updateForceEndButton(payload.state); 
     }
 
+    // -- Formattazione Tempo Globale --
     const formatTime = (seconds) => {
         if(seconds === undefined) return "00:00";
         const m = Math.floor(seconds / 60); const s = seconds % 60;
@@ -112,35 +131,28 @@ export function updateUniversalFeed(payload, mode, msgType) {
         document.getElementById('global-timer-display').style.color = '#ff9900'; 
     }
 
-    const isDom = (msgType === 'DOM_UPDATE' || mode === 'DOMINATION');
-    const isTdm = (msgType === 'TDM_UPDATE' || mode === 'TEAM_DEATHMATCH');
-    const isSd = (msgType === 'SD_UPDATE' || mode === 'SEARCH_AND_DESTROY');
-
+    // -- Controllo UI Tattica Interna (Solo per SD e DOM) --
     const bombContainer = document.querySelector('.bomb-timer-container');
     const domScores = document.getElementById('domination-scores');
     const progSection = document.querySelector('.progress-section');
     const title = document.getElementById('tactical-panel-title');
 
-    if (isSd) {
+    if (isSd && title && bombContainer && domScores && progSection) {
         title.textContent = "TACTICAL FEED // S&D";
         bombContainer.classList.remove('hidden'); domScores.classList.add('hidden'); progSection.classList.remove('hidden');
         document.getElementById('lbl-prog-1').textContent = "ARMING PROGRESS";
         document.getElementById('lbl-prog-2').textContent = "DEFUSING PROGRESS";
         if (payload.bomb_time !== undefined) document.getElementById('sd-bomb-timer').textContent = formatTime(payload.bomb_time);
-    } else if (isDom) {
+    } else if (isDom && title && bombContainer && domScores && progSection) {
         title.textContent = "TACTICAL FEED // DOMINATION";
         bombContainer.classList.add('hidden'); domScores.classList.remove('hidden'); progSection.classList.remove('hidden');
-        
         document.getElementById('lbl-prog-1').textContent = `${currentFactions.ALPHA.name} ACTION`;
         document.getElementById('lbl-prog-2').textContent = `${currentFactions.BRAVO.name} ACTION`;
-        
         if (payload.score_a !== undefined) document.getElementById('d-val-a').textContent = formatTime(payload.score_a);
         if (payload.score_b !== undefined) document.getElementById('d-val-b').textContent = formatTime(payload.score_b);
-    } else if (isTdm) {
-        title.textContent = "TACTICAL FEED // DEATHMATCH";
-        bombContainer.classList.add('hidden'); domScores.classList.add('hidden'); progSection.classList.add('hidden');
     }
 
+    // -- Gestione Barre (Solo per SD e DOM) --
     let width1 = 0, width2 = 0, bar1Active = false, bar2Active = false;
     if (isSd) {
         if(payload.arm_prog !== undefined) { width1 = payload.arm_prog; bar1Active = width1 > 0; }
@@ -152,14 +164,13 @@ export function updateUniversalFeed(payload, mode, msgType) {
         else if (state.includes('CAPTURING B')) { width2 = prog; bar2Active = true; }
     }
 
-    updateProgressBar(document.getElementById('sd-arm-bar'), width1, bar1Active, 1);
-    updateProgressBar(document.getElementById('sd-defuse-bar'), width2, bar2Active, 2);
+    if (!isTdm) {
+        updateProgressBar(document.getElementById('sd-arm-bar'), width1, bar1Active, 1);
+        updateProgressBar(document.getElementById('sd-defuse-bar'), width2, bar2Active, 2);
+    }
     
     updateMonitorDailyWins(currentFactions);
-    
-    if (payload.game_duration || payload.bomb_time || payload.attacker) {
-        renderRules(payload);
-    }
+    if (payload.game_duration || payload.bomb_time || payload.attacker) renderRules(payload);
 }
 
 function updateProgressBar(barElem, width, isActive, timerRefName) {
