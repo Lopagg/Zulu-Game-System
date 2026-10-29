@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'philanthropy_secret_key_change_in_prod'
-app.config['SESSION_PROTECTION'] = 'strong'
 
 UPLOAD_FOLDER = os.path.join(app.root_path, 'static', 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -28,7 +27,17 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 login_manager = LoginManager()
 login_manager.init_app(app)
-login_manager.login_view = 'login'
+
+@login_manager.unauthorized_handler
+def unauthorized():
+    # Se scade la sessione mentre l'utente cercava di aprire il portale PRO:
+    if request.path.startswith('/portal'):
+        flash("ACCESSO NEGATO: Sessione scaduta o non valida.", "error")
+        return redirect(url_for('player_login'))
+    
+    # Se scade cercando di accedere all'infrastruttura (Kiosk, Monitor, Main):
+    flash("ACCESSO NEGATO", "error")
+    return redirect(url_for('login'))
 
 USERS = { 
     "admin": { "password_hash": "scrypt:32768:8:1$UudpiqxEpDnMIMyI$d1c51523f034965a99cb569f943943399dc8722d382fec63de356a4f4b74fdebe269ff61c287b4784886553adb74086a2dac9cc570a13caa7434f3218dd2ca13", "name": "Admin" },
