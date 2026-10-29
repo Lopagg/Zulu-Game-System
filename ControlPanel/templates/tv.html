@@ -290,6 +290,38 @@
             return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
         };
 
+        function adjustFontSize(listId) {
+            const ul = document.getElementById(listId);
+            const container = ul.parentElement; // Il div contenitore che gli dà il limite
+            const lis = ul.querySelectorAll('li');
+            if (lis.length === 0) return;
+
+            // 1. Ripristina i valori di default prima di ricalcolare
+            ul.style.gap = '10px';
+            lis.forEach(li => {
+                li.style.fontSize = '2.2rem';
+                li.style.padding = '10px 15px';
+            });
+
+            // 2. Misura e rimpicciolisci iterativamente se "sfora"
+            let fontSize = 2.2;
+            let padding = 10;
+            let gap = 10;
+
+            // Finché l'altezza del contenuto è maggiore dell'altezza del contenitore e il font non è minuscolo
+            while (ul.scrollHeight > container.clientHeight && fontSize > 1.0) {
+                fontSize -= 0.1;
+                if (padding > 4) padding -= 0.5;
+                if (gap > 2) gap -= 1;
+
+                ul.style.gap = gap + 'px';
+                lis.forEach(li => {
+                    li.style.fontSize = fontSize + 'rem';
+                    li.style.padding = padding + 'px 15px';
+                });
+            }
+        }
+
         const socket = io();
         socket.on('connect', () => { log("LINK ESTABLISHED WITH SOP SERVER."); socket.emit('request_roster'); });
         socket.on('disconnect', () => log("CRITICAL: CONNECTION LOST."));
@@ -340,6 +372,14 @@
             });
             document.getElementById('tv-op-alpha').textContent = a;
             document.getElementById('tv-op-bravo').textContent = b;
+
+            // --- AUTO-FIT DEI FONT ---
+            // Usa setTimeout per assicurarsi che il DOM abbia disegnato gli elementi 
+            // prima di misurarne l'altezza reale
+            setTimeout(() => {
+                adjustFontSize('tv-list-alpha');
+                adjustFontSize('tv-list-bravo');
+            }, 50);
         });
 
         socket.on('esp_event', (msg) => {
