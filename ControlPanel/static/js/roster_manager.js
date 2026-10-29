@@ -282,6 +282,35 @@ export function populateProfileModal(data) {
     
     const photoEl = document.getElementById('modal-op-photo');
     if(photoEl) photoEl.src = data.photo ? `/static/uploads/${data.photo}?t=${new Date().getTime()}` : "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIiBmaWxsPSIjMzMzIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjM1IiByPSIyMCIvPjxwYXRoIGQ9Ik0yMCA5MCBRMjAgNjAgNTAgNjAgUTgwIDYwIDgwIDkwIFoiLz48L3N2Zz4=";
+
+    // --- POPOLA ULTIMA GIOCATA E STORICO RECENTE ---
+    const lastMatchEl = document.getElementById('modal-op-lastmatch');
+    const historyListEl = document.getElementById('modal-op-history-list');
+    
+    if (data.history && data.history.length > 0) {
+        if (lastMatchEl) lastMatchEl.textContent = data.history[0].match_date;
+        
+        if (historyListEl) {
+            historyListEl.innerHTML = '';
+            data.history.forEach(match => {
+                let resultColor = '#ff9900'; // Colore per Pareggio
+                let resultText = 'PAREGGIO';
+                if (match.result === 'VITTORIA') { resultColor = 'var(--sop-success)'; resultText = 'VITTORIA'; }
+                if (match.result === 'SCONFITTA') { resultColor = 'var(--sop-alert)'; resultText = 'SCONFITTA'; }
+                
+                historyListEl.innerHTML += `
+                    <li style="display: flex; justify-content: space-between; border-bottom: 1px dashed rgba(255,255,255,0.1); padding: 6px 0; font-size: 13px;">
+                        <span style="color: #aaa; width: 40%;">${match.match_date}</span>
+                        <span style="color: var(--sop-text); width: 35%;">${match.game_mode}</span>
+                        <span style="color: ${resultColor}; font-weight: bold; width: 25%; text-align: right;">${resultText}</span>
+                    </li>
+                `;
+            });
+        }
+    } else {
+        if (lastMatchEl) lastMatchEl.textContent = "MAI IN CAMPO";
+        if (historyListEl) historyListEl.innerHTML = '<li style="text-align: center; color: var(--sop-dim); padding: 10px;">Nessuna registrazione tattica.</li>';
+    }
     
     document.getElementById('operator-modal').classList.remove('hidden');
 }

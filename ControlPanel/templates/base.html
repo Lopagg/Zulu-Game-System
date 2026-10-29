@@ -156,6 +156,11 @@
                         </div>
                         <div class="data-row"><span class="label">UID TESSERA:</span> <span id="modal-op-uid" class="value" style="font-family: monospace;">--</span></div>
                         <div class="data-row"><span class="label">REGISTRATO IL:</span> <span id="modal-op-date" class="value">--</span></div>
+                        <div class="data-row"><span class="label">REGISTRATO IL:</span> <span id="modal-op-date" class="value">--</span></div>
+                        <div class="data-row" style="margin-top: 10px; border-top: 1px dashed var(--sop-dim); padding-top: 10px;">
+                            <span class="label">ULTIMA GIOCATA:</span> 
+                            <span id="modal-op-lastmatch" class="value" style="color: var(--sop-primary); font-weight: bold;">--</span>
+                        </div>
                     </div>
                     
                     <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
@@ -178,6 +183,15 @@
                     </div>
                     
                     <button class="deck-btn btn-danger" style="margin: 0 0 20px 0; font-size: 12px; padding: 4px 10px;" onclick="resetOperatorStats()">[ AZZERA STATISTICHE ]</button>
+
+                    <div style="margin-bottom: 20px; background: rgba(0,0,0,0.4); border: 1px solid var(--sop-dim); padding: 15px;">
+                        <span style="font-size: 12px; color: #888; letter-spacing: 2px; font-weight: bold; display: block; margin-bottom: 10px; border-bottom: 1px solid var(--sop-dim); padding-bottom: 5px;">
+                            STORICO RECENTE (ULTIME 10)
+                        </span>
+                        <ul id="modal-op-history-list" style="list-style: none; padding: 0; margin: 0; max-height: 150px; overflow-y: auto;">
+                            <!-- Popolato da JS -->
+                        </ul>
+                    </div>
 
                     <label class="setup-label">ANNOTAZIONI</label>
                     <textarea id="modal-op-notes" class="setup-input tactical-textarea" rows="5" placeholder="Nessuna nota presente..."></textarea>

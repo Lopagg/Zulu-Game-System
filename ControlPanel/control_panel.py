@@ -410,8 +410,12 @@ def handle_purge_guests():
 
 @socketio.on('request_profile')
 def handle_request_profile(data):
-    profile = db_manager.get_player_profile(data.get('uid'))
-    if profile: emit('profile_data', profile)
+    uid = data.get('uid')
+    profile = db_manager.get_player_profile(uid)
+    if profile: 
+        # Aggiungiamo lo storico al pacchetto dati inviato al frontend
+        profile['history'] = db_manager.get_player_history(uid)
+        emit('profile_data', profile)
 
 @socketio.on('save_notes')
 def handle_save_notes(data): db_manager.update_player_notes(data.get('uid'), data.get('notes'))
