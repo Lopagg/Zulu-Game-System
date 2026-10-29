@@ -190,7 +190,40 @@ socket.on('factions_update', (factions) => {
     setEl('dom-lbl-bravo', currentFactions.BRAVO.name);
 });
 
-socket.on('weather_update', (data) => { if(data.weather) document.getElementById('weather-display').textContent = data.weather; });
+// --- DIZIONARIO ICONE METEO VETTORIALI (SVG) ---
+const tacticalWeatherIcons = {
+    "CLEAR": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2300ffcc' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='5'/><line x1='12' y1='1' x2='12' y2='3'/><line x1='12' y1='21' x2='12' y2='23'/><line x1='4.22' y1='4.22' x2='5.64' y2='5.64'/><line x1='18.36' y1='18.36' x2='19.78' y2='19.78'/><line x1='1' y1='12' x2='3' y2='12'/><line x1='21' y1='12' x2='23' y2='12'/><line x1='4.22' y1='19.78' x2='5.64' y2='18.36'/><line x1='18.36' y1='4.22' x2='19.78' y2='5.64'/></svg>",
+    "CLOUDS": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2300ffcc' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z'/></svg>",
+    "FOG": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2300ffcc' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><line x1='4' y1='14' x2='20' y2='14'/><line x1='4' y1='18' x2='20' y2='18'/><path d='M17.5 10A8 8 0 1 0 9 20'/></svg>",
+    "RAIN": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2300ffcc' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z'/><line x1='8' y1='19' x2='8' y2='21'/><line x1='12' y1='19' x2='12' y2='21'/><line x1='16' y1='19' x2='16' y2='21'/></svg>",
+    "SHOWERS": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2300ffcc' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z'/><line x1='8' y1='19' x2='8' y2='21'/><line x1='12' y1='19' x2='12' y2='21'/><line x1='16' y1='19' x2='16' y2='21'/></svg>",
+    "STORM": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2300ffcc' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z'/><polygon points='13 19 19 19 11 23 11 19 5 19 13 15'/></svg>",
+    "SNOW": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2300ffcc' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><line x1='12' y1='2' x2='12' y2='22'/><line x1='2.93' y1='11.93' x2='21.07' y2='11.93'/><line x1='4.93' y1='4.93' x2='19.07' y2='19.07'/><line x1='4.93' y1='19.07' x2='19.07' y2='4.93'/></svg>",
+    "DEFAULT": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2300ffcc' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><line x1='12' y1='8' x2='12' y2='12'/><line x1='12' y1='16' x2='12.01' y2='16'/></svg>"
+};
+
+socket.on('weather_update', (data) => { 
+    if(data.weather) {
+        // La stringa che arriva da Python è tipo "18°C // CLEAR"
+        const elDisplay = document.getElementById('weather-display');
+        const elIcon = document.getElementById('weather-icon');
+        
+        if (elDisplay) {
+            elDisplay.textContent = data.weather;
+        }
+        
+        if (elIcon) {
+            // Estrae la condizione separando la stringa in base al " // "
+            const parts = data.weather.split(' // ');
+            if (parts.length === 2) {
+                const condition = parts[1].trim(); // Prende "CLEAR", "CLOUDS", ecc.
+                // Assegna l'icona corrispondente, oppure l'icona DEFAULT di avviso
+                elIcon.src = tacticalWeatherIcons[condition] || tacticalWeatherIcons["DEFAULT"];
+            }
+        }
+    }
+});
+
 socket.on('roster_update', (rosterData) => { arenaRoster = rosterData; renderArenaRoster(arenaRoster, socket); });
 socket.on('database_update', (players) => renderDatabase(players, socket, arenaRoster));
 socket.on('profile_data', (data) => populateProfileModal(data));
