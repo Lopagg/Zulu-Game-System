@@ -474,14 +474,27 @@ def background_cleanup(fetch_weather_callback):
             mission_ready_flag = False
 
         try:
+            config = db_manager.get_factions_config()
+            
+            def get_pure_rgb(hex_code):
+                h = str(hex_code).lstrip('#').lower()
+                if h == 'ff3333': return (255, 0, 0)
+                if h == '55ff55': return (0, 255, 0)
+                return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
+                
             mqtt_client.publish("zulu/cmd/NODE-KIOSK-1", json.dumps({
                 "cmd": "KIOSK_LED_SYNC", 
                 "all_players_in": (players_out == 0) and (len(players) > 0), 
                 "game_running": game_is_running, 
                 "game_ready": mission_ready_flag,
-                "mission_state": mission_control.state  
+                "mission_state": mission_control.state,
+                "t1": config.get('ALPHA', {}).get('name', 'ALPHA'),
+                "t1_c": get_pure_rgb(config.get('ALPHA', {}).get('color', '#ff3333')),
+                "t2": config.get('BRAVO', {}).get('name', 'BRAVO'),
+                "t2_c": get_pure_rgb(config.get('BRAVO', {}).get('color', '#55ff55'))
             }))
-        except: pass
+        except Exception as e:
+            logger.error(f"[KIOSK SYNC ERROR] {e}")
 
         with mission_control.lock:
             if mission_control.active_mission and mission_control.state == "ACTIVE":
