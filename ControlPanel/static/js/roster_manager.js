@@ -86,15 +86,38 @@ export function renderDatabase(players, socket, arenaRoster) {
     const dbList = document.getElementById('db-list');
     if(!dbList) return;
 
-    dbList.innerHTML = '';
-    document.getElementById('db-total-count').textContent = players.length;
+    // --- NUOVA LOGICA: LETTURA FILTRI ---
+    const searchVal = (document.getElementById('db-search')?.value || '').toLowerCase();
+    const filterType = document.getElementById('db-filter')?.value || 'ALL';
+    const sortBy = document.getElementById('db-sort')?.value || 'NAME';
+    
+    // 1. Filtraggio
+    let filteredPlayers = players.filter(p => {
+        const matchSearch = p.alias.toLowerCase().includes(searchVal) || p.uid.toLowerCase().includes(searchVal);
+        let matchType = true;
+        if (filterType === 'PRO') matchType = p.is_pro === 1;
+        if (filterType === 'GUEST') matchType = p.is_pro !== 1;
+        return matchSearch && matchType;
+    });
+    
+    // 2. Ordinamento
+    filteredPlayers.sort((a, b) => {
+        if (sortBy === 'NAME') return a.alias.localeCompare(b.alias);
+        if (sortBy === 'GAMES') return (b.games_played || 0) - (a.games_played || 0);
+        if (sortBy === 'WINS') return (b.wins || 0) - (a.wins || 0);
+        return 0;
+    });
 
-    if(players.length === 0) {
-        dbList.innerHTML = '<li class="placeholder-text" style="color:var(--sop-dim); text-align:center; margin-top:20px;">NESSUN OPERATORE IN ARCHIVIO</li>';
+    dbList.innerHTML = '';
+    // Aggiorniamo il contatore con il numero di risultati filtrati rispetto al totale
+    document.getElementById('db-total-count').textContent = `${filteredPlayers.length} / ${players.length}`;
+
+    if(filteredPlayers.length === 0) {
+        dbList.innerHTML = '<li class="placeholder-text" style="color:var(--sop-dim); text-align:center; margin-top:20px;">NESSUN RISULTATO TROVATO</li>';
         return;
     }
 
-    players.forEach(player => {
+    filteredPlayers.forEach(player => {
         const li = document.createElement('li');
         li.className = 'roster-item';
 

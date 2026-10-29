@@ -130,6 +130,28 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('btn-start-mission').classList.remove('disabled'); 
             document.getElementById('btn-start-mission').disabled = false; 
         }
+
+    // --- GESTIONE RICERCA E FILTRI DATABASE ---
+    const searchInput = document.getElementById('db-search');
+    if (searchInput) {
+        searchInput.addEventListener('input', () => {
+            if (typeof globalPlayersDB !== 'undefined' && globalPlayersDB.length > 0) {
+                renderDatabase(globalPlayersDB, socket, arenaRoster);
+            }
+        });
+    }
+
+    ['db-filter', 'db-sort'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('change', () => {
+                if (typeof globalPlayersDB !== 'undefined' && globalPlayersDB.length > 0) {
+                    renderDatabase(globalPlayersDB, socket, arenaRoster);
+                }
+            });
+        }
+    });
+
     });
 
     setInterval(() => {
