@@ -517,13 +517,6 @@ window.submitRegistration = function() {
     closeRegistrationModal();
 };
 
-window.openAddPlayerModal = function() { 
-    renderAddPlayerList(socket, arenaRoster); 
-    document.getElementById('add-player-modal').classList.remove('hidden'); 
-};
-window.closeAddPlayerModal = function() { document.getElementById('add-player-modal').classList.add('hidden'); };
-window.closeModal = function() { document.getElementById('operator-modal').classList.add('hidden'); };
-
 window.deleteOperatorPhoto = function() {
     const uid = getCurrentProfileUid();
     if (uid && confirm("Vuoi eliminare la foto profilo di questo operatore?")) {
