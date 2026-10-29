@@ -62,12 +62,15 @@
             </div>
 
             <div class="header-right">
-                <div class="net-stats">
+                <!-- Aggiunto display: flex con gap per separare le due voci, 
+                     e margin-right per staccare il blocco dal nome utente e spostarlo a sinistra -->
+                <div class="net-stats" style="display: flex; gap: 25px; margin-right: 35px; border-right: 1px solid rgba(0, 255, 204, 0.2); padding-right: 30px;">
                     <span class="stat-item">NET_LOAD: <span id="net-load" style="color: #ff9900;">-- ms</span></span>
                     <span class="stat-item">ASSETS: <span id="asset-count">0</span></span>
                 </div>
+                
                 <div class="operator-box">
-                    <span class="operator-name">{{ username }}</span>
+                    <span class="operator-name" style="font-weight: bold; letter-spacing: 1px;">{{ username }}</span>
                     <a href="{{ url_for('logout') }}" class="logout-btn">[LOGOUT]</a>
                 </div>
             </div>
