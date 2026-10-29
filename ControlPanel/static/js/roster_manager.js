@@ -131,12 +131,22 @@ export function renderDatabase(players, socket, arenaRoster) {
         let winRate = 0;
         if (games > 0) winRate = Math.round((wins / games) * 100);
         
-        const isPro = player.is_pro === 1;
-        const badge = isPro ? '<span class="pro-badge">[★ PRO]</span>' : '<span class="guest-badge">[GUEST]</span>';
+        const isAdmin = player.uid === '04863EB76F6180';
+        let badge = '';
+        let aliasStyle = '';
+        
+        if (isAdmin) {
+            badge = '<span style="color: #b15bff; font-weight: bold; margin-right: 12px; text-shadow: 0 0 10px rgba(177,91,255,0.6); font-size: 16px;">[👑 ADMIN]</span>';
+            aliasStyle = 'color: #b15bff; text-shadow: 0 0 10px rgba(177,91,255,0.4);';
+        } else {
+            const isPro = player.is_pro === 1;
+            badge = isPro ? '<span class="pro-badge">[★ PRO]</span>' : '<span class="guest-badge">[GUEST]</span>';
+            aliasStyle = 'color: inherit;';
+        }
         
         const deaths = player.deaths || 0;
         
-        nameSpan.innerHTML = `${badge} ${player.alias} <span style="font-size: 16px; font-weight: normal; color: #aaa; margin-left: 15px; font-family: monospace;">(UID: ${player.uid}) &nbsp;&nbsp;|&nbsp;&nbsp; P: <span style="color:var(--sop-primary); font-weight:bold">${games}</span> &nbsp;&nbsp;V: <span style="color:var(--sop-success); font-weight:bold">${wins}</span> &nbsp;&nbsp;D: <span style="color:var(--sop-alert); font-weight:bold">${deaths}</span> <span style="color: #666; font-size:14px;">(${winRate}%)</span></span>`;
+        nameSpan.innerHTML = `${badge} <span style="${aliasStyle}">${player.alias}</span> <span style="font-size: 16px; font-weight: normal; color: #aaa; margin-left: 15px; font-family: monospace;">(UID: ${player.uid}) &nbsp;&nbsp;|&nbsp;&nbsp; P: <span style="color:var(--sop-primary); font-weight:bold">${games}</span> &nbsp;&nbsp;V: <span style="color:var(--sop-success); font-weight:bold">${wins}</span> &nbsp;&nbsp;D: <span style="color:var(--sop-alert); font-weight:bold">${deaths}</span> <span style="color: #666; font-size:14px;">(${winRate}%)</span></span>`;
         nameSpan.style.fontWeight = 'bold'; 
         nameSpan.style.fontSize = '22px'; 
         nameSpan.className = 'clickable-name';
@@ -224,30 +234,47 @@ export function populateProfileModal(data) {
     setEl('modal-stat-rate', `${winRate}%`);
     
     const isPro = data.is_pro === 1;
+    const isAdmin = data.uid === '04863EB76F6180';
+    
     const typeEl = document.getElementById('modal-op-type');
     const toggleBtn = document.getElementById('btn-toggle-pro');
     if (typeEl && toggleBtn) {
-        if (isPro) {
-            typeEl.innerHTML = '<span style="color:#ffd700">[★ PRO]</span>';
-            toggleBtn.textContent = "[ DOWNGRADE TO GUEST ]";
-            toggleBtn.className = "deck-btn btn-warning";
+        if (isAdmin) {
+            typeEl.innerHTML = '<span style="color:#b15bff; font-weight:bold; letter-spacing:2px; text-shadow: 0 0 10px rgba(177,91,255,0.5);">[👑 ADMIN]</span>';
+            toggleBtn.style.display = 'none'; // Nasconde il tasto upgrade/downgrade per l'admin
         } else {
-            typeEl.innerHTML = '<span style="color:#888">[GUEST]</span>';
-            toggleBtn.textContent = "[ UPGRADE TO PRO ]";
-            toggleBtn.className = "deck-btn";
-            toggleBtn.style.color = "var(--sop-primary)";
-            toggleBtn.style.borderColor = "var(--sop-primary)";
+            toggleBtn.style.display = 'inline-block';
+            if (isPro) {
+                typeEl.innerHTML = '<span style="color:#ffd700">[★ PRO]</span>';
+                toggleBtn.textContent = "[ DOWNGRADE TO GUEST ]";
+                toggleBtn.className = "deck-btn btn-warning";
+            } else {
+                typeEl.innerHTML = '<span style="color:#888">[GUEST]</span>';
+                toggleBtn.textContent = "[ UPGRADE TO PRO ]";
+                toggleBtn.className = "deck-btn";
+                toggleBtn.style.color = "var(--sop-primary)";
+                toggleBtn.style.borderColor = "var(--sop-primary)";
+            }
         }
     }
     
     const karma = data.karma || 0;
     const karmaEl = document.getElementById('modal-op-karma');
-    if(karmaEl) {
-        karmaEl.textContent = karma;
-        const badge = karmaEl.parentElement;
-        badge.classList.remove('positive', 'negative');
-        if (karma < 0) badge.classList.add('negative');
-        else if (karma > 0) badge.classList.add('positive');
+    const karmaContainer = document.querySelector('.karma-container');
+    
+    if (karmaContainer) {
+        if (isAdmin) {
+            karmaContainer.style.display = 'none'; // Nasconde l'intero blocco del Karma per l'admin
+        } else {
+            karmaContainer.style.display = 'flex'; // Lo ripristina per i giocatori normali
+            if(karmaEl) {
+                karmaEl.textContent = karma;
+                const badge = karmaEl.parentElement;
+                badge.classList.remove('positive', 'negative');
+                if (karma < 0) badge.classList.add('negative');
+                else if (karma > 0) badge.classList.add('positive');
+            }
+        }
     }
     
     const notesEl = document.getElementById('modal-op-notes');
