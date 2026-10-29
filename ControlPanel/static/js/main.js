@@ -482,6 +482,15 @@ window.openAddPlayerModal = function() {
 window.closeAddPlayerModal = function() { document.getElementById('add-player-modal').classList.add('hidden'); };
 window.closeModal = function() { document.getElementById('operator-modal').classList.add('hidden'); };
 
+window.deleteOperatorPhoto = function() {
+    const uid = getCurrentProfileUid();
+    if (uid && confirm("Vuoi eliminare la foto profilo di questo operatore?")) {
+        socket.emit('update_db_player', { uid: uid, action: 'delete_photo' });
+        // Ricarica automaticamente il profilo per aggiornare l'immagine al placeholder
+        setTimeout(() => { socket.emit('request_profile', {uid: uid}); }, 100); 
+    }
+};
+
 socket.on('raw_tag_scanned', (data) => {
     const modal = document.getElementById('registration-modal');
     if (modal && !modal.classList.contains('hidden')) {

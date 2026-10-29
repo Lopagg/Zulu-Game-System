@@ -227,6 +227,7 @@ def handle_update_db_player(data):
     elif action == 'reset_stats': db_manager.reset_player_stats(uid)
     elif action == 'toggle_pro': db_manager.toggle_pro_status(uid)
     elif action == 'edit_asd': db_manager.update_player_asd(uid, value)
+    elif action == 'delete_photo': db_manager.delete_player_photo(uid)
     
     socketio.emit('roster_update', db_manager.get_full_roster())
     socketio.emit('database_update', db_manager.get_all_players())

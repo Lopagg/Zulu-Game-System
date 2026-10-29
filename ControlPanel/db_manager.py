@@ -215,8 +215,12 @@ def update_player_photo(uid, filename):
 
 def reset_player_stats(uid):
     with sqlite3.connect(DB_PATH) as conn:
-        # Aggiunto deaths = 0
-        conn.execute("UPDATE players SET games_played = 0, wins = 0, deaths = 0, karma = 0, notes = '', photo = NULL WHERE uid = ?", (uid,))
+        conn.execute("UPDATE players SET games_played = 0, wins = 0, deaths = 0, karma = 0, notes = '' WHERE uid = ?", (uid,))
+        conn.commit()
+
+def delete_player_photo(uid):
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("UPDATE players SET photo = NULL WHERE uid = ?", (uid,))
         conn.commit()
 
 def update_player_karma(uid, new_karma):
