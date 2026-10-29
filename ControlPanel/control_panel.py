@@ -59,6 +59,8 @@ def fetch_weather():
             if cw:
                 temp = round(cw.get('temperature', 0))
                 code = cw.get('weathercode', 0)
+                is_day = cw.get('is_day', 1) # <--- Legge 1 per Giorno, 0 per Notte
+                
                 condition = "CLEAR"
                 if 1 <= code <= 3: condition = "CLOUDS"
                 elif 45 <= code <= 48: condition = "FOG"
@@ -66,6 +68,11 @@ def fetch_weather():
                 elif 71 <= code <= 77: condition = "SNOW"
                 elif 80 <= code <= 82: condition = "SHOWERS"
                 elif code >= 95: condition = "STORM"
+                
+                # --- APPLICA LA VARIANTE NOTTURNA ---
+                if is_day == 0 and condition in ["CLEAR", "CLOUDS"]:
+                    condition += "_NIGHT"
+                
                 cached_weather = f"{temp}°C // {condition}"
                 last_weather_update = now
         except: pass
