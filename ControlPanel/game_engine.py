@@ -23,6 +23,13 @@ def trigger_end_match_sequence(end_state):
         socketio.emit('database_update', db_manager.get_all_players())
         socketio.emit('factions_update', db_manager.get_factions_config())
 
+def trigger_siren(siren_type="SIREN_LONG"):
+    logger.info(f"[GAME ENGINE] Sirena attivata: {siren_type}")
+    try: 
+        mqtt_client.publish("zulu/cmd/broadcast", json.dumps({"cmd": siren_type}))
+    except Exception as e: 
+        logger.error(f"[SIREN ERROR] {e}")
+
 class BaseGameMode:
     def __init__(self, mission_ctrl): self.mc = mission_ctrl
     def tick(self, alpha_in, bravo_in): pass 
