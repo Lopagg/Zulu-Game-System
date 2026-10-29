@@ -49,6 +49,11 @@ def init_db():
         c.execute("UPDATE players SET asd_team = 'NESSUNA' WHERE asd_team IS NULL")
         c.execute("UPDATE players SET original_alias = alias WHERE original_alias IS NULL")
 
+        try: c.execute("UPDATE players SET username = NULL WHERE username IS NULL")
+        except sqlite3.OperationalError: pass
+        try: c.execute("UPDATE players SET password_hash = NULL WHERE password_hash IS NULL")
+        except sqlite3.OperationalError: pass
+
         c.execute('''CREATE TABLE IF NOT EXISTS active_roster (uid TEXT PRIMARY KEY, team TEXT, status TEXT)''')
         c.execute('''CREATE TABLE IF NOT EXISTS device_aliases (device_id TEXT PRIMARY KEY, alias TEXT)''')
         c.execute('''CREATE TABLE IF NOT EXISTS factions_config (team_id TEXT PRIMARY KEY, display_name TEXT)''')
@@ -242,7 +247,16 @@ def update_player_asd(uid, asd_team):
 
 def toggle_pro_status(uid):
     with sqlite3.connect(DB_PATH) as conn:
-        conn.execute("UPDATE players SET is_pro = CASE WHEN is_pro = 1 THEN 0 ELSE 1 END WHERE uid = ?", (uid,))
+        c = conn.cursor()
+        c.execute("SELECT is_pro FROM players WHERE uid = ?", (uid,))
+        is_pro = c.fetchone()[0]
+        
+        if is_pro == 1:
+            # Da PRO a GUEST -> Cancella username e password
+            conn.execute("UPDATE players SET is_pro = 0, username = NULL, password_hash = NULL WHERE uid = ?", (uid,))
+        else:
+            # Da GUEST a PRO
+            conn.execute("UPDATE players SET is_pro = 1 WHERE uid = ?", (uid,))
         conn.commit()
 
 def purge_guest_data():

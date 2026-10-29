@@ -36,9 +36,6 @@ USERS = {
 from functools import wraps
 from flask import abort
 
-from functools import wraps
-from flask import abort
-
 class User(UserMixin):
     def __init__(self, id, role="admin", name=None):
         self.id = id
