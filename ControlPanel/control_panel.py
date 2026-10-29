@@ -188,7 +188,14 @@ def handle_update_operator(data):
     elif action == 'swap': db_manager.swap_player_team(uid)
     elif action == 'status_toggle':
         row = db_manager.get_player_status(uid)
-        if row: db_manager.toggle_player_status(uid, row[0])
+        if row:
+            new_status = db_manager.toggle_player_status(uid, row[0])
+            
+            if new_status == 'FUORI':
+                with game_engine.mission_control.lock:
+                    is_active = (game_engine.mission_control.active_mission and game_engine.mission_control.state == "ACTIVE")
+                if is_active:
+                    db_manager.increment_death(uid)
     elif action == 'delete': db_manager.remove_from_roster(uid)
     socketio.emit('roster_update', db_manager.get_full_roster())
 
@@ -284,6 +291,13 @@ def handle_mobile_scan(data):
         row = db_manager.get_player_status(uid)
         if row:
             new_status = db_manager.toggle_player_status(uid, row[0])
+            
+            if new_status == 'FUORI':
+                with game_engine.mission_control.lock:
+                    is_active = (game_engine.mission_control.active_mission and game_engine.mission_control.state == "ACTIVE")
+                if is_active:
+                    db_manager.increment_death(uid)
+                    
             socketio.emit('roster_update', db_manager.get_full_roster())
             emit('mobile_scan_reply', {'success': True, 'uid': uid, 'status': new_status, 'team': row[1]})
         else:

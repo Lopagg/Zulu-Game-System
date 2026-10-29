@@ -108,7 +108,9 @@ export function renderDatabase(players, socket, arenaRoster) {
         const isPro = player.is_pro === 1;
         const badge = isPro ? '<span class="pro-badge">[★ PRO]</span>' : '<span class="guest-badge">[GUEST]</span>';
         
-        nameSpan.innerHTML = `${badge} ${player.alias} <span style="font-size: 16px; font-weight: normal; color: #aaa; margin-left: 15px; font-family: monospace;">(UID: ${player.uid}) &nbsp;&nbsp;|&nbsp;&nbsp; P: <span style="color:var(--sop-primary); font-weight:bold">${games}</span> &nbsp;&nbsp;V: <span style="color:var(--sop-success); font-weight:bold">${wins}</span> <span style="color: #666; font-size:14px;">(${winRate}%)</span></span>`;
+        const deaths = player.deaths || 0;
+        
+        nameSpan.innerHTML = `${badge} ${player.alias} <span style="font-size: 16px; font-weight: normal; color: #aaa; margin-left: 15px; font-family: monospace;">(UID: ${player.uid}) &nbsp;&nbsp;|&nbsp;&nbsp; P: <span style="color:var(--sop-primary); font-weight:bold">${games}</span> &nbsp;&nbsp;V: <span style="color:var(--sop-success); font-weight:bold">${wins}</span> &nbsp;&nbsp;D: <span style="color:var(--sop-alert); font-weight:bold">${deaths}</span> <span style="color: #666; font-size:14px;">(${winRate}%)</span></span>`;
         nameSpan.style.fontWeight = 'bold'; 
         nameSpan.style.fontSize = '22px'; 
         nameSpan.className = 'clickable-name';
@@ -191,6 +193,8 @@ export function populateProfileModal(data) {
     
     setEl('modal-stat-games', games);
     setEl('modal-stat-wins', wins);
+    const deaths = data.deaths || 0;
+    setEl('modal-stat-deaths', deaths);
     setEl('modal-stat-rate', `${winRate}%`);
     
     const isPro = data.is_pro === 1;

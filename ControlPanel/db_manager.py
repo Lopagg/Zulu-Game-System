@@ -24,9 +24,10 @@ def init_db():
         except sqlite3.OperationalError: pass
         try: c.execute("ALTER TABLE players ADD COLUMN wins INTEGER DEFAULT 0")
         except sqlite3.OperationalError: pass
+        try: c.execute("ALTER TABLE players ADD COLUMN deaths INTEGER DEFAULT 0") # <--- NUOVA COLONNA
+        except sqlite3.OperationalError: pass
         try: c.execute("ALTER TABLE players ADD COLUMN karma INTEGER DEFAULT 0")
         except sqlite3.OperationalError: pass
-        
         try: c.execute("ALTER TABLE players ADD COLUMN is_pro INTEGER DEFAULT 0")
         except sqlite3.OperationalError: pass
         try: c.execute("ALTER TABLE players ADD COLUMN tag_info TEXT DEFAULT 'NTAG215'")
@@ -38,19 +39,15 @@ def init_db():
 
         c.execute("UPDATE players SET games_played = 0 WHERE games_played IS NULL")
         c.execute("UPDATE players SET wins = 0 WHERE wins IS NULL")
+        c.execute("UPDATE players SET deaths = 0 WHERE deaths IS NULL") # <--- DEFAULT A 0
         c.execute("UPDATE players SET karma = 0 WHERE karma IS NULL")
         c.execute("UPDATE players SET is_pro = 0 WHERE is_pro IS NULL")
         c.execute("UPDATE players SET asd_team = 'NESSUNA' WHERE asd_team IS NULL")
         c.execute("UPDATE players SET original_alias = alias WHERE original_alias IS NULL")
 
-        c.execute('''CREATE TABLE IF NOT EXISTS active_roster
-                     (uid TEXT PRIMARY KEY, team TEXT, status TEXT)''')
-                     
-        c.execute('''CREATE TABLE IF NOT EXISTS device_aliases
-                     (device_id TEXT PRIMARY KEY, alias TEXT)''')
-        
-        c.execute('''CREATE TABLE IF NOT EXISTS factions_config
-                     (team_id TEXT PRIMARY KEY, display_name TEXT)''')
+        c.execute('''CREATE TABLE IF NOT EXISTS active_roster (uid TEXT PRIMARY KEY, team TEXT, status TEXT)''')
+        c.execute('''CREATE TABLE IF NOT EXISTS device_aliases (device_id TEXT PRIMARY KEY, alias TEXT)''')
+        c.execute('''CREATE TABLE IF NOT EXISTS factions_config (team_id TEXT PRIMARY KEY, display_name TEXT)''')
                      
         try: c.execute("ALTER TABLE factions_config ADD COLUMN hex_color TEXT")
         except sqlite3.OperationalError: pass
@@ -59,7 +56,6 @@ def init_db():
         
         c.execute("INSERT OR IGNORE INTO factions_config (team_id, display_name, hex_color, daily_wins) VALUES ('ALPHA', 'ALPHA', '#ff3333', 0)")
         c.execute("INSERT OR IGNORE INTO factions_config (team_id, display_name, hex_color, daily_wins) VALUES ('BRAVO', 'BRAVO', '#55ff55', 0)")
-        
         c.execute("UPDATE factions_config SET hex_color = '#ff3333' WHERE team_id = 'ALPHA' AND hex_color IS NULL")
         c.execute("UPDATE factions_config SET hex_color = '#55ff55' WHERE team_id = 'BRAVO' AND hex_color IS NULL")
         c.execute("UPDATE factions_config SET daily_wins = 0 WHERE daily_wins IS NULL")
@@ -219,7 +215,8 @@ def update_player_photo(uid, filename):
 
 def reset_player_stats(uid):
     with sqlite3.connect(DB_PATH) as conn:
-        conn.execute("UPDATE players SET games_played = 0, wins = 0, karma = 0, notes = '', photo = NULL WHERE uid = ?", (uid,))
+        # Aggiunto deaths = 0
+        conn.execute("UPDATE players SET games_played = 0, wins = 0, deaths = 0, karma = 0, notes = '', photo = NULL WHERE uid = ?", (uid,))
         conn.commit()
 
 def update_player_karma(uid, new_karma):
@@ -239,16 +236,23 @@ def toggle_pro_status(uid):
 
 def purge_guest_data():
     with sqlite3.connect(DB_PATH) as conn:
-        conn.execute("UPDATE players SET alias = original_alias, games_played = 0, wins = 0, karma = 0, notes = '', photo = NULL, asd_team = 'NESSUNA' WHERE is_pro = 0")
+        # Aggiunto deaths = 0
+        conn.execute("UPDATE players SET alias = original_alias, games_played = 0, wins = 0, deaths = 0, karma = 0, notes = '', photo = NULL, asd_team = 'NESSUNA' WHERE is_pro = 0")
         conn.commit()
         logger.info("[DB] Eseguita pulizia massiva (Purge) e ripristino per tutti i GUEST.")
+
+def increment_death(uid):
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("UPDATE players SET deaths = COALESCE(deaths, 0) + 1 WHERE uid = ?", (uid,))
+        conn.commit()
 
 def process_match_stats(winner_state):
     raw_state = str(winner_state).strip().upper()
     logger.info(f"[DB] Analisi verdetto di fine partita per statistiche: '{raw_state}'")
     
-    if raw_state in ['STOPPED', 'STANDBY', 'DRAW', 'PREPARING']:
-        logger.info("[DB] Nessuna vittoria assegnata (Partita chiusa, pari o abortita).")
+    # Rimosso 'DRAW'. Le partite fermate in manuale o annullate restano escluse.
+    if raw_state in ['STOPPED', 'STANDBY', 'PREPARING']:
+        logger.info("[DB] Nessuna partita valida salvata (Partita abortita o in preparazione).")
         return
         
     winning_team = None
@@ -256,16 +260,15 @@ def process_match_stats(winner_state):
     alpha_name = config.get('ALPHA', {}).get('name', 'ALPHA').upper()
     bravo_name = config.get('BRAVO', {}).get('name', 'BRAVO').upper()
     
-    if "ALPHA" in raw_state or "T WINS" in raw_state:
+    # Se è pareggio, il winning_team resta volutamente None
+    if raw_state == 'DRAW':
+        winning_team = None
+    elif "ALPHA" in raw_state or "T WINS" in raw_state or alpha_name in raw_state:
         winning_team = 'ALPHA'
-    elif "BRAVO" in raw_state or "CT WINS" in raw_state:
-        winning_team = 'BRAVO'
-    elif alpha_name in raw_state:
-        winning_team = 'ALPHA'
-    elif bravo_name in raw_state:
+    elif "BRAVO" in raw_state or "CT WINS" in raw_state or bravo_name in raw_state:
         winning_team = 'BRAVO'
         
-    if not winning_team:
+    if not winning_team and raw_state != 'DRAW':
         logger.warning(f"[DB] ATTENZIONE: Impossibile determinare la squadra vincente da '{raw_state}'.")
         return
 
@@ -279,13 +282,22 @@ def process_match_stats(winner_state):
             w_count = 0
             for uid, team in players:
                 p_count += 1
+                # Incrementiamo in ogni caso le Partite Giocate per tutti
                 c.execute("UPDATE players SET games_played = COALESCE(games_played, 0) + 1 WHERE uid = ?", (uid,))
-                if team == winning_team:
+                
+                # Assegniamo le vittorie solo se non è pareggio e la squadra corrisponde
+                if winning_team and team == winning_team:
                     w_count += 1
                     c.execute("UPDATE players SET wins = COALESCE(wins, 0) + 1 WHERE uid = ?", (uid,))
             
-            c.execute("UPDATE factions_config SET daily_wins = COALESCE(daily_wins, 0) + 1 WHERE team_id = ?", (winning_team,))
+            if winning_team:
+                c.execute("UPDATE factions_config SET daily_wins = COALESCE(daily_wins, 0) + 1 WHERE team_id = ?", (winning_team,))
+            
             conn.commit()
-            logger.info(f"[STATS SALVATE] +1 Partita a {p_count} giocatori | +1 Vittoria a {w_count} giocatori del Team {winning_team} e +1 Vittoria alla Fazione.")
+            
+            if winning_team:
+                logger.info(f"[STATS SALVATE] +1 Partita a {p_count} giocatori | +1 Vittoria a {w_count} giocatori del Team {winning_team} e +1 Vittoria Fazione.")
+            else:
+                logger.info(f"[STATS SALVATE] PAREGGIO: +1 Partita aggiunta a {p_count} giocatori, nessuna vittoria assegnata.")
     except Exception as e:
         logger.error(f"[ERROR STATS] {e}")

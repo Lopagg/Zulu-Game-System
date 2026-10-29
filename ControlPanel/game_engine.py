@@ -357,6 +357,15 @@ def on_mqtt_message(client, userdata, msg):
                     if row:
                         new_status = db_manager.toggle_player_status(uid, row[0])
                         reply_action = f"{new_status}_{row[1]}" 
+                        
+                        # --- NUOVA LOGICA MORTI ---
+                        if new_status == 'FUORI':
+                            with mission_control.lock:
+                                is_active = (mission_control.active_mission and mission_control.state == "ACTIVE")
+                            if is_active:
+                                db_manager.increment_death(uid)
+                                logger.info(f"[DEATH] Operatore {uid} eliminato (uscito durante partita attiva).")
+                        
                         socketio.emit('roster_update', db_manager.get_full_roster())
                     else:
                         reply_action = "WAIT_ASSIGN"
