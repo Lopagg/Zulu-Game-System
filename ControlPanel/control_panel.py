@@ -33,18 +33,39 @@ USERS = {
     "topgun": { "password_hash": "scrypt:32768:8:1$7OpLxyv7XJkDXsrf$f1b769dd4f3496651e6c3a17cc56b4aa0469985e8a1ae0655eec9a93456e04cb501259345d00607e534a7822dbac4e4394a0b6f09315b5deeae29930b43eee67", "name": "TopGun" }
 }
 
+from functools import wraps
+from flask import abort
+
 class User(UserMixin):
-    def __init__(self, id):
+    def __init__(self, id, role="admin", name=None):
         self.id = id
-        self.name = USERS[id]['name']
+        self.role = role
+        self.name = name or id
         
     @staticmethod
     def get(user_id):
-        if user_id in USERS: return User(user_id)
+        # 1. Controlla se è un Admin (Dizionario USERS hardcodato)
+        if user_id in USERS: 
+            return User(user_id, role="admin", name=USERS[user_id]['name'])
+            
+        # 2. Se non è Admin, controlla se è l'UID di un giocatore PRO nel database
+        player = db_manager.get_player_profile(user_id)
+        if player and player['is_pro'] == 1:
+            return User(user_id, role="player", name=player['alias'])
+            
         return None
 
 @login_manager.user_loader
 def load_user(user_id): return User.get(user_id)
+
+# --- NUOVO LUCCHETTO PER GLI ADMIN ---
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated or current_user.role != 'admin':
+            return abort(403) # Accesso Negato (Forbidden)
+        return f(*args, **kwargs)
+    return decorated_function
 
 last_weather_update = 0
 cached_weather = "--°C // SCANNING..."
@@ -89,14 +110,14 @@ def setup_database():
         app.db_initialized = True
 
 @app.route('/')
-@login_required
+@admin_required
 def index(): return render_template('index.html', username=current_user.name)
 
 @app.route('/tv')
 def tv_dashboard(): return render_template('tv.html')
 
 @app.route('/mobile')
-@login_required
+@admin_required
 def mobile_dashboard(): 
     return render_template('mobile.html', username=current_user.name)
 
@@ -121,8 +142,74 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
-@app.route('/upload_photo', methods=['POST'])
+# --- AREA GIOCATORI PRO ---
+
+@app.route('/portal/login', methods=['GET', 'POST'])
+def player_login():
+    if request.method == 'POST':
+        uid = request.form.get('uid', '').strip().upper()
+        player = db_manager.get_player_profile(uid)
+        
+        if player and player['is_pro'] == 1:
+            user = User(uid, role="player", name=player['alias'])
+            login_user(user)
+            return redirect(url_for('player_portal'))
+            
+        flash('UID non trovato o account non autorizzato (Richiesto account PRO).', 'error')
+    return render_template('player_login.html')
+
+@app.route('/portal/dashboard')
 @login_required
+def player_portal():
+    if current_user.role != 'player': return abort(403)
+    player_data = db_manager.get_player_profile(current_user.id)
+    
+    # Calcolo Win Rate lato backend per comodità del template
+    games = player_data.get('games_played', 0)
+    wins = player_data.get('wins', 0)
+    win_rate = round((wins / games) * 100) if games > 0 else 0
+    player_data['win_rate'] = win_rate
+    
+    return render_template('player_portal.html', player=player_data)
+
+@app.route('/portal/upload_photo', methods=['POST'])
+@login_required
+def upload_photo_player():
+    if current_user.role != 'player': return jsonify({"status": "error"}), 403
+    if 'photo' not in request.files: return jsonify({"status": "error"}), 400
+    
+    file = request.files['photo']
+    if file.filename != '':
+        # Sicurezza: Sovrascrive SOLO l'ID dell'utente attualmente loggato
+        filename = secure_filename(f"op_{current_user.id}.jpg")
+        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        db_manager.update_player_photo(current_user.id, filename)
+        return jsonify({"status": "ok", "filename": filename})
+    return jsonify({"status": "error"}), 400
+
+@app.route('/portal/rename', methods=['POST'])
+@login_required
+def rename_player_portal():
+    # Sicurezza: solo i ruoli 'player' possono usare questa funzione
+    if current_user.role != 'player': return jsonify({"status": "error"}), 403
+    
+    new_name = request.form.get('new_name')
+    if new_name and new_name.strip() != '':
+        clean_name = new_name.strip().upper()
+        # Aggiorna il database
+        db_manager.rename_player(current_user.id, clean_name)
+        
+        # Invia un broadcast in tempo reale a tutte le interfacce (TV, Kiosk, Monitor) 
+        # per aggiornare il nome istantaneamente ovunque
+        socketio.emit('database_update', db_manager.get_all_players())
+        socketio.emit('roster_update', db_manager.get_full_roster())
+        
+        return jsonify({"status": "ok", "new_name": clean_name})
+        
+    return jsonify({"status": "error"}), 400
+
+@app.route('/upload_photo', methods=['POST'])
+@admin_required
 def upload_photo():
     if 'photo' not in request.files or 'uid' not in request.form: return jsonify({"status": "error"}), 400
     file = request.files['photo']

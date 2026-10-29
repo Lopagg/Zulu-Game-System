@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SOP NODE // PRO ACCESS</title>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="sop-theme login-body">
+    <div class="tactical-background"><div class="grid-overlay"></div><div class="scan-line"></div></div>
+
+    <div class="login-wrapper">
+        <div class="sop-panel login-box">
+            <div class="login-header">
+                <h1>SOP // PORTAL</h1>
+                <div class="sub">PRO OPERATOR ACCESS</div>
+            </div>
+
+            {% with messages = get_flashed_messages(category_filter=["error"]) %}
+              {% if messages %}
+                <div class="error-console">
+                  {% for message in messages %}
+                    <div class="error-line">> {{ message }}</div>
+                  {% endfor %}
+                </div>
+              {% endif %}
+            {% endwith %}
+
+            <form class="login-form" method="POST" action="{{ url_for('player_login') }}">
+                <div>
+                    <label>UID TESSERA (14 CARATTERI)</label>
+                    <input type="text" name="uid" placeholder="Es. 04863EB76F6180" required autofocus autocomplete="off" style="text-transform: uppercase;">
+                </div>
+                <button type="submit" class="deck-btn login-btn">[ INIZIALIZZA CONNESSIONE ]</button>
+            </form>
+            <div style="text-align: center; margin-top: 20px; font-size: 12px; color: #888;">
+                Utilizza un'App NFC sul telefono per leggere il codice UID della tua tessera.
+            </div>
+        </div>
+    </div>
+</body>
+</html>
