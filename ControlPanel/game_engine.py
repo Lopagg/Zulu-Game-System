@@ -29,27 +29,41 @@ class BaseGameMode:
     def handle_event(self, device_id, payload): pass 
 
 class TDMEngine(BaseGameMode):
+    def __init__(self, mission_ctrl):
+        super().__init__(mission_ctrl)
+        self.alpha_zero_ticks = 0
+        self.bravo_zero_ticks = 0
+        self.grace_period = 5  # Secondi di tolleranza prima della sconfitta per annientamento
+
     def tick(self, alpha_in, bravo_in):
         mc = self.mc
         if mc.global_time_left > 0: mc.global_time_left -= 1
         match_ends = False
         end_state_str = "ACTIVE"
         
+        # Gestione tolleranza (Grace Period)
+        if alpha_in == 0: self.alpha_zero_ticks += 1
+        else: self.alpha_zero_ticks = 0
+            
+        if bravo_in == 0: self.bravo_zero_ticks += 1
+        else: self.bravo_zero_ticks = 0
+        
+        # Condizioni di vittoria
         if mc.global_time_left <= 0:
             match_ends = True
             if alpha_in > bravo_in: end_state_str = "ALPHA WINS"
             elif bravo_in > alpha_in: end_state_str = "BRAVO WINS"
             else: end_state_str = "DRAW"
             
-        if alpha_in == 0 and bravo_in > 0:
-            match_ends = True
-            end_state_str = "BRAVO WINS"
-        elif bravo_in == 0 and alpha_in > 0:
-            match_ends = True
-            end_state_str = "ALPHA WINS"
-        elif alpha_in == 0 and bravo_in == 0:
+        elif self.alpha_zero_ticks >= self.grace_period and self.bravo_zero_ticks >= self.grace_period:
             match_ends = True
             end_state_str = "DRAW"
+        elif self.alpha_zero_ticks >= self.grace_period and bravo_in > 0:
+            match_ends = True
+            end_state_str = "BRAVO WINS"
+        elif self.bravo_zero_ticks >= self.grace_period and alpha_in > 0:
+            match_ends = True
+            end_state_str = "ALPHA WINS"
             
         if match_ends:
             mc.state = end_state_str
