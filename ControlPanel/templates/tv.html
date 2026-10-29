@@ -121,6 +121,19 @@
             display: flex; flex-direction: column; justify-content: flex-end;
             font-family: monospace; line-height: 1.5;
         }
+
+        /* --- ANIMAZIONI IN/OUT ROSTER --- */
+        @keyframes slideInLeft {
+            0% { opacity: 0; transform: translateX(-50px); max-height: 0; padding-top: 0; padding-bottom: 0; margin-top: 0; border-width: 0; }
+            100% { opacity: 1; transform: translateX(0); max-height: 80px; padding-top: 10px; padding-bottom: 10px; margin-top: 0; border-width: 6px; }
+        }
+        @keyframes slideOutRight {
+            0% { opacity: 1; transform: translateX(0); max-height: 80px; padding-top: 10px; padding-bottom: 10px; margin-top: 0; border-width: 6px; }
+            100% { opacity: 0; transform: translateX(50px); max-height: 0; padding-top: 0; padding-bottom: 0; margin-top: 0; border-width: 0; overflow: hidden; }
+        }
+        .anim-enter { animation: slideInLeft 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+        .anim-exit { animation: slideOutRight 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+
     </style>
 </head>
 <body class="sop-theme">
@@ -270,6 +283,7 @@
             BRAVO: { name: 'BRAVO', color: '#55ff55' } 
         };
         let currentTvMode = null;
+        let renderedRoster = new Set();
         
         setInterval(() => {
             document.getElementById('tv-clock').textContent = new Date().toLocaleTimeString('it-IT', { hour12: false });
@@ -292,23 +306,22 @@
 
         function adjustFontSize(listId) {
             const ul = document.getElementById(listId);
-            const container = ul.parentElement; // Il div contenitore che gli dà il limite
-            const lis = ul.querySelectorAll('li');
+            const container = ul.parentElement;
+            
+            // Ignoriamo gli elementi che hanno l'animazione di uscita attiva
+            const lis = Array.from(ul.querySelectorAll('li')).filter(li => !li.classList.contains('anim-exit'));
             if (lis.length === 0) return;
 
-            // 1. Ripristina i valori di default prima di ricalcolare
             ul.style.gap = '10px';
             lis.forEach(li => {
                 li.style.fontSize = '2.2rem';
                 li.style.padding = '10px 15px';
             });
 
-            // 2. Misura e rimpicciolisci iterativamente se "sfora"
             let fontSize = 2.2;
             let padding = 10;
             let gap = 10;
 
-            // Finché l'altezza del contenuto è maggiore dell'altezza del contenitore e il font non è minuscolo
             while (ul.scrollHeight > container.clientHeight && fontSize > 1.0) {
                 fontSize -= 0.1;
                 if (padding > 4) padding -= 0.5;
@@ -360,26 +373,62 @@
             let a = 0, b = 0;
             const listAlpha = document.getElementById('tv-list-alpha');
             const listBravo = document.getElementById('tv-list-bravo');
-            listAlpha.innerHTML = ''; listBravo.innerHTML = '';
             
-            Object.values(roster).forEach(op => {
+            const currentRoster = new Set();
+
+            Object.entries(roster).forEach(([uid, op]) => {
                 if (op.status === 'IN') {
-                    const li = document.createElement('li');
-                    li.textContent = op.name; 
-                    if (op.team === 'ALPHA') { a++; listAlpha.appendChild(li); }
-                    if (op.team === 'BRAVO') { b++; listBravo.appendChild(li); }
+                    currentRoster.add(uid);
+                    if (op.team === 'ALPHA') a++;
+                    if (op.team === 'BRAVO') b++;
+
+                    // Cerchiamo l'elemento. Se non esiste, lo creiamo con l'animazione IN
+                    let li = document.getElementById('tv-op-' + uid);
+                    if (!li) {
+                        li = document.createElement('li');
+                        li.id = 'tv-op-' + uid;
+                        li.textContent = op.name;
+                        li.classList.add('anim-enter');
+                        
+                        if (op.team === 'ALPHA') listAlpha.appendChild(li);
+                        if (op.team === 'BRAVO') listBravo.appendChild(li);
+                    } else {
+                        // Se l'elemento stava uscendo ma l'operatore è rientrato subito (Errore arbitro)
+                        if (li.classList.contains('anim-exit')) {
+                            li.classList.remove('anim-exit');
+                            li.classList.add('anim-enter');
+                        }
+                    }
                 }
             });
+
+            // Troviamo chi era a schermo ma non è più in campo
+            renderedRoster.forEach(uid => {
+                if (!currentRoster.has(uid)) {
+                    const li = document.getElementById('tv-op-' + uid);
+                    if (li) {
+                        li.classList.remove('anim-enter');
+                        li.classList.add('anim-exit'); // Avvia animazione di uscita
+                        
+                        // Lo eliminiamo fisicamente dal codice HTML dopo 450ms (a fine animazione)
+                        setTimeout(() => {
+                            if (li.parentElement) li.parentElement.removeChild(li);
+                        }, 450);
+                    }
+                }
+            });
+
+            // Aggiorniamo la memoria per il prossimo ciclo
+            renderedRoster = currentRoster;
+
             document.getElementById('tv-op-alpha').textContent = a;
             document.getElementById('tv-op-bravo').textContent = b;
 
-            // --- AUTO-FIT DEI FONT ---
-            // Usa setTimeout per assicurarsi che il DOM abbia disegnato gli elementi 
-            // prima di misurarne l'altezza reale
+            // Ricalcoliamo il font ritardando di 500ms, quando le uscite sono sparite
             setTimeout(() => {
                 adjustFontSize('tv-list-alpha');
                 adjustFontSize('tv-list-bravo');
-            }, 50);
+            }, 500);
         });
 
         socket.on('esp_event', (msg) => {
