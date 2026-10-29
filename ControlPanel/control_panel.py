@@ -8,6 +8,7 @@ import json
 import time
 import os
 import urllib.request
+import sqlite3
 
 import db_manager 
 import game_engine
@@ -17,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'philanthropy_secret_key_change_in_prod'
+app.config['SESSION_PROTECTION'] = 'strong'
 
 UPLOAD_FOLDER = os.path.join(app.root_path, 'static', 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -61,8 +63,14 @@ def load_user(user_id): return User.get(user_id)
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated or current_user.role != 'admin':
+        # 1. Se l'utente non è proprio loggato, rimandalo alla schermata di Login
+        if not current_user.is_authenticated:
+            return redirect(url_for('login'))
+        
+        # 2. Se è loggato ma ha ruolo 'player' o 'player_setup', negagli l'accesso al pannello
+        if current_user.role != 'admin':
             return abort(403)
+            
         return f(*args, **kwargs)
     return decorated_function
 
@@ -102,6 +110,14 @@ def fetch_weather():
 def setup_database():
     if not hasattr(app, 'db_initialized'):
         db_manager.init_db()
+        
+        # --- FIX: Forza la pulizia di vecchi tentativi falliti di password ---
+        with sqlite3.connect(db_manager.DB_PATH) as conn:
+            try:
+                conn.execute("UPDATE players SET username = NULL, password_hash = NULL WHERE username IS NOT NULL")
+                conn.commit()
+            except sqlite3.OperationalError: pass
+            
         game_engine.start_mqtt(socketio)  
         if not game_engine.background_thread_started:
             socketio.start_background_task(game_engine.background_cleanup, fetch_weather)
