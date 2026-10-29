@@ -57,6 +57,16 @@ def init_db():
         c.execute('''CREATE TABLE IF NOT EXISTS active_roster (uid TEXT PRIMARY KEY, team TEXT, status TEXT)''')
         c.execute('''CREATE TABLE IF NOT EXISTS device_aliases (device_id TEXT PRIMARY KEY, alias TEXT)''')
         c.execute('''CREATE TABLE IF NOT EXISTS factions_config (team_id TEXT PRIMARY KEY, display_name TEXT)''')
+
+        # --- NUOVA TABELLA PER LO STORICO PARTITE ---
+        c.execute('''CREATE TABLE IF NOT EXISTS match_history (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        uid TEXT,
+                        match_date TEXT,
+                        game_mode TEXT,
+                        result TEXT,
+                        FOREIGN KEY(uid) REFERENCES players(uid)
+                     )''')
                      
         try: c.execute("ALTER TABLE factions_config ADD COLUMN hex_color TEXT")
         except sqlite3.OperationalError: pass
@@ -272,6 +282,8 @@ def increment_death(uid):
         conn.commit()
 
 def process_match_stats(winner_state):
+    import game_engine  # <--- FIX: Import locale per eludere l'import circolare all'avvio
+
     raw_state = str(winner_state).strip().upper()
     logger.info(f"[DB] Analisi verdetto di fine partita per statistiche: '{raw_state}'")
     
@@ -305,15 +317,29 @@ def process_match_stats(winner_state):
             players = c.fetchall()
             p_count = 0
             w_count = 0
+            
+            # 1. Recupero Dati Storico
+            current_timestamp = get_current_time()
+            raw_mode = getattr(game_engine.mission_control, 'mode', None)
+            game_mode = str(raw_mode).upper() if raw_mode else "UNKNOWN"
+            
+            # 2. Ciclo di Analisi Giocatori
             for uid, team in players:
                 p_count += 1
-                # Incrementiamo in ogni caso le Partite Giocate per tutti
                 c.execute("UPDATE players SET games_played = COALESCE(games_played, 0) + 1 WHERE uid = ?", (uid,))
                 
-                # Assegniamo le vittorie solo se non è pareggio e la squadra corrisponde
-                if winning_team and team == winning_team:
-                    w_count += 1
-                    c.execute("UPDATE players SET wins = COALESCE(wins, 0) + 1 WHERE uid = ?", (uid,))
+                if winning_team:
+                    if team == winning_team:
+                        w_count += 1
+                        c.execute("UPDATE players SET wins = COALESCE(wins, 0) + 1 WHERE uid = ?", (uid,))
+                        player_result = "VITTORIA"
+                    else:
+                        player_result = "SCONFITTA"
+                else:
+                    player_result = "PAREGGIO"
+                
+                c.execute("INSERT INTO match_history (uid, match_date, game_mode, result) VALUES (?, ?, ?, ?)", 
+                          (uid, current_timestamp, game_mode, player_result))
             
             if winning_team:
                 c.execute("UPDATE factions_config SET daily_wins = COALESCE(daily_wins, 0) + 1 WHERE team_id = ?", (winning_team,))
@@ -339,3 +365,10 @@ def get_player_by_username(username):
         c.execute("SELECT * FROM players WHERE username = ?", (username,))
         row = c.fetchone()
         return dict(row) if row else None
+
+def get_player_history(uid, limit=10):
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        c.execute("SELECT match_date, game_mode, result FROM match_history WHERE uid = ? ORDER BY match_date DESC LIMIT ?", (uid, limit))
+        return [dict(row) for row in c.fetchall()]

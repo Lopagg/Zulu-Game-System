@@ -54,6 +54,16 @@
                         <div class="data-row" style="margin-bottom: 15px;"><span class="label" style="color: #888;">USERNAME:</span> <span class="value" style="font-family: monospace; color: var(--sop-primary);">{{ player.username }}</span></div>
                         <div class="data-row" style="margin-bottom: 15px;"><span class="label" style="color: #888;">UID TESSERA:</span> <span class="value" style="font-family: monospace;">{{ player.uid }}</span></div>
                         <div class="data-row"><span class="label" style="color: #888;">REGISTRATO IL:</span> <span class="value">{{ player.registered_at }}</span></div>
+                        <div class="data-row" style="margin-top: 15px; border-top: 1px dashed var(--sop-dim); padding-top: 15px;">
+                            <span class="label" style="color: #888;">ULTIMA GIOCATA:</span> 
+                            <span class="value" style="color: var(--sop-primary);">
+                                {% if history %}
+                                    {{ history[0].match_date }}
+                                {% else %}
+                                    MAI IN CAMPO
+                                {% endif %}
+                            </span>
+                        </div>
                     </div>
                     
                     <div class="stats-grid" style="grid-template-columns: repeat(2, 1fr); gap: 20px;">
@@ -73,6 +83,32 @@
                             <span class="stat-lbl">WIN RATE</span>
                             <span class="stat-val" style="color:#aaa; font-size: 45px;">{{ player.win_rate }}%</span>
                         </div>
+                    </div>
+                    <div style="margin-top: 30px; background: rgba(0,0,0,0.4); border: 1px solid var(--sop-dim); padding: 15px;">
+                        <span style="font-size: 14px; color: #888; letter-spacing: 2px; font-weight: bold; display: block; margin-bottom: 15px; border-bottom: 1px solid var(--sop-dim); padding-bottom: 5px;">
+                            STORICO RECENTE (ULTIME 10)
+                        </span>
+                        
+                        {% if history %}
+                            <ul style="list-style: none; padding: 0; margin: 0; max-height: 200px; overflow-y: auto;">
+                                {% for match in history %}
+                                    <li style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed rgba(255,255,255,0.1); padding: 10px 0; font-size: 14px;">
+                                        <span style="color: #aaa; width: 40%;">{{ match.match_date }}</span>
+                                        <span style="color: var(--sop-text); width: 35%;">{{ match.game_mode }}</span>
+                                        
+                                        {% if match.result == 'VITTORIA' %}
+                                            <span style="color: var(--sop-success); font-weight: bold; width: 25%; text-align: right;">VITTORIA</span>
+                                        {% elif match.result == 'SCONFITTA' %}
+                                            <span style="color: var(--sop-alert); font-weight: bold; width: 25%; text-align: right;">SCONFITTA</span>
+                                        {% else %}
+                                            <span style="color: #ff9900; font-weight: bold; width: 25%; text-align: right;">PAREGGIO</span>
+                                        {% endif %}
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <div style="text-align: center; color: var(--sop-dim); padding: 20px;">Nessuna registrazione tattica disponibile.</div>
+                        {% endif %}
                     </div>
                 </div>
 

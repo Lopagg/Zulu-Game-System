@@ -242,7 +242,11 @@ def player_portal():
     games = player_data.get('games_played', 0)
     wins = player_data.get('wins', 0)
     player_data['win_rate'] = round((wins / games) * 100) if games > 0 else 0
-    return render_template('player_portal.html', player=player_data)
+    
+    # Recupera lo storico partite (le ultime 10)
+    history = db_manager.get_player_history(current_user.id)
+    
+    return render_template('player_portal.html', player=player_data, history=history)
 
 @app.route('/portal/upload_photo', methods=['POST'])
 @login_required
