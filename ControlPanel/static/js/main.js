@@ -270,12 +270,17 @@ export function updateSetupDropdown() {
     if (!elSetupTargetSelect) return;
     const currentSelection = elSetupTargetSelect.value;
     elSetupTargetSelect.innerHTML = '<option value="">-- Seleziona nodo target --</option>';
-    currentDevices.filter(d => d.mode === 'MAIN MENU' || d.mode === 'TERMINAL').forEach(d => {
-        const opt = document.createElement('option'); opt.value = d.id; opt.textContent = d.name || d.id; elSetupTargetSelect.appendChild(opt);
+    
+    // FILTRO GENERALIZZATO: Accetta i nodi in MAIN MENU, TERMINAL, o semplicemente in STANDBY
+    currentDevices.filter(d => d.game_state === 'STANDBY' || d.mode === 'MAIN MENU' || d.mode === 'TERMINAL' || d.mode === 'STANDBY').forEach(d => {
+        const opt = document.createElement('option'); 
+        opt.value = d.id; 
+        opt.textContent = d.name || d.id; 
+        elSetupTargetSelect.appendChild(opt);
     });
+    
     if (currentSelection) elSetupTargetSelect.value = currentSelection;
 }
-
 document.getElementById('btn-transmit-setup').addEventListener('click', () => {
     const mode = document.getElementById('setup-mode-select').value;
     let targetId = document.getElementById('setup-target-select').value;
