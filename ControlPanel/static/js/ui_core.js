@@ -109,6 +109,9 @@ function updateInspectorData(device) {
         } else if (device.id === 'SERVER-TDM' || device.mode === 'TEAM_DEATHMATCH') {
             hwTitle.textContent = "VIRTUAL TDM SERVER";
             hwDesc.textContent = "Motore logico software in esecuzione sul server centrale.";
+        } else if (device.version && device.version.includes('V2')) {
+            hwTitle.textContent = "REMOTE ACCESS TERMINAL V2";
+            hwDesc.textContent = "Prop interattivo avanzato I2C/I2S basato su ESP32-S3.";
         } else {
             hwTitle.textContent = "REMOTE ACCESS TERMINAL V1";
             hwDesc.textContent = "Terminale tattico multi-ruolo basato su architettura ESP32.";
